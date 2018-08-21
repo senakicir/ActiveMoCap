@@ -1,0 +1,75 @@
+import numpy as np
+from math import ceil
+from square_bounding_box import *
+
+crop_alpha = 0.95
+
+class Crop:
+
+    def __init__(self, bbox_init = [0,0,1024,576]):
+        self.old_bbox = bbox_init
+        self.bbox = bbox_init
+        self.image_bounds = [0,0]
+        self.scales= [1]
+        self.bounding_box_calculator = BoundingBox(3)
+        self.bounding_box_margin = 3
+
+    def crop(self, image):
+        orig_image_width = image.shape[1]
+        orig_image_height = image.shape[0]
+
+        self.bbox[0] = int(crop_alpha*self.bbox[0] + (1-crop_alpha)*self.old_bbox[0])
+        self.bbox[1] = int(crop_alpha*self.bbox[1] + (1-crop_alpha)*self.old_bbox[1])
+        self.bbox[2] = int(crop_alpha*self.bbox[2] + (1-crop_alpha)*self.old_bbox[2])
+        self.bbox[3] = int(crop_alpha*self.bbox[3] + (1-crop_alpha)*self.old_bbox[3])
+
+        crop_shape = (self.bbox[3], self.bbox[2], image.shape[2])
+        crop_frame = np.zeros(tuple(crop_shape), dtype=image.dtype)
+        if not (self.bbox[0] > image.shape[1] or self.bbox[0] + self.bbox[2] < 0 or
+                        self.bbox[1] > image.shape[0] or self.bbox[1] + self.bbox[3] < 0):
+            img_min_x = max(0, self.bbox[0])
+            img_max_x = min(self.bbox[0] + self.bbox[2], orig_image_width)
+            img_min_y = max(0, self.bbox[1])
+            img_max_y = min(self.bbox[1] + self.bbox[3], orig_image_height)
+            self.image_bounds = [img_min_x, img_min_y]
+
+            crop_min_x = img_min_x-self.bbox[0]
+            crop_max_x = img_max_x-self.bbox[0]
+            crop_min_y = img_min_y-self.bbox[1]
+            crop_max_y = img_max_y-self.bbox[1]
+        else:
+            return None
+
+        crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,
+                                                                            img_min_x:img_max_x,
+                                                                            :]
+        self.scales = []
+        if self.bounding_box_margin == 3:
+            self.scales = [1, 1.5, 2]
+        else:
+            #main_scale = ceil(IDEAL_RATIO/self.bbox[3])
+            #if (main_scale > 1):
+            #    self.scales.append(main_scale - 1)
+            #if (main_scale > 1.5):
+            #    self.scales.append(main_scale - 1.5)
+            #self.scales.append(main_scale + 0.5)
+            #self.scales.append(main_scale + 1)
+            self.scales = [0.5, 0.75, 1, 1.25, 1.5]
+            print(self.scales)
+
+        return crop_frame
+
+    def uncrop_pose(self, pose_2d):
+        pose_2d[0,:] = pose_2d[0,:] + self.image_bounds[0]
+        pose_2d[1,:] = pose_2d[1,:] + self.image_bounds[1]
+
+        return pose_2d
+    
+    def update_bbox(self, pose_2d):
+        new_bbox = self.bounding_box_calculator.get_bounding_box(pose_2d)
+        self.old_bbox = self.bbox 
+        self.bbox = new_bbox
+    
+    def update_bbox_margin(self, margin):
+        self.bounding_box_calculator.update_margin(margin)
+        self.bounding_box_margin = margin
