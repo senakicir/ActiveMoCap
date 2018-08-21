@@ -242,7 +242,10 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         desired_yaw_deg = yaw_candidates[np.argmin(min_diff)]
 
         #move drone!
-        damping_speed = 1
+        if (client.linecount <5):
+            damping_speed = 0.025*client.linecount
+        else:
+            damping_speed = 0.5
         client.moveToPositionAsync(new_pos[0], new_pos[1], new_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         end = time.time()
         elapsed_time = end - start
@@ -295,9 +298,9 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
-    use_airsim = True
+    use_airsim = False
     mode_3d = 0 #0 - gt, 1- naiveback, 2- energy, 3-energy scipy
-    mode_2d = 0 # 0- gt, 1- openpose
+    mode_2d = 1 # 0- gt, 1- openpose
     use_trackbar = False
 
     #animations = [0,1,2,3]

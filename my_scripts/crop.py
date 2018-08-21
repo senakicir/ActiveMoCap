@@ -2,6 +2,7 @@ import numpy as np
 from math import ceil
 from square_bounding_box import *
 
+
 crop_alpha = 0.95
 
 class Crop:
@@ -43,19 +44,9 @@ class Crop:
         crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,
                                                                             img_min_x:img_max_x,
                                                                             :]
-        self.scales = []
-        if self.bounding_box_margin == 3:
-            self.scales = [1, 1.5, 2]
-        else:
-            #main_scale = ceil(IDEAL_RATIO/self.bbox[3])
-            #if (main_scale > 1):
-            #    self.scales.append(main_scale - 1)
-            #if (main_scale > 1.5):
-            #    self.scales.append(main_scale - 1.5)
-            #self.scales.append(main_scale + 0.5)
-            #self.scales.append(main_scale + 1)
-            self.scales = [0.5, 0.75, 1, 1.25, 1.5]
-            print(self.scales)
+                                                                            
+        self.scales = [1, 1.25, 1.5]
+        print(self.scales)
 
         return crop_frame
 

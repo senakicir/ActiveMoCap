@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import time, os
 import cv2
-from math import degrees, radians, pi
+from math import degrees, radians, pi, ceil
 
 from crop import Crop
 from square_bounding_box import *
@@ -20,7 +20,7 @@ energy_mode = {1:True, 0:False}
 LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 CALIBRATION_LOSSES = ["proj", "sym"]
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
-TEST_SETS = {0: "test_set_t", 1: "test_set_05_08", 2: "test_set_38_03", 3: "test_set_64_06", 4: "test_set_02_01"}
+TEST_SETS = {0: "test_set_t", 1: "test_set_05_08", 2: "test_set_38_03", 3: "test_set_64_06", 4: "test_set_02_01",  4.1: "test_set_02_01_far", 4.2: "test_set_02_01_close"}
 
 bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [0, 4], [4, 5], [5, 6], [6, 20], #left leg
@@ -239,7 +239,7 @@ def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_locati
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def save_heatmaps(heatmaps, ind, plot_loc, custom_name=None, scales=None):
+def save_heatmaps(heatmaps, ind, plot_loc, custom_name=None, scales=None, poses=None, bone_connections=None):
     if custom_name == None:
         name = '/heatmaps'
     else: 
@@ -250,10 +250,17 @@ def save_heatmaps(heatmaps, ind, plot_loc, custom_name=None, scales=None):
         ave_heatmaps = np.mean(heatmaps, axis=0)
         plt.imshow(ave_heatmaps)
     elif (heatmaps.ndim == 4):
+        left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
         ave_heatmaps_scales = np.mean(heatmaps, axis=1)
         for scale_ind in range(0, ave_heatmaps_scales.shape[0]):
-            plt.subplot(1, ave_heatmaps_scales.shape[0],scale_ind+1)
+            plt.subplot(2, int(ceil(ave_heatmaps_scales.shape[0]/2)),scale_ind+1)
             plt.imshow(ave_heatmaps_scales[scale_ind, :, :])
+            for i, bone in enumerate(left_bone_connections):    
+                plt.plot( poses[scale_ind, 0, bone], poses[scale_ind, 1,bone], color = "r", linewidth=2)   
+            for i, bone in enumerate(right_bone_connections):    
+                plt.plot( poses[scale_ind, 0, bone], poses[scale_ind, 1,bone], color = "b", linewidth=2)   
+            for i, bone in enumerate(middle_bone_connections):    
+                plt.plot( poses[scale_ind, 0, bone], poses[scale_ind, 1,bone], color = "b", linewidth=2)   
             plt.title(str(scales[scale_ind]))
 
     heatmap_loc = plot_loc + name + str(ind) + '.png'

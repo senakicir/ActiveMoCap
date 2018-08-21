@@ -67,9 +67,17 @@ def run_only_model(image, scales):
 
     heatmap_avg, heatmaps_scales = get_prediction_justmodel(model, image, model_, scales, model_type)
     poses = torch.zeros((2, heatmap_avg.shape[0]-1))
+    poses_scales = torch.zeros((heatmaps_scales.shape[0], 2,heatmap_avg.shape[0]-1))
     for heatmap in range(0, heatmap_avg.shape[0]-1):
         temp = heatmap_avg[heatmap, :, :]
         tempPoses = np.unravel_index(np.argmax(temp), temp.shape)
         poses[:, heatmap] = torch.FloatTensor([tempPoses[1], tempPoses[0]])    
 
-    return poses, heatmap_avg, heatmaps_scales
+    for heatmap_ind in range(0, heatmaps_scales.shape[0]):
+        heatmap_temp = heatmaps_scales[heatmap_ind, :, :]
+        for heatmap in range(0, heatmap_avg.shape[0]-1):
+            temp = heatmap_temp[heatmap, :, :]
+            tempPoses = np.unravel_index(np.argmax(temp), temp.shape)
+            poses_scales[heatmap_ind, :, heatmap] = torch.FloatTensor([tempPoses[1], tempPoses[0]])    
+
+    return poses, heatmap_avg, heatmaps_scales, poses_scales
