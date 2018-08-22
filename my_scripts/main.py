@@ -299,7 +299,7 @@ if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_airsim = False
-    mode_3d = 0 #0 - gt, 1- naiveback, 2- energy, 3-energy scipy
+    mode_3d = 3 #0 - gt, 1- naiveback, 2- energy, 3-energy scipy
     mode_2d = 1 # 0- gt, 1- openpose
     use_trackbar = False
 

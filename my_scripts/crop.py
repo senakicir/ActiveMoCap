@@ -44,9 +44,10 @@ class Crop:
         crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,
                                                                             img_min_x:img_max_x,
                                                                             :]
-                                                                            
-        self.scales = [1, 1.25, 1.5]
-        print(self.scales)
+        #if (self.bounding_box_margin < 3):                                         
+         #   self.scales = [0.75, 1, 1.25, 1.5]
+        #else:
+        self.scales = [0.75, 1, 1.25, 1.5,]
 
         return crop_frame
 

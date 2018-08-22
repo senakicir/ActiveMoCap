@@ -27,7 +27,7 @@ class NonAirSimClient(object):
         self.poseList_3d_calibration = []
         self.end = False
         self.isCalibratingEnergy = True
-        self.boneLengths = CALIBRATION_LENGTH
+        self.boneLengths = 0
         self.lr = 0
         self.mu = 0
         self.iter_3d = 0

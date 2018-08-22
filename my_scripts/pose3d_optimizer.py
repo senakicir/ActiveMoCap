@@ -7,6 +7,9 @@ from torch.autograd import Variable
 def mse_loss(input, target):
     return torch.sum(torch.pow((input - target),2)) / input.data.nelement()
 
+def find_residuals(input_1, input_2):
+    return (torch.pow((input_1 - input_2),2)).view(-1)
+
 class pose3d_calibration(torch.nn.Module):
 
     def __init__(self, model):
@@ -38,6 +41,30 @@ class pose3d_calibration(torch.nn.Module):
     def init_pose3d(self, pose3d_):
         self.pose3d.data[:] = pose3d_.data[:]
 
+#useless
+class pose3d_calibration_2(torch.nn.Module):
+    def __init__(self, model):
+        super(pose3d_calibration_2, self).__init__()
+        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(model)
+        self.pose3d = torch.nn.Parameter(torch.zeros([3, self.NUM_OF_JOINTS]), requires_grad=True)
+
+    def forward(self, pose_2d, R_drone, C_drone):
+        projected_2d, _ = take_bone_projection_pytorch(self.pose3d, R_drone, C_drone)
+        residuals = find_residuals(projected_2d, pose_2d)
+
+        left_bone_connections, right_bone_connections, _ = split_bone_connections(self.bone_connections)
+        bonelosses = Variable(torch.zeros([len(left_bone_connections),]), requires_grad = False)
+        for i, l_bone in enumerate(left_bone_connections):
+            r_bone = right_bone_connections[i]
+            left_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, l_bone[0]] - self.pose3d[:, l_bone[1]], 2)))
+            right_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, r_bone[0]] - self.pose3d[:, r_bone[1]], 2)))
+            bonelosses[i] = torch.pow((left_length_of_bone - right_length_of_bone),2)
+        residuals = torch.cat((residuals, bonelosses), 0)
+
+        return residuals
+    
+    def init_pose3d(self, pose3d_):
+        self.pose3d.data[:] = pose3d_.data[:]
 
 class pose3d_flight(torch.nn.Module):
 
