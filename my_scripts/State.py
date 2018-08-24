@@ -66,13 +66,15 @@ class State(object):
         prediction_human_pos = self.kalman.predict()
         estimated_human_state = self.kalman.correct(self.positions[HUMAN_POS_IND,:])
 
-        self.human_pos = np.copy(estimated_human_state[0:3,0])
-        self.human_vel = np.copy(estimated_human_state[3:6,0])
+        #Kalman parts
+        #self.human_pos = np.copy(estimated_human_state[0:3,0])
+        #self.human_vel = np.copy(estimated_human_state[3:6,0])
 
         ####DELETE LATER
-        #self.human_pos  = self.positions[HUMAN_POS_IND,:]
-        #self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
-        #self.prev_human_pos = self.human_pos
+        self.human_pos  = self.positions[HUMAN_POS_IND,:]
+        self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
+        self.prev_human_pos = self.human_pos
+        ######
         self.human_speed = np.linalg.norm(self.human_vel) #the speed of the human (scalar)
         
         #what angle and polar position is the drone at currently

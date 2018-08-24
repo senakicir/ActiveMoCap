@@ -168,9 +168,9 @@ def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name
     #PLOT STUFF HERE AT THE END OF SIMULATION
     fig1 = plt.figure()
     ax = fig1.add_subplot(111, projection='3d')
-    p1=ax.plot(est_hp_arr[:, 0], est_hp_arr[:, 1], est_hp_arr[:, 2], c='r', marker='^')
-    p2=ax.plot(gt_hp_arr[:, 0], gt_hp_arr[:, 1], gt_hp_arr[:, 2], c='b', marker='^')
-    #plt.legend([p1,p2],["estimated", "GT"])
+    p1, =ax.plot(est_hp_arr[:, 0], est_hp_arr[:, 1], est_hp_arr[:, 2], c='r', marker='^', label="Estimated")
+    p2, =ax.plot(gt_hp_arr[:, 0], gt_hp_arr[:, 1], gt_hp_arr[:, 2], c='b', marker='^', label="GT")
+    plt.legend(handles=[p1, p2])
 
     plt.title(str(errors["error_ave_pos"]))
     plt.savefig(folder_name + '/est_pos_final' + '.png', bbox_inches='tight', pad_inches=0)
@@ -178,30 +178,26 @@ def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name
 
     fig2 = plt.figure()
     ax = fig2.add_subplot(111, projection='3d')
-    p1 = ax.plot(est_hv_arr[:, 0], est_hv_arr[:, 1], est_hv_arr[:, 2], c='r', marker='^')
-    p2 = ax.plot(gt_hv_arr[:, 0], gt_hv_arr[:, 1], gt_hv_arr[:, 2], c='b', marker='^')
-    plt.legend,([p1,p2],["estimated", "GT"])
+    p1, = ax.plot(est_hv_arr[:, 0], est_hv_arr[:, 1], est_hv_arr[:, 2], c='r', marker='^', label="Estimated")
+    p2, = ax.plot(gt_hv_arr[:, 0], gt_hv_arr[:, 1], gt_hv_arr[:, 2], c='b', marker='^', label="GT")
+    plt.legend(handles=[p1, p2])
     plt.title(str(errors["error_ave_vel"]))
     plt.savefig(folder_name + '/est_vel_final' + '.png', bbox_inches='tight', pad_inches=0)
     plt.close()
     #################
 
-def plot_loss_2d(client, folder_name):
-    fig3 = plt.figure()
-    plt.plot(client.error_2d)
-    plt.title("2d loss for each frame")
-    plt.xlabel("Frames")
-    plt.ylabel("Error")
-    plt.savefig(folder_name + '/loss_plot_2d' + '.png', bbox_inches='tight', pad_inches=0)
-    plt.close()
-
-def plot_loss_3d(client, folder_name):
-    fig3 = plt.figure()
-    plt.plot(client.error_3d)
-    plt.title("3d loss for each frame")
-    plt.xlabel("Frames")
-    plt.ylabel("Error")
-    plt.savefig(folder_name + '/loss_plot_3d' + '.png', bbox_inches='tight', pad_inches=0)
+def simple_plot(data, folder_name, plot_name, plot_title="", x_label="", y_label=""):
+    fig1 = plt.figure()
+    average = sum(data)/len(data)
+    p1, = plt.plot(data, label="Average: "+str(average))
+    if (plot_title != ""): 
+        plt.title(plot_title)
+    if (x_label != ""): 
+       plt.xlabel(x_label)
+    if (y_label != ""): 
+        plt.ylabel(y_label)
+    plt.legend(handles=[p1])
+    plt.savefig(folder_name + '/' + plot_title + '.png', bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_location, custom_name=None, scale=-1, projection = np.zeros([1,1])):

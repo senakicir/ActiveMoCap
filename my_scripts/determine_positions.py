@@ -9,19 +9,17 @@ import torch
 import cv2 as cv
 from torch.autograd import Variable
 import time
-from scipy.optimize import minimize, least_squares
-from autograd import grad
+from scipy.optimize import minimize, least_squares, leastsq
+from autograd import grad, jacobian
 
 import util as demo_util
 
 import openpose as openpose_module
 import liftnet as liftnet_module
 
+cropping_tool = Crop()
 objective_flight = pose3d_flight_scipy()
 objective_calib = pose3d_calibration_scipy()
-#objective_jacobian_calib = grad(objective_calib.forward)
-#objective_jacobian_flight = grad(objective_flight.forward)
-cropping_tool = Crop()
 
 
 def determine_all_positions(mode_3d, mode_2d, client, measurement_cov_ = 0,  plot_loc = 0, photo_loc = 0):
@@ -80,13 +78,11 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
     cropped_image = cropping_tool.crop(input_image)
     scales = cropping_tool.scales
     bone_2d, heatmap_2d, heatmaps_scales, poses_scales = determine_2d_positions(mode_2d, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
-    save_heatmaps(heatmap_2d.cpu().numpy(), client.linecount, plot_loc)
-    save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
+    #save_heatmaps(heatmap_2d.cpu().numpy(), client.linecount, plot_loc)
+    #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
     #find 3d pose using liftnet
     pose = torch.cat((torch.t(bone_2d), torch.ones(num_of_joints,1)), 1)
-    #pose = bone_2d
-    #bone_2d = torch.t(bone_2d[:,0:2])
     bone_2d = bone_2d.data.numpy()
     pose3d_lift, _, _ = liftnet_module.run(cropped_image, heatmap_2d.cpu().numpy(), pose)
     pose3d_lift = pose3d_lift.view(num_of_joints+2,  -1).permute(1, 0)
@@ -102,7 +98,7 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
     #uncrop 2d pose 
     bone_2d = cropping_tool.uncrop_pose(bone_2d)
     cropping_tool.update_bbox(numpy_to_tuples(bone_2d))
-    save_image(cropped_image, client.linecount, plot_loc, custom_name="cropped_img_")
+    #save_image(cropped_image, client.linecount, plot_loc, custom_name="cropped_img_")
 
     #add current pose as initial pose. if first frame, take backprojection for initialization
     if (client.linecount != 0):
@@ -117,8 +113,11 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
 
     pltpts = {}
     final_loss = np.zeros([1,1])
-    if (client.linecount >FRAME_START_OPTIMIZING):
+
+    if client.linecount == FRAME_START_OPTIMIZING:
         cropping_tool.update_bbox_margin(1)
+
+    if (client.linecount >1):
         #calibration mode parameters
         if (client.isCalibratingEnergy): 
             if (client.linecount < 8):
@@ -129,34 +128,38 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
             data_list = client.requiredEstimationData_calibration
             energy_weights = {"proj":0.5, "sym":0.5}
             objective = objective_calib
-            #objective_jacobian = objective_jacobian_calib
-            objective.reset(client.model, data_list, energy_weights, loss_dict, num_iterations)
-            pose3d_init = pose3d_.copy()
-            pose3d_init = np.reshape(a = pose3d_init, newshape = [3*num_of_joints], order = "C")
+            pose3d_init_scrambled = pose3d_.copy()
+            pose3d_init = np.reshape(a = pose3d_init_scrambled, newshape = [3*num_of_joints], order = "C")
+            objective.reset(client.model, data_list, energy_weights, loss_dict)
+            objective_jacobian =  objective_calib.jacobian
+            #objective_jacobian = grad(objective_calib.forward)
+            
 
         #flight mode parameters
         else:
-            num_iterations = 5000#client.iter
-
             loss_dict = LOSSES
             data_list = client.requiredEstimationData
             lift_list = client.liftPoseList
             energy_weights = client.weights
             objective = objective_flight
-            #objective_jacobian = objective_jacobian_flight
-            objective.reset(client.model, data_list, lift_list, energy_weights, loss_dict, num_iterations, client.WINDOW_SIZE, client.boneLengths)
-            
+            objective.reset(client.model, data_list, lift_list, energy_weights, loss_dict, client.WINDOW_SIZE, client.boneLengths)
+            objective_jacobian = objective_flight.jacobian
+            #objective_jacobian = grad(objective_flight.forward)
+
             pose3d_init = np.zeros([client.WINDOW_SIZE, 3, num_of_joints])
             for queue_index, pose3d_ in enumerate(client.poseList_3d):
                 pose3d_init[queue_index, :] = pose3d_.copy()
             pose3d_init = np.reshape(a = pose3d_init, newshape = [client.WINDOW_SIZE*3*num_of_joints,], order = "C")
 
-        if (client.linecount < client.WINDOW_SIZE):
-            optimized_res = minimize(objective_calib.forward_powell, pose3d_init, method='Powell', tol=1e-2, options={'maxiter': num_iterations})
-        else:
-            optimized_res = least_squares(objective.forward, pose3d_init, jac="2-point", bounds=(-np.inf, np.inf), method='trf', ftol=1e-3)
+        #if (client.linecount < client.WINDOW_SIZE):
+            #optimized_res = minimize(objective_calib.forward_powell, pose3d_init, method='Powell', tol=1e-2, options={'maxiter': num_iterations})
+           # optimized_res = least_squares(objective.forward, pose3d_init, jac="2-point", bounds=(-np.inf, np.inf), method='trf', ftol=1e-3)
+        #else:
+        optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=client.method, ftol=client.ftol)
+            #P_world_scrambled, _ = leastsq(objective.forward, pose3d_init, Dfun=None, ftol=1e-3)
 
         P_world_scrambled = optimized_res.x
+
         
         if (client.isCalibratingEnergy):
             P_world = np.reshape(a = P_world_scrambled, newshape = [3, num_of_joints], order = "C")

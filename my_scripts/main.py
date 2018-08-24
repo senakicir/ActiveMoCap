@@ -91,7 +91,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     if (parameters == None):
         parameters = {"USE_TRACKBAR": False, "MODE_3D": 0, "MODE_2D":0, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
     if (energy_parameters == None):
-        energy_parameters = {"LR_MU": [0.2, 0.8], "ITER": 3000, "WEIGHTS": {"proj":1,"smooth":0.5, "bone":10}}
+        energy_parameters = {"FTOL": 1e-2, "METHOD": "trf", "WEIGHTS": {"proj":1,"smooth":0.5, "bone":10}}
     
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
     mode_3d = parameters["MODE_3D"]
@@ -124,9 +124,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
     #define some variables
     client.linecount = 0
-    client.lr = energy_parameters["LR_MU"][0]
-    client.mu = energy_parameters["LR_MU"][1]
-    client.iter = energy_parameters["ITER"]
+    client.method = energy_parameters["METHOD"]
+    client.ftol = energy_parameters["FTOL"]
     client.weights = energy_parameters["WEIGHTS"]
     client.model = parameters["MODEL"]
 
@@ -137,6 +136,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
     gt_hp = []
     est_hp = []
+    processing_time = []
 
     filenames_anim = file_names[ANIMATION_NUM]
     foldernames_anim = folder_names[ANIMATION_NUM]
@@ -250,6 +250,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         end = time.time()
         elapsed_time = end - start
         print("elapsed time: ", elapsed_time)
+        processing_time.append(elapsed_time)
         time.sleep(DELTA_T)
 
         #SAVE ALL VALUES OF THIS SIMULATION       
@@ -282,9 +283,10 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     est_hv_arr = np.asarray(est_hv)
     estimate_folder_name = foldernames_anim["estimates"]
     plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, estimate_folder_name)
+    simple_plot(processing_time, estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
     if (mode_3d == 3):
-        plot_loss_2d(client, estimate_folder_name)
-    plot_loss_3d(client, estimate_folder_name)
+        simple_plot(client.error_2d, estimate_folder_name, "error_2d", plot_title="2D error", x_label="Frames", y_label="Error")
+    simple_plot(client.error_3d, estimate_folder_name, "error_3d", plot_title="3D error", x_label="Frames", y_label="Error")
 
     print('End it!')
     f_groundtruth.close()
@@ -319,7 +321,7 @@ if __name__ == "__main__":
     for loss_key in LOSSES:
         weights[loss_key] = weights_[loss_key]/weights_sum
 
-    energy_parameters = {"LR_MU": [1, 0.8], "ITER": 4000, "WEIGHTS": weights}
+    energy_parameters = {"METHOD": "trf", "FTOL": 1e-2, "WEIGHTS": weights}
 
     fill_notes(f_notes_name, parameters, energy_parameters)   
 
