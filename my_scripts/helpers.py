@@ -3,7 +3,7 @@ import airsim
 
 import shutil, skimage.io
 import numpy as np
-import torch
+import torch as torch
 from torch.autograd import Variable
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt

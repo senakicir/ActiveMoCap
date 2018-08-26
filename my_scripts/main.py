@@ -156,7 +156,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(client.linecount) + '.png'
 
-    initial_positions, _, _, _, _ = determine_all_positions(mode_3d, mode_2d, client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
+    initial_positions, _, _, _, _, _ = determine_all_positions(mode_3d, mode_2d, client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
 
     current_state = State(initial_positions, kalman_arguments['KALMAN_PROCESS_NOISE_AMOUNT'])
     
@@ -206,7 +206,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(client.linecount) + '.png'
 
-        positions, unreal_positions, cov, inFrame, f_output_str = determine_all_positions(mode_3d, mode_2d, client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
+        positions, unreal_positions, cov, inFrame, f_output_str, opt_eval_time = determine_all_positions(mode_3d, mode_2d, client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
         inFrame = True #TO DO
         
         current_state.updateState(positions, inFrame, cov) #updates human pos, human orientation, human vel, drone pos
@@ -249,8 +249,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         client.moveToPositionAsync(new_pos[0], new_pos[1], new_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         end = time.time()
         elapsed_time = end - start
-        print("elapsed time: ", elapsed_time)
-        processing_time.append(elapsed_time)
+        #print("elapsed time: ", elapsed_time)
+        processing_time.append(opt_eval_time)
         time.sleep(DELTA_T)
 
         #SAVE ALL VALUES OF THIS SIMULATION       

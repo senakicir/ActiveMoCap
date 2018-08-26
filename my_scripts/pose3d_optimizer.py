@@ -1,11 +1,10 @@
-import torch
-import torch.nn as nn
 from helpers import * 
 from project_bones import take_bone_projection_pytorch
 from torch.autograd import Variable
 
 def mse_loss(input_1, input_2):
-    return torch.sum(torch.pow((input_1 - input_2),2)) / input_1.data.nelement()
+    N = input_1.data.nelement()
+    return torch.sum(torch.pow((input_1 - input_2),2)) / N
 
 def find_residuals(input_1, input_2):
     return (torch.pow((input_1 - input_2),2)).view(-1)
@@ -143,7 +142,7 @@ class pose3d_calibration_pytorch(torch.nn.Module):
         overall_output = Variable(torch.FloatTensor([0]))
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
-        #print("torch output", overall_output)
+       # print("torch output", overall_output)
         return overall_output
 
     def init_pose3d(self, pose3d_np):
@@ -198,13 +197,14 @@ class pose3d_flight_pytorch(torch.nn.Module):
             for i, bone in enumerate(self.bone_connections):
                 bone_vector = self.pose3d[queue_index, :, bone[0]] - self.pose3d[queue_index, :, bone[1]]
                 pose_est_directions[:, i] = bone_vector/(torch.norm(bone_vector)+EPSILON)
-            output["lift"] += mse_loss(pose_est_directions, pose3d_lift_directions)
-            queue_index =+ 1
+            output["lift"] += mse_loss(pose3d_lift_directions, pose_est_directions)
+            
+            queue_index += 1
 
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
-        print("torch forward output", overall_output)
+        #print("torch forward output", overall_output, output)
         return overall_output
     
     def init_pose3d(self, pose3d_np):

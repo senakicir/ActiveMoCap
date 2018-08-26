@@ -24,6 +24,7 @@ objective_calib = pose3d_calibration_scipy()
 
 def determine_all_positions(mode_3d, mode_2d, client, measurement_cov_ = 0,  plot_loc = 0, photo_loc = 0):
     inFrame = True
+    func_eval_time = 0
     if (mode_3d == 0):
         positions, unreal_positions, cov, f_output_str = determine_3d_positions_all_GT(mode_2d, client, plot_loc, photo_loc)
     elif (mode_3d == 1):
@@ -31,9 +32,9 @@ def determine_all_positions(mode_3d, mode_2d, client, measurement_cov_ = 0,  plo
     elif (mode_3d == 2):            
         positions, unreal_positions, cov, f_output_str = determine_3d_positions_energy(mode_2d, measurement_cov_, client, plot_loc, photo_loc)
     elif (mode_3d == 3):
-        positions, unreal_positions, cov, f_output_str = determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_loc, photo_loc)
+        positions, unreal_positions, cov, f_output_str, func_eval_time = determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_loc, photo_loc)
 
-    return positions, unreal_positions, cov, inFrame, f_output_str
+    return positions, unreal_positions, cov, inFrame, f_output_str, func_eval_time
 
 def determine_2d_positions(mode_2d, is_torch = True, unreal_positions = 0, bone_pos_3d_GT = 0, input_image = 0, scales = [1]):
     if (mode_2d == 0):
@@ -113,7 +114,7 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
 
     pltpts = {}
     final_loss = np.zeros([1,1])
-
+    
     if client.linecount == FRAME_START_OPTIMIZING:
         cropping_tool.update_bbox_margin(1)
 
@@ -134,7 +135,6 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
             objective_jacobian =  objective_calib.jacobian
             #objective_jacobian = grad(objective_calib.forward)
             
-
         #flight mode parameters
         else:
             loss_dict = LOSSES
@@ -155,12 +155,13 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
             #optimized_res = minimize(objective_calib.forward_powell, pose3d_init, method='Powell', tol=1e-2, options={'maxiter': num_iterations})
            # optimized_res = least_squares(objective.forward, pose3d_init, jac="2-point", bounds=(-np.inf, np.inf), method='trf', ftol=1e-3)
         #else:
+        start_time = time.time()
         optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=client.method, ftol=client.ftol)
             #P_world_scrambled, _ = leastsq(objective.forward, pose3d_init, Dfun=None, ftol=1e-3)
-
+        func_eval_time = time.time() - start_time
+        print("least squares eval time", func_eval_time)
         P_world_scrambled = optimized_res.x
 
-        
         if (client.isCalibratingEnergy):
             P_world = np.reshape(a = P_world_scrambled, newshape = [3, num_of_joints], order = "C")
             client.update3dPos(P_world, all = True)
@@ -177,6 +178,7 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
     else:
         P_world = pose3d_
         loss_dict = CALIBRATION_LOSSES
+        func_eval_time = 0
     
     client.error_2d.append(final_loss[0])
     check,  _ = take_bone_projection(bone_pos_3d_GT, R_drone, C_drone)
@@ -197,7 +199,7 @@ def determine_3d_positions_energy_scipy(mode_2d, measurement_cov_, client, plot_
     cov = transform_cov_matrix(R_drone, measurement_cov_)
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
 
-    return positions, unreal_positions, cov, f_output_str
+    return positions, unreal_positions, cov, f_output_str, func_eval_time
 
 
 def determine_3d_positions_energy(mode_2d, measurement_cov_, client, plot_loc = 0, photo_loc = 0):

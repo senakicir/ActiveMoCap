@@ -6,7 +6,7 @@ from scipy.optimize._numdiff import approx_derivative, group_columns
 
 
 def mse_loss(input_1, input_2):
-    N = input_1.shape[0]*input_1.shape[1]
+    N = np.prod(input_1.shape)
     return np.sum(np.square((input_1 - input_2))) / N
 def find_residuals(input_1, input_2):
     return (np.square((input_1 - input_2))).ravel()
@@ -97,33 +97,17 @@ class pose3d_calibration_scipy():
         gradient_torch = self.pytorch_objective.pose3d.grad
         gradient_scrambled = gradient_torch.data.numpy()
         gradient = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
-        #print("torch grad", gradient)
-        #import pdb; pdb.set_trace()
         return gradient
 
-    def jacobian_2(self,x):
+    def jacobian_residuals(self,x):
         self.pytorch_objective.zero_grad()
-        count = 0
-        for bone_2d_, R_drone_, C_drone_ in self.data_list:
-            R_drone_torch = torch.from_numpy(R_drone_).float()
-            C_drone_torch = torch.from_numpy(C_drone_).float()
-            bone_2d_torch = torch.from_numpy(bone_2d_).float()
-            new_residuals = self.pytorch_objective.forward(bone_2d_torch, R_drone_torch, C_drone_torch)
-            if count == 0:
-                residuals = new_residuals
-            else:
-                residuals = torch.cat((residuals, new_residuals), 0)
-            count =+ 1
-        residuals.backward(retain_graph = True)
+        x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
+        self.pytorch_objective.init_pose3d(x_scrambled)
+        overall_output = self.pytorch_objective.forward()
+        overall_output.backward(retain_graph=True)
         gradient_torch = self.pytorch_objective.pose3d.grad
         gradient_scrambled = gradient_torch.data.numpy()
         gradient = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
-        return gradient
-
-    def jacobian_3(self,x):
-        gradient = approx_derivative(self.forward, x, rel_step=None, method="2-point", sparsity=None)
-        #print("approx grad", gradient)
-        #import pdb; pdb.set_trace()
         return gradient
 
 class pose3d_flight_scipy():
@@ -139,7 +123,6 @@ class pose3d_flight_scipy():
         self.loss_dict = loss_dict
         self.window_size = window_size
         self.bone_lengths = bone_lengths
-        self.curr_iter = 0
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
         self.pytorch_objective = pytorch_optimizer.pose3d_flight_pytorch(model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list)
@@ -214,16 +197,12 @@ class pose3d_flight_scipy():
 
             queue_index += 1
 
-        #if (self.curr_iter % 5000 == 0):
-         #   print("output", output)
-
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
             self.pltpts[loss_key].append(output[loss_key])
         
-        self.curr_iter += 1
-        print("scipy forward", output, overall_output)
+        #print("scipy forward", overall_output, output)
         return overall_output
         
     def jacobian(self,x):
@@ -235,33 +214,15 @@ class pose3d_flight_scipy():
         gradient_torch = self.pytorch_objective.pose3d.grad
         gradient_scrambled = gradient_torch.data.numpy()
         gradient = np.reshape(a = gradient_scrambled, newshape = [self.window_size*3*self.NUM_OF_JOINTS,], order = "C")
-        #print("torch grad", gradient)
-        #import pdb; pdb.set_trace()
         return gradient
 
-    def jacobian_2(self,x):
+    def jacobian_residuals(self,x):
         self.pytorch_objective.zero_grad()
-        queue_index = 0
-        for bone_2d_, R_drone_, C_drone_ in self.data_list:
-            pose3d_lift_directions = torch.from_numpy(self.lift_list[queue_index]).float()
-            R_drone_torch = torch.from_numpy(R_drone_).float()
-            C_drone_torch = torch.from_numpy(C_drone_).float()
-            bone_2d_torch = torch.from_numpy(bone_2d_).float()
-
-            new_residuals = self.pytorch_objective.forward(bone_2d_torch, R_drone_torch, C_drone_torch, pose3d_lift_directions, queue_index)
-            if queue_index == 0:
-                residuals = new_residuals
-            else:
-                residuals = torch.cat((residuals, new_residuals), 0)
-            queue_index =+ 1
-        residuals.backward(retain_graph = True)
+        x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
+        self.pytorch_objective.init_pose3d(x_scrambled)
+        overall_output = self.pytorch_objective.forward()
+        overall_output.backward(retain_graph=True)
         gradient_torch = self.pytorch_objective.pose3d.grad
         gradient_scrambled = gradient_torch.data.numpy()
-        gradient = np.reshape(a = gradient_scrambled, newshape = [self.window_size*3*self.NUM_OF_JOINTS,], order = "C")
-        return gradient
-
-    def jacobian_3(self,x):
-        gradient = approx_derivative(self.forward, x, rel_step=None, method="2-point", sparsity=None)
-        #print("approx grad", gradient)
-        #import pdb; pdb.set_trace()
+        gradient = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
         return gradient
