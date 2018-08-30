@@ -65,3 +65,10 @@ class Crop:
     def update_bbox_margin(self, margin):
         self.bounding_box_calculator.update_margin(margin)
         self.bounding_box_margin = margin
+
+    def crop_pose(self, pose_2d):
+        pose_2d[0,:] = pose_2d[0,:] - self.image_bounds[0]
+        pose_2d[1,:] = pose_2d[1,:] - self.image_bounds[1]
+
+        return pose_2d
+    

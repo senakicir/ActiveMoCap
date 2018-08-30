@@ -10,6 +10,12 @@ def mse_loss(input_1, input_2):
     return np.sum(np.square((input_1 - input_2))) / N
 def find_residuals(input_1, input_2):
     return (np.square((input_1 - input_2))).ravel()
+def cauchy_loss(input_1, input_2):
+    N = np.prod(input_1.shape)
+    b = 1000
+    sigma = input_1 - input_2
+    C = (b*b)*np.log(1+np.square(sigma)/(b*b))
+    return np.sum(C)/N
 
 class pose3d_calibration_scipy():
     def __init__(self):
@@ -61,31 +67,25 @@ class pose3d_calibration_scipy():
 
         left_bone_connections, right_bone_connections, _ = split_bone_connections(self.bone_connections)
         bonelosses = np.zeros([len(left_bone_connections),])
-        #bonelosses = []
         for i, l_bone in enumerate(left_bone_connections):
             r_bone = right_bone_connections[i]
             left_length_of_bone = (np.sum(np.square(pose_3d[:, l_bone[0]] - pose_3d[:, l_bone[1]])))
             right_length_of_bone = (np.sum(np.square(pose_3d[:, r_bone[0]] - pose_3d[:, r_bone[1]])))
             bonelosses[i,] = np.square((left_length_of_bone - right_length_of_bone))
-            #bonelosses.append(np.square((left_length_of_bone - right_length_of_bone)))
         output["sym"] += np.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
-        #output["sym"] += sum(bonelosses)/(self.NUM_OF_JOINTS-1)
-        residuals = bonelosses* self.energy_weights["sym"]
-        #residuals = np.array(bonelosses)*self.energy_weights["sym"]
-
+        #residuals = bonelosses* self.energy_weights["sym"]
     
         for bone_2d_, R_drone_, C_drone_ in self.data_list:
             projected_2d, _ = take_bone_projection(pose_3d, R_drone_, C_drone_)
             output["proj"] += mse_loss(projected_2d, bone_2d_)
-            current_residuals = find_residuals(projected_2d, bone_2d_)* self.energy_weights["proj"]
-            residuals = np.concatenate([residuals, current_residuals])
+            #current_residuals = find_residuals(projected_2d, bone_2d_)* self.energy_weights["proj"]
+            #residuals = np.concatenate([residuals, current_residuals])
 
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
             self.pltpts[loss_key].append(output[loss_key])
 
-        #print("scipy forward", overall_output)
         return overall_output
 
     def jacobian(self,x):
@@ -100,14 +100,24 @@ class pose3d_calibration_scipy():
         return gradient
 
     def jacobian_residuals(self,x):
-        self.pytorch_objective.zero_grad()
         x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
         self.pytorch_objective.init_pose3d(x_scrambled)
         overall_output = self.pytorch_objective.forward()
-        overall_output.backward(retain_graph=True)
-        gradient_torch = self.pytorch_objective.pose3d.grad
-        gradient_scrambled = gradient_torch.data.numpy()
-        gradient = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
+        gradient = np.zeros([overall_output.shape[0], 3*self.NUM_OF_JOINTS])
+        for ind, one_residual in enumerate(overall_output):
+            self.pytorch_objective.zero_grad()
+            one_residual.backward(retain_graph=True)
+            gradient_torch = self.pytorch_objective.pose3d.grad
+            gradient_scrambled = gradient_torch.data.numpy()
+            gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
+        #print("torch grad", gradient)
+        #import pdb; pdb.set_trace()
+        return gradient
+
+    def jacobian_3(self,x):
+        gradient = approx_derivative(self.forward, x, rel_step=None, method="2-point", sparsity=None)
+        #print("approx grad", gradient)
+        #import pdb; pdb.set_trace()
         return gradient
 
 class pose3d_flight_scipy():
@@ -126,6 +136,7 @@ class pose3d_flight_scipy():
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
         self.pytorch_objective = pytorch_optimizer.pose3d_flight_pytorch(model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list)
+        self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
 
     def forward(self, pose_3d):
         pose_3d = np.reshape(a = pose_3d, newshape = [self.window_size, 3, self.NUM_OF_JOINTS], order = "C")
@@ -139,23 +150,31 @@ class pose3d_flight_scipy():
             #projection
             projected_2d, _ = take_bone_projection(pose_3d[queue_index, :, :], R_drone_, C_drone_)
             output["proj"] += mse_loss(projected_2d, bone_2d_)
-            current_residuals = find_residuals(projected_2d, bone_2d_)* self.energy_weights["proj"]
-            if queue_index == 0:
-                residuals = current_residuals
-            else: 
-                residuals =  np.concatenate([residuals, current_residuals])
+            #current_residuals = find_residuals(projected_2d, bone_2d_)* self.energy_weights["proj"]
+            #if queue_index == 0:
+            #    residuals = current_residuals
+            #else: 
+            #    residuals =  np.concatenate([residuals, current_residuals])
 
             #smoothness
-            if (queue_index != self.window_size-1 and queue_index != 0):
-                output["smooth"] += mse_loss(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :]) +  mse_loss(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :])
-                current_residuals = (find_residuals(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :]) + find_residuals(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :]))* self.energy_weights["smooth"]
-            elif (queue_index != self.window_size-1 ):
-                output["smooth"] += mse_loss(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :])
-                current_residuals = find_residuals(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :]) * self.energy_weights["smooth"]
-            elif (queue_index != 0):
-                output["smooth"] += mse_loss(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :])
-                current_residuals = find_residuals(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :]) * self.energy_weights["smooth"]
-            residuals =  np.concatenate([residuals, current_residuals])
+            #if (queue_index != self.window_size-1 and queue_index != 0):
+            #    output["smooth"] += mse_loss(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :]) +  mse_loss(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :])
+            #    current_residuals = (find_residuals(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :]) + find_residuals(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :]))* self.energy_weights["smooth"]
+            #elif (queue_index != self.window_size-1 ):
+            #    output["smooth"] += mse_loss(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :])
+             #   current_residuals = find_residuals(pose_3d[queue_index, :, :], pose_3d[queue_index+1, :, :]) * self.energy_weights["smooth"]
+            #elif (queue_index != 0):
+            #    output["smooth"] += mse_loss(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :])
+            #    current_residuals = find_residuals(pose_3d[queue_index-1, :, :], pose_3d[queue_index, :, :]) * self.energy_weights["smooth"]
+            #residuals =  np.concatenate([residuals, current_residuals])
+
+            #smoothness
+            #find velocities
+            pose_vel = np.zeros([2, 3, self.NUM_OF_JOINTS])
+            if (queue_index != 0 or queue_index != 1):
+                pose_vel[0]  = pose_3d[queue_index-1, :, :]- pose_3d[queue_index-2, :, :]
+                pose_vel[1]  = pose_3d[queue_index, :, :]- pose_3d[queue_index-1, :, :]
+                output["smooth"] += mse_loss(pose_vel[0] , pose_vel[1])
 
             #smooth pose
             #hip_index = self.joint_names.index('spine1')
@@ -182,19 +201,18 @@ class pose3d_flight_scipy():
                 length_of_bone = (np.sum(np.square(pose_3d[queue_index, :, bone[0]] - pose_3d[queue_index, :, bone[1]])))
                 bonelosses[i] = np.square((self.bone_lengths[i] - length_of_bone))
             output["bone"] += np.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
-            current_residuals = bonelosses* self.energy_weights["bone"]
-            residuals =  np.concatenate([residuals, current_residuals])
+            #current_residuals = bonelosses* self.energy_weights["bone"]
+            #residuals =  np.concatenate([residuals, current_residuals])
 
             #lift
             pose3d_lift_directions = self.lift_list[queue_index]
-            pose_est_directions = np.zeros([3, self.NUM_OF_JOINTS-1])
-            for i, bone in enumerate(self.bone_connections):
+            pose_est_directions = np.zeros([3, len(self.lift_bone_directions)])
+            for i, bone in enumerate(self.lift_bone_directions):
                 bone_vector = pose_3d[queue_index, :, bone[0]] - pose_3d[queue_index, :, bone[1]]
                 pose_est_directions[:, i] = bone_vector/(np.linalg.norm(bone_vector)+EPSILON)
             output["lift"] += mse_loss(pose3d_lift_directions, pose_est_directions)
-            current_residuals = find_residuals(pose3d_lift_directions, pose_est_directions) * self.energy_weights["lift"]
-            residuals =  np.concatenate([residuals, current_residuals])
-
+            #current_residuals = find_residuals(pose3d_lift_directions, pose_est_directions) * self.energy_weights["lift"]
+            #residuals =  np.concatenate([residuals, current_residuals])
             queue_index += 1
 
         overall_output = 0
@@ -202,7 +220,6 @@ class pose3d_flight_scipy():
             overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
             self.pltpts[loss_key].append(output[loss_key])
         
-        #print("scipy forward", overall_output, output)
         return overall_output
         
     def jacobian(self,x):
@@ -217,12 +234,16 @@ class pose3d_flight_scipy():
         return gradient
 
     def jacobian_residuals(self,x):
-        self.pytorch_objective.zero_grad()
-        x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
+        x_scrambled = np.reshape(a = x, newshape = [self.window_size, 3, self.NUM_OF_JOINTS], order = "C")
         self.pytorch_objective.init_pose3d(x_scrambled)
         overall_output = self.pytorch_objective.forward()
-        overall_output.backward(retain_graph=True)
-        gradient_torch = self.pytorch_objective.pose3d.grad
-        gradient_scrambled = gradient_torch.data.numpy()
-        gradient = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
+        gradient = np.zeros([overall_output.shape[0], self.window_size*3*self.NUM_OF_JOINTS])
+        for ind, one_residual in enumerate(overall_output):
+            self.pytorch_objective.zero_grad()
+            one_residual.backward(retain_graph=True)
+            gradient_torch = self.pytorch_objective.pose3d.grad
+            gradient_scrambled = gradient_torch.data.numpy()
+            gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [self.window_size*3*self.NUM_OF_JOINTS,], order = "C")
+        #print("torch grad", gradient)
+        #import pdb; pdb.set_trace()
         return gradient

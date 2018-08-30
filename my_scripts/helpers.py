@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import time, os
 import cv2
-from math import degrees, radians, pi, ceil
+from math import degrees, radians, pi, ceil, exp
 
 from crop import Crop
 from square_bounding_box import *
@@ -20,7 +20,7 @@ energy_mode = {1:True, 0:False}
 LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 CALIBRATION_LOSSES = ["proj", "sym"]
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
-TEST_SETS = {0: "test_set_t", 1: "test_set_05_08", 2: "test_set_38_03", 3: "test_set_64_06", 4: "test_set_02_01",  4.1: "test_set_02_01_far", 4.2: "test_set_02_01_close"}
+TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
 
 bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [0, 4], [4, 5], [5, 6], [6, 20], #left leg
@@ -81,11 +81,25 @@ def split_bone_connections(bone_connections):
         left_bone_connections = [[1, 5], [5, 6], [6, 7],[14, 11], [11, 12], [12, 13]]
         right_bone_connections = [[1, 2], [2, 3], [3, 4], [14, 8], [8, 9], [9, 10]]
         middle_bone_connections = [[0, 1], [14, 1]]
-
     return left_bone_connections, right_bone_connections, middle_bone_connections
-
 additional_directions = [[4, 10], [7,13], [3,9], [6, 12], [14,3], [14, 6]]
 lift_bone_directions = bones_mpi + additional_directions
+
+def return_lift_bone_connections(bone_connections):
+    if (bone_connections == bones_mpi):
+        return lift_bone_directions
+    elif (bone_connections == bones_h36m):
+        #todo
+        return lift_bone_directions
+
+def return_arm_connection(bone_connections):
+    if (bone_connections == bones_h36m):
+        left_arm_connections = [[8, 14], [14, 15], [15, 16], [16, 17]]
+        rigth_arm_connections = [[8, 11], [11, 12], [12, 13], [13, 18]]
+    elif (bone_connections == bones_mpi):
+        left_arm_connections = [[1, 5], [5, 6], [6, 7]]
+        right_arm_connections = [[1, 2], [2, 3], [3, 4]]
+    return right_arm_connections, left_arm_connections
 
 def model_settings(model, bone_pos_3d_GT = Variable(torch.zeros(3,21))):
     if (model == "mpi"):
@@ -173,7 +187,7 @@ def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name
     plt.legend(handles=[p1, p2])
 
     plt.title(str(errors["error_ave_pos"]))
-    plt.savefig(folder_name + '/est_pos_final' + '.png', bbox_inches='tight', pad_inches=0)
+    plt.savefig(folder_name + '/est_pos_final.png', bbox_inches='tight', pad_inches=0)
     #plt.close()
 
     fig2 = plt.figure()
@@ -182,7 +196,7 @@ def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name
     p2, = ax.plot(gt_hv_arr[:, 0], gt_hv_arr[:, 1], gt_hv_arr[:, 2], c='b', marker='^', label="GT")
     plt.legend(handles=[p1, p2])
     plt.title(str(errors["error_ave_vel"]))
-    plt.savefig(folder_name + '/est_vel_final' + '.png', bbox_inches='tight', pad_inches=0)
+    plt.savefig(folder_name + '/est_vel_final.png', bbox_inches='tight', pad_inches=0)
     plt.close()
     #################
 
@@ -223,15 +237,16 @@ def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_locati
 
     if np.count_nonzero(projection) != 0:
         for i, bone in enumerate(bone_connections):
-            ax.plot( projection[0, bone], projection[1,bone], color = "y", linewidth=3)
+            p0, = ax.plot( projection[0, bone], projection[1,bone], color = "w", linewidth=3, label="Reprojection")
 
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     for i, bone in enumerate(left_bone_connections):    
-        ax.plot( openpose[0, bone], openpose[1,bone], color = "r", linewidth=2)   
+        p1, = ax.plot( openpose[0, bone], openpose[1,bone], color = "r", linewidth=1, label="OpenPose Left")   
     for i, bone in enumerate(right_bone_connections):    
-        ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=2)   
+        p2, = ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=1, label="OpenPose Right")   
     for i, bone in enumerate(middle_bone_connections):    
-        ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=2)   
+        ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=1)   
+    plt.legend(handles=[p0,p1,p2])
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
@@ -355,7 +370,46 @@ def plot_drone_and_human(bones_GT, predicted_bones, location, ind,  bone_connect
         plt.title("error: %.4f" %error)
 
     plot_3d_pos_loc = location + name + str(ind) + '.png'
-    plt.savefig(plot_3d_pos_loc)
+    plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_global_motion(plot_info, plot_loc, ind, model, isCalib):
+    fig = plt.figure()
+    bone_connections, _, _, _ = model_settings(model)
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    gs1 = gridspec.GridSpec(1, 1)
+    ax = fig.add_subplot(gs1[0], projection='3d')
+    for frame_plot_info in plot_info:
+        predicted_bones = frame_plot_info["est"]
+        bones_GT = frame_plot_info["GT"]
+        drone = frame_plot_info["drone"]
+        #plot joints
+        for i, bone in enumerate(left_bone_connections):
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label="GT left")
+        for i, bone in enumerate(right_bone_connections):
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label="GT right")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
+
+        for i, bone in enumerate(left_bone_connections):
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label="estimate left")
+        for i, bone in enumerate(right_bone_connections):
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label="right left")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+
+        plotd, = ax.plot(drone[0], drone[1], -drone[2], c='xkcd:lime', marker='^', label="drone")
+
+    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+    
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    if isCalib:
+        file_name = plot_loc + '/global_plot_calib_'+ str(ind) + '.png'
+    else:
+        file_name = plot_loc + '/global_plot_flight_'+ str(ind) + '.png'
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def plot_optimization_losses(pltpts, location, ind, loss_dict):
@@ -396,3 +450,39 @@ def numpy_to_tuples(pose_2d):
     for i in range(0, pose_2d.shape[1]):
         tuple_list.append(pose_2d[:, i].tolist())
     return tuple_list
+
+def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
+        """
+        Creates the heatmap of the given size with the given joints.
+
+        Since the heatmap is `stride` times smaller then the image, each pixel in the heatmap corresponds to a
+        `stride x stride` area in the image. To compare if a joint falls in the heatmap pixel, we compare its distance
+        to the middle point in the image area of each heatmap pixel.
+
+        :param kpt: The joint coordinates (numpy array: 2 x nb_joints )
+        :param grid_x: The width of the heatmap
+        :param grid_y: The height of the heatmap
+        :return: The heatmap (numpy array: (nb_joints+1) x grid_y x grid_x x  )
+        """
+        heatmap = np.zeros((kpt.shape[1]+1, grid_y, grid_x), dtype='float32')
+        num_point, height, width = heatmap.shape
+
+        length = kpt.shape[1]
+        count = [0] * length
+        for j in range(length):
+            x = kpt[0,j]
+            y = kpt[1,j]
+            for h in range(height):
+                for w in range(width):
+                    dis = ((w - x) * (w - x) + (h - y) * (h - y)) / 2.0 / sigma / sigma
+                    if dis > 4.6052:
+                        continue
+                    heatmap[j][h][w] += exp(-dis)
+                    count[j] += 1
+                    if heatmap[j][h][w] > 1:
+                        heatmap[j][h][w] = 1
+
+        # Add the background channel
+        heatmap[-1, :, :] = 1.0 - np.max(heatmap[:-1, :, :], axis=0)
+
+        return heatmap

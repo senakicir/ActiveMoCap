@@ -5,7 +5,7 @@ from math import pi, cos, sin, degrees
 import numpy as np
 
 neat_tensor = Variable(torch.FloatTensor([[0, 0, 0, 1]]), requires_grad=False) #this tensor is neat!
-DEFAULT_TORSO_SIZE = 0.436*0.60#0.86710678118
+DEFAULT_TORSO_SIZE = 0.436*0.55#0.86710678118
 
 def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
     if (returnTensor == True):
@@ -71,7 +71,6 @@ def take_bone_projection_pytorch(P_world, R_drone, C_drone):
 
 def take_bone_backprojection(bone_pred, R_drone, C_drone, joint_names):
     TORSO_SIZE_ = DEFAULT_TORSO_SIZE
-
     img_torso_size = np.linalg.norm(bone_pred[:, joint_names.index('neck')] - bone_pred[:, joint_names.index('spine1')])
     z_val = (FOCAL_LENGTH * TORSO_SIZE_) / img_torso_size
 

@@ -89,13 +89,12 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     MEASUREMENT_NOISE_COV = np.array([[kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"], 0, 0], [0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"], 0], [0, 0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"]]])
 
     if (parameters == None):
-        parameters = {"USE_TRACKBAR": False, "MODE_3D": 0, "MODE_2D":0, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
+        parameters = {"USE_TRACKBAR": False, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
     if (energy_parameters == None):
-        energy_parameters = {"FTOL": 1e-2, "METHOD": "trf", "WEIGHTS": {"proj":1,"smooth":0.5, "bone":10}}
+        energy_parameters = {"FTOL": 1e-2, "METHOD": "trf", "WEIGHTS": {"proj":0.25,"smooth":0.25, "bone":0.25, "lift":0.25}}
     
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
-    mode_3d = parameters["MODE_3D"]
-    mode_2d = parameters["MODE_2D"]
+    modes = parameters["MODES"]
     global USE_AIRSIM
     USE_AIRSIM = parameters["USE_AIRSIM"]
     ANIMATION_NUM = parameters["ANIMATION_NUM"]
@@ -137,6 +136,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     gt_hp = []
     est_hp = []
     processing_time = []
+    plot_info = []
+    global_plot_ind = 0
 
     filenames_anim = file_names[ANIMATION_NUM]
     foldernames_anim = folder_names[ANIMATION_NUM]
@@ -148,7 +149,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     for i in range(0,70):
         f_groundtruth_prefix = f_groundtruth_prefix + "\t"
     f_groundtruth.write(f_groundtruth_prefix + "\n")
-    photo, _ = take_photo(client, foldernames_anim["images"])
+    take_photo(client, foldernames_anim["images"])
 
     plot_loc_ = foldernames_anim["superimposed_images"]
     if (USE_AIRSIM==True):
@@ -156,7 +157,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(client.linecount) + '.png'
 
-    initial_positions, _, _, _, _, _ = determine_all_positions(mode_3d, mode_2d, client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
+    initial_positions, _, _, _  = determine_all_positions(modes, client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
 
     current_state = State(initial_positions, kalman_arguments['KALMAN_PROCESS_NOISE_AMOUNT'])
     
@@ -178,7 +179,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         cv2.createTrackbar('Z','Drone Control', 3, 20, do_nothing)
         cv2.setTrackbarPos('Z', 'Drone Control', z_pos)
 
-    if (mode_3d == 3 and USE_AIRSIM == True):
+    if (modes["mode_3d"] == 3 and USE_AIRSIM == True):
         cv2.namedWindow('Calibration for 3d pose')
         cv2.createTrackbar('Calibration mode','Calibration for 3d pose', 0, 1, do_nothing)
         cv2.setTrackbarPos('Calibration mode','Calibration for 3d pose', 1)
@@ -199,14 +200,15 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         if (client.linecount == CALIBRATION_LENGTH):
             #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
             client.changeCalibrationMode(False)
-        
+            global_plot_ind =0
+            plot_info = []
 
         if (USE_AIRSIM==True):
             photo_loc_ = foldernames_anim["images"] + '/img_' + str(client.linecount) + '.png'
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(client.linecount) + '.png'
 
-        positions, unreal_positions, cov, inFrame, f_output_str, opt_eval_time = determine_all_positions(mode_3d, mode_2d, client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
+        positions, unreal_positions, cov, plot_end = determine_all_positions(modes, client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
         inFrame = True #TO DO
         
         current_state.updateState(positions, inFrame, cov) #updates human pos, human orientation, human vel, drone pos
@@ -248,13 +250,17 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
             damping_speed = 0.5
         client.moveToPositionAsync(new_pos[0], new_pos[1], new_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         end = time.time()
-        elapsed_time = end - start
+        #elapsed_time = end - start
         #print("elapsed time: ", elapsed_time)
-        processing_time.append(opt_eval_time)
+        processing_time.append(plot_end["eval_time"])
         time.sleep(DELTA_T)
+        if (client.linecount % 3 == 0):
+            plot_info.append(plot_end)
+            plot_global_motion(plot_info, plot_loc_, global_plot_ind, client.model, client.isCalibratingEnergy)
+            global_plot_ind +=1
 
         #SAVE ALL VALUES OF THIS SIMULATION       
-        f_output_str = str(client.linecount)+f_output_str + '\n'
+        f_output_str = str(client.linecount)+plot_end["f_string"] + '\n'
         f_output.write(f_output_str)
         f_groundtruth_str =  str(client.linecount) + '\t' +f_groundtruth_str + '\n'
         f_groundtruth.write(f_groundtruth_str)
@@ -284,7 +290,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     estimate_folder_name = foldernames_anim["estimates"]
     plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, estimate_folder_name)
     simple_plot(processing_time, estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
-    if (mode_3d == 3):
+    if (modes["mode_3d"] == 3):
         simple_plot(client.error_2d, estimate_folder_name, "error_2d", plot_title="2D error", x_label="Frames", y_label="Error")
     simple_plot(client.error_3d, estimate_folder_name, "error_3d", plot_title="3D error", x_label="Frames", y_label="Error")
 
@@ -301,21 +307,24 @@ if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_airsim = False
-    mode_3d = 3 #0 - gt, 1- naiveback, 2- energy, 3-energy scipy
-    mode_2d = 1 # 0- gt, 1- openpose
+    #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
+    #mode_2d: 0- gt, 1- openpose
+    #mode_lift: 0- gt, 1- lift
+    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
+   
     use_trackbar = False
 
     #animations = [0,1,2,3]
-    animations = [4]
+    animations = ["02_01"]
     test_set = {}
     for animation_num in animations:
         test_set[animation_num] = TEST_SETS[animation_num]
 
     file_names, folder_names, f_notes_name = reset_all_folders(animations)
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "MODE_3D": mode_3d, "MODE_2D": mode_2d, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
+    parameters = {"USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
     
-    weights_ = {'proj': 0.01, 'smooth': 0.8, 'bone': 0.3, 'lift': 0.4}#'smoothpose': 0.01,}
+    weights_ = {'proj': 0.005, 'smooth': 0.8, 'bone': 0.3, 'lift': 0.8}#'smoothpose': 0.01,}
     weights = {}
     weights_sum = sum(weights_.values())
     for loss_key in LOSSES:
