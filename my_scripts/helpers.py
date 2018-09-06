@@ -40,7 +40,7 @@ joint_names_mpi = ['head','neck','right_arm','right_forearm','right_hand','left_
 
 EPSILON = 0.00000001
 
-CALIBRATION_LENGTH = 25
+CALIBRATION_LENGTH =25
 
 SIZE_X = 1024
 SIZE_Y = 576
@@ -114,13 +114,13 @@ def model_settings(model, bone_pos_3d_GT = Variable(torch.zeros(3,21))):
     return bone_connections, joint_names, num_of_joints, bone_pos_3d_GT
 
 def range_angle(angle, limit=360, is_radians = True):
-    if is_radians == True:
+    if is_radians:
         angle = degrees(angle)
     if angle > limit:
         angle = angle - 360
     elif angle < limit-360:
         angle = angle + 360
-    if is_radians == True:
+    if is_radians:
         angle = radians(angle)
     return angle
 
@@ -135,15 +135,15 @@ def save_bone_positions_2(index, bones, f_output):
 def do_nothing(x):
     pass
 
-def reset_all_folders(animation_list, param = ""):
-    if param == "":
-        date_time_name = time.strftime("%Y-%m-%d-%H-%M")
-        folder_names = ['temp_main', 'temp_main/' + date_time_name]
-        main_folder_name = 'temp_main/' + date_time_name
+def reset_all_folders(animation_list, base = ""):
+    if (base == ""):
+        base = "temp_main"
+    if (base == "grid_search"):
+        base = "grid_search"
 
-    else:
-        folder_names = ['temp_main', 'temp_main/' + param]
-        main_folder_name = 'temp_main/' + param
+    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
+    folder_names = [base, base + '/' + date_time_name]
+    main_folder_name = base + '/' + date_time_name
 
     for a_folder_name in folder_names:
         if not os.path.exists(a_folder_name):
@@ -161,6 +161,7 @@ def reset_all_folders(animation_list, param = ""):
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name
+
 
 def fill_notes(f_notes_name, parameters, energy_parameters):
     f_notes = open(f_notes_name, 'w')
@@ -211,6 +212,18 @@ def simple_plot(data, folder_name, plot_name, plot_title="", x_label="", y_label
     if (y_label != ""): 
         plt.ylabel(y_label)
     plt.legend(handles=[p1])
+    plt.savefig(folder_name + '/' + plot_title + '.png', bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def simple_plot2(xdata, ydata, folder_name, plot_name, plot_title="", x_label="", y_label=""):
+    fig1 = plt.figure()
+    p1, = plt.semilogx(xdata, ydata)
+    if (plot_title != ""): 
+        plt.title(plot_title)
+    if (x_label != ""): 
+       plt.xlabel(x_label)
+    if (y_label != ""): 
+        plt.ylabel(y_label)
     plt.savefig(folder_name + '/' + plot_title + '.png', bbox_inches='tight', pad_inches=0)
     plt.close()
 
@@ -375,33 +388,51 @@ def plot_drone_and_human(bones_GT, predicted_bones, location, ind,  bone_connect
 
 def plot_global_motion(plot_info, plot_loc, ind, model, isCalib):
     fig = plt.figure()
-    bone_connections, _, _, _ = model_settings(model)
+    bone_connections, _, num_of_joints, _ = model_settings(model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     gs1 = gridspec.GridSpec(1, 1)
     ax = fig.add_subplot(gs1[0], projection='3d')
-    for frame_plot_info in plot_info:
+    for frame_ind, frame_plot_info in enumerate(plot_info):
         predicted_bones = frame_plot_info["est"]
         bones_GT = frame_plot_info["GT"]
         drone = frame_plot_info["drone"]
+
         #plot joints
         for i, bone in enumerate(left_bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label="GT left")
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
         for i, bone in enumerate(right_bone_connections):
-            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label="GT right")
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
 
         for i, bone in enumerate(left_bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label="estimate left")
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
         for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label="right left")
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
 
         plotd, = ax.plot(drone[0], drone[1], -drone[2], c='xkcd:lime', marker='^', label="drone")
 
+        if frame_ind == 0:
+            X = np.concatenate([np.concatenate([bones_GT[0,:], predicted_bones[0,:]]), drone[0]])
+            Y = np.concatenate([np.concatenate([bones_GT[1,:], predicted_bones[1,:]]), drone[1]])
+            Z = np.concatenate([np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]]), -drone[2]])
+        else:
+            X = np.concatenate([X, np.concatenate([np.concatenate([bones_GT[0,:], predicted_bones[0,:]]), drone[0]])])
+            Y = np.concatenate([Y, np.concatenate([np.concatenate([bones_GT[1,:], predicted_bones[1,:]]), drone[1]])])
+            Z = np.concatenate([Z, np.concatenate([np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]]), -drone[2]])])
+
     ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
-    
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
@@ -452,37 +483,27 @@ def numpy_to_tuples(pose_2d):
     return tuple_list
 
 def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
-        """
-        Creates the heatmap of the given size with the given joints.
+    """
+    Creates the heatmap of the given size with the given joints.
+    """
+    heatmap = np.zeros((kpt.shape[1]+1, grid_y, grid_x), dtype='float32')
+    num_point, height, width = heatmap.shape
 
-        Since the heatmap is `stride` times smaller then the image, each pixel in the heatmap corresponds to a
-        `stride x stride` area in the image. To compare if a joint falls in the heatmap pixel, we compare its distance
-        to the middle point in the image area of each heatmap pixel.
+    length = kpt.shape[1]
 
-        :param kpt: The joint coordinates (numpy array: 2 x nb_joints )
-        :param grid_x: The width of the heatmap
-        :param grid_y: The height of the heatmap
-        :return: The heatmap (numpy array: (nb_joints+1) x grid_y x grid_x x  )
-        """
-        heatmap = np.zeros((kpt.shape[1]+1, grid_y, grid_x), dtype='float32')
-        num_point, height, width = heatmap.shape
+    x = np.arange(0, grid_x, 1)
+    y = np.arange(0, grid_y, 1)
+    xx, yy = np.meshgrid(x, y)
 
-        length = kpt.shape[1]
-        count = [0] * length
-        for j in range(length):
-            x = kpt[0,j]
-            y = kpt[1,j]
-            for h in range(height):
-                for w in range(width):
-                    dis = ((w - x) * (w - x) + (h - y) * (h - y)) / 2.0 / sigma / sigma
-                    if dis > 4.6052:
-                        continue
-                    heatmap[j][h][w] += exp(-dis)
-                    count[j] += 1
-                    if heatmap[j][h][w] > 1:
-                        heatmap[j][h][w] = 1
+    for j in range(length):
+        x = kpt[0,j]
+        y = kpt[1,j]
+        
+        dis = ((xx - x) * (xx - x) + (yy - y) * (yy - y)) / 2.0 / sigma / sigma
+        heatmap[j,:,:] = np.exp(-dis)
+        heatmap[j, dis > 4.6052] = 0
 
-        # Add the background channel
-        heatmap[-1, :, :] = 1.0 - np.max(heatmap[:-1, :, :], axis=0)
+    # Add the background channel
+    heatmap[-1, :, :] = 1.0 - np.max(heatmap[:-1, :, :], axis=0)
 
-        return heatmap
+    return heatmap

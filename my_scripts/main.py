@@ -14,7 +14,7 @@ photo_time = 0
 
 def get_client_unreal_values(client, X):
     unreal_positions = np.zeros([5,3])
-    if (USE_AIRSIM == True):
+    if (USE_AIRSIM):
         DRONE_INITIAL_POS = client.DRONE_INITIAL_POS
         keys = {'humanPos': HUMAN_POS_IND, 'dronePos' : DRONE_POS_IND, 'droneOrient': DRONE_ORIENTATION_IND, 'left_arm': L_SHOULDER_IND, 'right_arm': R_SHOULDER_IND}
         for key, value in keys.items():
@@ -30,7 +30,7 @@ def get_client_unreal_values(client, X):
     return unreal_positions
 
 def take_photo(client, image_folder_loc):
-    if (USE_AIRSIM == True):
+    if USE_AIRSIM:
         ##timedebug
         s1 = time.time()
         client.simPause(True)
@@ -89,7 +89,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     MEASUREMENT_NOISE_COV = np.array([[kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"], 0, 0], [0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"], 0], [0, 0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"]]])
 
     if (parameters == None):
-        parameters = {"USE_TRACKBAR": False, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
+        parameters = {"QUIET": False, "USE_TRACKBAR": False, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
     if (energy_parameters == None):
         energy_parameters = {"FTOL": 1e-2, "METHOD": "trf", "WEIGHTS": {"proj":0.25,"smooth":0.25, "bone":0.25, "lift":0.25}}
     
@@ -101,9 +101,10 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     test_set_name = parameters["TEST_SET_NAME"]
     file_names = parameters["FILE_NAMES"]
     folder_names = parameters["FOLDER_NAMES"]
+    quiet = parameters["QUIET"]
 
     #connect to the AirSim simulator
-    if (USE_AIRSIM == True):
+    if USE_AIRSIM:
         client = airsim.MultirotorClient()
         client.confirmConnection()
         client.enableApiControl(True)
@@ -152,12 +153,12 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     take_photo(client, foldernames_anim["images"])
 
     plot_loc_ = foldernames_anim["superimposed_images"]
-    if (USE_AIRSIM==True):
+    if USE_AIRSIM:
         photo_loc_ = foldernames_anim["images"] + '/img_' + str(client.linecount) + '.png'
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(client.linecount) + '.png'
 
-    initial_positions, _, _, _  = determine_all_positions(modes, client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
+    initial_positions, _, _, _  = determine_all_positions(modes, client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_, quiet=quiet)
 
     current_state = State(initial_positions, kalman_arguments['KALMAN_PROCESS_NOISE_AMOUNT'])
     
@@ -166,7 +167,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
     print ('Drone started %.2f m. from the hiker.\n' % current_state.radius)
 
-    if (USE_TRACKBAR == True):
+    if USE_TRACKBAR:
         # create trackbars for angle change
         cv2.namedWindow('Drone Control')
         cv2.createTrackbar('Angle','Drone Control', 0, 360, do_nothing)
@@ -179,15 +180,15 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         cv2.createTrackbar('Z','Drone Control', 3, 20, do_nothing)
         cv2.setTrackbarPos('Z', 'Drone Control', z_pos)
 
-    if (modes["mode_3d"] == 3 and USE_AIRSIM == True):
+    if (modes["mode_3d"] == 3 and USE_AIRSIM):
         cv2.namedWindow('Calibration for 3d pose')
         cv2.createTrackbar('Calibration mode','Calibration for 3d pose', 0, 1, do_nothing)
         cv2.setTrackbarPos('Calibration mode','Calibration for 3d pose', 1)
 
-    while (end_test == False):
+    while (not end_test):
 
         start = time.time()
-        if USE_AIRSIM == True:
+        if USE_AIRSIM:
             k = cv2.waitKey(1) & 0xFF
             if k == 27:
                 break
@@ -196,19 +197,19 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         photo, f_groundtruth_str = take_photo(client, foldernames_anim["images"])
 
         #set the mode for energy, calibration mode or no?
-        #if (USE_AIRSIM == True):
+        #if (USE_AIRSIM):
         if (client.linecount == CALIBRATION_LENGTH):
             #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
             client.changeCalibrationMode(False)
             global_plot_ind =0
             plot_info = []
 
-        if (USE_AIRSIM==True):
+        if (USE_AIRSIM):
             photo_loc_ = foldernames_anim["images"] + '/img_' + str(client.linecount) + '.png'
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(client.linecount) + '.png'
 
-        positions, unreal_positions, cov, plot_end = determine_all_positions(modes, client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
+        positions, unreal_positions, cov, plot_end = determine_all_positions(modes, client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_, quiet=quiet)
         inFrame = True #TO DO
         
         current_state.updateState(positions, inFrame, cov) #updates human pos, human orientation, human vel, drone pos
@@ -222,7 +223,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
             errors_vel.append(np.linalg.norm( (gt_hp[-1]-gt_hp[-2])/DELTA_T - current_state.human_vel))
 
         #finds desired position and angle
-        if (USE_TRACKBAR == True):
+        if (USE_TRACKBAR):
             [desired_pos, desired_yaw] = current_state.getDesiredPosAndAngleTrackbar()
         else:
             [desired_pos, desired_yaw] = current_state.getDesiredPosAndAngle()
@@ -253,8 +254,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         #elapsed_time = end - start
         #print("elapsed time: ", elapsed_time)
         processing_time.append(plot_end["eval_time"])
-        time.sleep(DELTA_T)
-        if (client.linecount % 3 == 0):
+        time.sleep(DELTA_T) 
+        if (client.linecount % 3 == 0 and not quiet):
             plot_info.append(plot_end)
             plot_global_motion(plot_info, plot_loc_, global_plot_ind, client.model, client.isCalibratingEnergy)
             global_plot_ind +=1
@@ -268,7 +269,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         client.linecount += 1
         print('linecount', client.linecount)
 
-        if (USE_AIRSIM == False):
+        if (not USE_AIRSIM):
             end_test = client.end
         else:
             if (client.linecount == LENGTH_OF_SIMULATION):
@@ -322,7 +323,7 @@ if __name__ == "__main__":
 
     file_names, folder_names, f_notes_name = reset_all_folders(animations)
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
+    parameters = {"QUIET": False, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
     
     weights_ = {'proj': 0.005, 'smooth': 0.8, 'bone': 0.3, 'lift': 0.8}#'smoothpose': 0.01,}
     weights = {}
@@ -330,12 +331,12 @@ if __name__ == "__main__":
     for loss_key in LOSSES:
         weights[loss_key] = weights_[loss_key]/weights_sum
 
-    energy_parameters = {"METHOD": "trf", "FTOL": 1e-2, "WEIGHTS": weights}
-
+    energy_parameters = {"METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
     fill_notes(f_notes_name, parameters, energy_parameters)   
 
     if (use_airsim):
         for animation_num in animations:
+
             parameters["ANIMATION_NUM"]= animation_num
             parameters["TEST_SET_NAME"]= ""
             errors = main(kalman_arguments, parameters, energy_parameters)

@@ -33,6 +33,7 @@ class NonAirSimClient(object):
         self.iter_3d = 0
         self.weights = {}
         self.model = ""
+        self.cropping_tool = Crop()
 
     def moveToPositionAsync(self, arg1, arg2, arg3, arg4, arg5, arg6, arg7, yaw_or_rate=0 ,lookahead=0, adaptive_lookahead=0):
         if (self.linecount == self.num_of_data-1):
@@ -127,13 +128,15 @@ def prepareDataForResponse(data, initial_pos, linecount):
     X = np.copy(data[linecount, :])
     line = np.reshape(X, (-1, 3))
     response.bone_pos = line[3:,:].T
-    keys = {DRONE_POS_IND: 0, DRONE_ORIENTATION_IND: 1, HUMAN_POS_IND: 2}
-    for key, value in keys.items():
-        response.unreal_positions[key, :] = line[value, :] #dronepos
+    keys = [DRONE_POS_IND, DRONE_ORIENTATION_IND, HUMAN_POS_IND]
+    for key in keys:
+        response.unreal_positions[key, :] = line[key, :] #dronepos
         if (key != DRONE_ORIENTATION_IND):
             response.unreal_positions[key, 2] = -response.unreal_positions[key, 2] #dronepos
-            response.unreal_positions[key, :] = (response.unreal_positions[key, :] - initial_pos)/100
+            response.unreal_positions[key, :] = (response.unreal_positions[key, :] - initial_pos)/100   
     response.bone_pos[2, :] = -response.bone_pos[2, :] 
     response.bone_pos = (response.bone_pos - initial_pos[:, np.newaxis])/100
+
+    response.unreal_positions[HUMAN_POS_IND, :] = response.bone_pos[:, joint_names_h36m.index('spine1')]
 
     return response

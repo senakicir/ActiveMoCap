@@ -39,6 +39,7 @@ class VehicleClient:
         self.iter_3d = 0
         self.weights = {}
         self.model = ""
+        self.cropping_tool = Crop()
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
          #sena was here

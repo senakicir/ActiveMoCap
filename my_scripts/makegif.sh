@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ~/Gitstuff/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main/
+cd ~/workspace/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main/
 
 ls -d 201* | sort -n
 

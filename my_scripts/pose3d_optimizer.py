@@ -159,7 +159,7 @@ class pose3d_calibration_pytorch(torch.nn.Module):
 
         overall_output = Variable(torch.FloatTensor([0]))
         for loss_key in self.loss_dict:
-            overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
         return overall_output
 
     def init_pose3d(self, pose3d_np):
@@ -241,7 +241,8 @@ class pose3d_flight_pytorch(torch.nn.Module):
 
         overall_output = 0
         for loss_key in self.loss_dict:
-            overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
+
         return overall_output
     
     def init_pose3d(self, pose3d_np):

@@ -54,7 +54,7 @@ class pose3d_calibration_scipy():
 
         overall_output = 0
         for loss_key in self.loss_dict:
-            overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
     
         return overall_output
@@ -83,7 +83,7 @@ class pose3d_calibration_scipy():
 
         overall_output = 0
         for loss_key in self.loss_dict:
-            overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
 
         return overall_output
@@ -217,7 +217,7 @@ class pose3d_flight_scipy():
 
         overall_output = 0
         for loss_key in self.loss_dict:
-            overall_output += self.energy_weights[loss_key]*output[loss_key]/len(self.loss_dict)
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
         
         return overall_output
