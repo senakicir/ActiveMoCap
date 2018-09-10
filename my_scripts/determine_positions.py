@@ -83,19 +83,17 @@ def determine_3d_positions_energy_scipy(modes, measurement_cov_, client, plot_lo
     input_image = cv.imread(photo_loc)
     cropped_image = client.cropping_tool.crop(input_image)
     scales = client.cropping_tool.scales
-
-    #DONT FORGET THESE CHANGES
     R_drone = euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2])
     C_drone = unreal_positions[DRONE_POS_IND, :]
     C_drone = C_drone[:, np.newaxis]
 
     #find 2d pose (using openpose or gt)
-    bone_2d, heatmap_2d, heatmaps_scales, poses_scales = determine_2d_positions(modes["mode_2d"], client.cropping_tool, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
+    bone_2d, heatmap_2d, _, _ = determine_2d_positions(modes["mode_2d"], client.cropping_tool, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
     if (quiet == False):
         save_heatmaps(heatmap_2d, client.linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
-    #find 3d pose using liftnet or relative pose
+    #find relative 3d pose using liftnet or GT relative pose
     pose3d_lift = determine_relative_3d_pose(modes["mode_lift"], bone_2d, cropped_image, heatmap_2d, R_drone, C_drone, bone_pos_3d_GT)
     bone_2d = bone_2d.data.numpy()
 

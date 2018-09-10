@@ -83,13 +83,13 @@ def weight_search():
                 fill_notes(f_notes_name, parameters, energy_parameters)   
 
                 errors = main(kalman_arguments, parameters, energy_parameters)
-                ave_errors_pos[smooth_ind, bone_ind, lift_ind], ave_errors_vel[smooth_ind, bone_ind, lift_ind]= errors["error_ave_pos"], errors["error_ave_vel"]
+                ave_errors_pos[smooth_ind, bone_ind, lift_ind] = errors["error_ave_pos"], errors["error_ave_vel"]
                 print(errors)
             simple_plot2(weight_list, ave_errors_pos[smooth_ind, bone_ind, :], "grid_search", "overall_err"+str(lift_ind), plot_title="For " + str(smooth_weights) +" " + str(bone_weights), x_label="Lift weight", y_label="Error")
                 
 
 
-    overall_errors = 1*ave_errors_pos + 0*ave_errors_vel
+    overall_errors = ave_errors_pos
     ind = np.unravel_index(np.argmin(overall_errors), overall_errors.shape)
     print(np.amin(overall_errors))
     print(weight_list[ind[0]], weight_list[ind[1]], weight_list[ind[2]])
