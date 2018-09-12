@@ -21,32 +21,19 @@ class VehicleClient:
         #sena was here
         self.program_started = False #sena was here
         self.DRONE_INITIAL_POS = np.array([0, 0, 0])
-        self.WINDOW_SIZE = 6
         self.unreal_positions = np.zeros([4,3])
         self.bone_positions = np.zeros([17,3])
         self.drone_pos = Vector3r()
         self.drone_orient = np.array([0, 0, 0])
-        self.error_2d = []
-        self.error_3d = []
         self.requiredEstimationData = []
-        self.poseList_3d = []
         self.isCalibratingEnergy = False
-        self.linecount = 0
-        self.boneLengths = torch.zeros([20,1])
-        self.liftPoseList = []
-        self.lr = 0
-        self.mu = 0
-        self.iter_3d = 0
-        self.weights = {}
-        self.model = ""
-        self.cropping_tool = Crop()
+        
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
          #sena was here
         self.DRONE_INITIAL_POS = np.array([0, 0, 0])
         self.program_started = False
         self.linecount = 0
-        
         self.client.call('reset')
 
     def ping(self):
@@ -190,27 +177,6 @@ class VehicleClient:
     #sena was here
     def getSynchronizedData(self):
         return self.unreal_positions, self.bone_positions, self.drone_pos, self.drone_orient
-    
-    #sena was here
-    def addNewFrame(self, pose_2d, R_drone, C_drone, pose3d_, poseLift):
-        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone])
-        if (len(self.requiredEstimationData) > self.WINDOW_SIZE):
-            self.requiredEstimationData.pop()
-
-        self.poseList_3d.insert(0, pose3d_)
-        if (len(self.poseList_3d) > self.WINDOW_SIZE):
-            self.poseList_3d.pop()
-
-        self.liftPoseList.insert(0, poseLift)
-        if (len(self.liftPoseList) > self.WINDOW_SIZE):
-            self.liftPoseList.pop()
-
-    def update3dPos(self, pose3d_, all = False):
-        if (all):
-            for ind in range(0,len(self.poseList_3d)):
-                self.poseList_3d[ind] = pose3d_
-        else:
-            self.poseList_3d[0] = pose3d_
 
     #sena was here
     def switch_energy(self, val):

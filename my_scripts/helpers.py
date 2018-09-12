@@ -12,8 +12,7 @@ import time, os
 import cv2
 from math import degrees, radians, pi, ceil, exp
 
-from crop import Crop
-from square_bounding_box import *
+
 
 
 energy_mode = {1:True, 0:False}
@@ -39,8 +38,6 @@ bones_mpi = [[0, 1], [14, 1], #middle
 joint_names_mpi = ['head','neck','right_arm','right_forearm','right_hand','left_arm', 'left_forearm','left_hand','right_up_leg','right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1']
 
 EPSILON = 0.00000001
-
-CALIBRATION_LENGTH =25
 
 SIZE_X = 1024
 SIZE_Y = 576

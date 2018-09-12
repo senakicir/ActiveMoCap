@@ -1,7 +1,7 @@
 from helpers import * 
 from State import *
 from NonAirSimClient import *
-from pose_est_client import *
+from PoseEstimationClient import *
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
@@ -123,6 +123,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         filename_bones = 'test_sets/'+test_set_name+'/groundtruth.txt'
         filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
         airsim_client = NonAirSimClient(filename_bones, filename_output)
+        pose_client = PoseEstimationClient(parameters["MODEL"])
 
     #define some variables
     airsim_client.linecount = 0
@@ -130,6 +131,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     pose_client.method = energy_parameters["METHOD"]
     pose_client.ftol = energy_parameters["FTOL"]
     pose_client.weights = energy_parameters["WEIGHTS"]
+    pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
 
     if pose_client.model =="mpi":
         pose_client.boneLengths = torch.zeros([14,1])
@@ -162,7 +164,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
     initial_positions, _, _, _  = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_, quiet=quiet)
 
-    current_state = State(initial_positions)#, kalman_arguments['KALMAN_PROCESS_NOISE_AMOUNT'])
+    current_state = State(initial_positions)
     
     #shoulder_vector = initial_positions[R_SHOULDER_IND, :] - initial_positions[L_SHOULDER_IND, :] #find initial human orientation!
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
@@ -200,7 +202,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
         #set the mode for energy, calibration mode or no?
         #if (USE_AIRSIM):
-        if (airsim_client.linecount == CALIBRATION_LENGTH):
+        if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
             #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
             airsim_client.changeCalibrationMode(False)
             pose_client.changeCalibrationMode(False)
@@ -286,7 +288,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     error_arr_vel = np.asarray(errors_vel)
     errors["error_ave_vel"] = np.mean(error_arr_vel)
     errors["error_std_vel"] = np.std(error_arr_vel)
-    errors["ave_3d_err"] = sum(client.error_3d)/len(client.error_3d)
+    errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
 
     gt_hp_arr = np.asarray(gt_hp)
     est_hp_arr = np.asarray(est_hp)
@@ -296,9 +298,9 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, estimate_folder_name)
     simple_plot(processing_time, estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
     if (pose_client.modes["mode_3d"] == 3):
-        simple_plot(client.error_2d, estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
-    simple_plot(client.error_3d[:CALIBRATION_LENGTH], estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
-    simple_plot(client.error_3d[CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="flight_error_3d", x_label="Frames", y_label="Error")
+        simple_plot(pose_client.error_2d, estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
+    simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
+    simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="flight_error_3d", x_label="Frames", y_label="Error")
 
     print('End it!')
     f_groundtruth.close()
@@ -311,8 +313,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     return errors
 
 if __name__ == "__main__":
-    kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
-    kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
+    kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" :1, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1e-3}
+    kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_airsim = False
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
