@@ -112,7 +112,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         print('Taking off')
         airsim_client.initInitialDronePos()
         pose_client = PoseEstimationClient(parameters["MODEL"])
-        airsim_client.changeAnimation(ANIMATION_NUM)
+        airsim_client.changeAnimation(ANIM_TO_UNREAL[ANIMATION_NUM])
         airsim_client.changeCalibrationMode(True)
         pose_client.changeCalibrationMode(True)
         airsim_client.takeoffAsync(timeout_sec = 20)
@@ -131,7 +131,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     pose_client.method = energy_parameters["METHOD"]
     pose_client.ftol = energy_parameters["FTOL"]
     pose_client.weights = energy_parameters["WEIGHTS"]
-    pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
+    #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
 
     if pose_client.model =="mpi":
         pose_client.boneLengths = torch.zeros([14,1])
@@ -310,6 +310,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     pose_client.reset()
     airsim_client.changeAnimation(0) #reset animation
 
+    
+
     return errors
 
 if __name__ == "__main__":
@@ -319,7 +321,7 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":1} 
+    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
    
     use_trackbar = False
 
@@ -334,10 +336,7 @@ if __name__ == "__main__":
     parameters = {"QUIET": False, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
     
     weights_ = {'proj': 0.010646024544911734, 'smooth': 0.4941446865002986, 'bone': 0.0010646024544911734, 'lift': 0.4941446865002986}#'smoothpose': 0.01,}
-    weights = {}
-    weights_sum = sum(weights_.values())
-    for loss_key in LOSSES:
-        weights[loss_key] = weights_[loss_key]/weights_sum
+    weights = normalize_weights(weights_)
 
     energy_parameters = {"METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
     fill_notes(f_notes_name, parameters, energy_parameters)   
@@ -345,13 +344,13 @@ if __name__ == "__main__":
     if (use_airsim):
         for animation_num in animations:
 
-            parameters["ANIMATION_NUM"]= animation_num
+            parameters["ANIMATION_NUM"]=  animation_num
             parameters["TEST_SET_NAME"]= ""
             errors = main(kalman_arguments, parameters, energy_parameters)
             print(errors)
     else:
         for animation_num, test_set in test_set.items():
-            parameters["ANIMATION_NUM"]= animation_num
+            parameters["ANIMATION_NUM"]=  animation_num
             parameters["TEST_SET_NAME"]= test_set
             errors = main(kalman_arguments, parameters, energy_parameters)
             print(errors)

@@ -13,13 +13,12 @@ import cv2
 from math import degrees, radians, pi, ceil, exp
 
 
-
-
 energy_mode = {1:True, 0:False}
 LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 CALIBRATION_LOSSES = ["proj", "sym"]
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
+ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4}
 
 bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [0, 4], [4, 5], [5, 6], [6, 20], #left leg
@@ -92,7 +91,7 @@ def return_lift_bone_connections(bone_connections):
 def return_arm_connection(bone_connections):
     if (bone_connections == bones_h36m):
         left_arm_connections = [[8, 14], [14, 15], [15, 16], [16, 17]]
-        rigth_arm_connections = [[8, 11], [11, 12], [12, 13], [13, 18]]
+        right_arm_connections = [[8, 11], [11, 12], [12, 13], [13, 18]]
     elif (bone_connections == bones_mpi):
         left_arm_connections = [[1, 5], [5, 6], [6, 7]]
         right_arm_connections = [[1, 2], [2, 3], [3, 4]]
@@ -109,6 +108,13 @@ def model_settings(model, bone_pos_3d_GT = Variable(torch.zeros(3,21))):
         joint_names = joint_names_h36m
         num_of_joints = 21
     return bone_connections, joint_names, num_of_joints, bone_pos_3d_GT
+
+def normalize_weights(weights_):    
+    weights = {}
+    weights_sum = sum(weights_.values())
+    for loss_key in LOSSES:
+        weights[loss_key] = weights_[loss_key]/weights_sum
+    return weights
 
 def range_angle(angle, limit=360, is_radians = True):
     if is_radians:
