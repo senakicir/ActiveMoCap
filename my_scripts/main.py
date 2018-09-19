@@ -92,7 +92,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     if (parameters == None):
         parameters = {"QUIET": False, "USE_TRACKBAR": False, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
     if (energy_parameters == None):
-        energy_parameters = {"FTOL": 1e-2, "METHOD": "trf", "WEIGHTS": {"proj":0.25,"smooth":0.25, "bone":0.25, "lift":0.25}}
+        energy_parameters = {"FTOL": 1e-3, "METHOD": "trf", "WEIGHTS": {"proj":0.25,"smooth":0.25, "bone":0.25, "lift":0.25}}
     
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
     global USE_AIRSIM
@@ -111,10 +111,8 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         airsim_client.armDisarm(True)
         print('Taking off')
         airsim_client.initInitialDronePos()
-        pose_client = PoseEstimationClient(parameters["MODEL"])
         airsim_client.changeAnimation(ANIM_TO_UNREAL[ANIMATION_NUM])
         airsim_client.changeCalibrationMode(True)
-        pose_client.changeCalibrationMode(True)
         airsim_client.takeoffAsync(timeout_sec = 20)
         airsim_client.moveToZAsync(-z_pos, 2, timeout_sec = 5, yaw_mode = airsim.YawMode(), lookahead = -1, adaptive_lookahead = 1)
         time.sleep(5)
@@ -123,7 +121,9 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         filename_bones = 'test_sets/'+test_set_name+'/groundtruth.txt'
         filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
         airsim_client = NonAirSimClient(filename_bones, filename_output)
-        pose_client = PoseEstimationClient(parameters["MODEL"])
+
+    pose_client = PoseEstimationClient(parameters["MODEL"])
+    
 
     #define some variables
     airsim_client.linecount = 0
@@ -310,7 +310,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     pose_client.reset()
     airsim_client.changeAnimation(0) #reset animation
 
-    
+    #find_M(plot_info, pose_client.model)
 
     return errors
 
@@ -321,7 +321,7 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
+    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":1} 
    
     use_trackbar = False
 
@@ -335,7 +335,7 @@ if __name__ == "__main__":
 
     parameters = {"QUIET": False, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
     
-    weights_ = {'proj': 0.010646024544911734, 'smooth': 0.4941446865002986, 'bone': 0.0010646024544911734, 'lift': 0.4941446865002986}#'smoothpose': 0.01,}
+    weights_ = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
     weights = normalize_weights(weights_)
 
     energy_parameters = {"METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}

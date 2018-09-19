@@ -4,8 +4,11 @@ import airsim
 import shutil, skimage.io
 import numpy as np
 import torch as torch
+from pandas import read_csv
+
 from torch.autograd import Variable
 from mpl_toolkits.mplot3d import Axes3D
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import time, os
@@ -138,6 +141,37 @@ def save_bone_positions_2(index, bones, f_output):
 def do_nothing(x):
     pass
 
+def find_M(plot_info, model):
+    bone_connections,joint_names,num_of_joints,_= model_settings(model)
+    p_GT = np.zeros([3*len(plot_info),num_of_joints])
+    p_est = np.zeros([3*len(plot_info),num_of_joints])
+    for frame_ind, frame_plot_info in enumerate(plot_info):
+        predicted_bones = frame_plot_info["est"]
+        bones_GT = frame_plot_info["GT"]
+        p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT
+        p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones
+    X = np.linalg.inv(np.dot(p_est.T, p_est))
+    M = np.dot(np.dot(X, p_est.T), p_GT)
+
+    M_file = open("M.txt", 'w')
+    M_str = ""
+    for i in range(0, num_of_joints):
+        for j in range(0, num_of_joints):
+            M_str += str(M[i,j]) + "\t"
+        if (i != num_of_joints-1):
+            M_str += "\n"
+    M_file.write(M_str)
+    return M
+
+def read_M(model):
+    _,_,num_of_joints,_= model_settings(model)
+    if os.path.exists("M.txt"):
+        X = read_csv("M.txt", sep='\t', header=None).ix[:,:].as_matrix().astype('float')     
+        return X[:,0:num_of_joints]  
+    else:
+        return np.eye(num_of_joints)
+
+
 def reset_all_folders(animation_list, base = ""):
     if (base == ""):
         base = "temp_main"
@@ -219,8 +253,8 @@ def simple_plot(data, folder_name, plot_name, plot_title="", x_label="", y_label
     plt.close()
 
 def simple_plot2(xdata, ydata, folder_name, plot_name, plot_title="", x_label="", y_label=""):
-    fig1 = plt.figure()
-    p1, = plt.semilogx(xdata, ydata)
+    _ = plt.figure()
+    _, = plt.semilogx(xdata, ydata)
     if (plot_title != ""): 
         plt.title(plot_title)
     if (x_label != ""): 
@@ -228,6 +262,18 @@ def simple_plot2(xdata, ydata, folder_name, plot_name, plot_title="", x_label=""
     if (y_label != ""): 
         plt.ylabel(y_label)
     plt.savefig(folder_name + '/' + plot_title + '.png', bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_matrix(matrix, plot_loc, ind, plot_title, custom_name):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    im = ax.imshow(matrix)
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im, cax=cax)
+    plt.title(plot_title)    
+    matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind) + '.png'
+    plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_location, custom_name=None, scale=-1, projection = np.zeros([1,1])):

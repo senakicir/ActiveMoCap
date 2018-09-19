@@ -62,7 +62,7 @@ def oneaxis_weight_search():
 
     parameters = {"QUIET": True, "ANIMATION_NUM": animation_num, "TEST_SET_NAME": test_set, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
 
-    centered = {'proj': 0.106, 'smooth': 0.49414, 'bone': 0.001, 'lift': 0.49414}#'smoothpose': 0.01,}
+    centered = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
 
     def generate_weight_list(mean):
         return [mean/10, mean/5, mean, mean*5, mean*10]

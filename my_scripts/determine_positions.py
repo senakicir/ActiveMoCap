@@ -120,6 +120,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     if (airsim_client.linecount != 0):
         pre_pose_3d = pose_client.poseList_3d[0]
     else:
+       # pre_pose_3d = np.dot(take_bone_backprojection(bone_2d, R_drone, C_drone, joint_names), pose_client.M)
         pre_pose_3d = take_bone_backprojection(bone_2d, R_drone, C_drone, joint_names)
         pose_client.poseList_3d_calibration = pre_pose_3d
        # pose_client.kalman.init_state(np.reshape(a = pre_pose_3d, newshape = [3*num_of_joints,1], order = "F"))
@@ -142,7 +143,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
             objective = objective_calib
             pose3d_init_scrambled = pose_client.poseList_3d_calibration.copy()
             pose3d_init = np.reshape(a = pose3d_init_scrambled, newshape = [3*num_of_joints], order = "C")
-            objective.reset(pose_client.model, data_list, energy_weights, loss_dict)
+            objective.reset(pose_client.model, data_list, energy_weights, loss_dict, pose_client.M)
             objective_jacobian =  objective_calib.jacobian
             result_shape = [3, num_of_joints]
             
@@ -153,7 +154,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
             lift_list = pose_client.liftPoseList
             energy_weights = pose_client.weights
             objective = objective_flight
-            objective.reset(pose_client.model, data_list, lift_list, energy_weights, loss_dict, pose_client.FLIGHT_WINDOW_SIZE, pose_client.boneLengths)
+            objective.reset(pose_client.model, data_list, lift_list, energy_weights, loss_dict, pose_client.FLIGHT_WINDOW_SIZE, pose_client.boneLengths, pose_client.M)
             objective_jacobian = objective_flight.jacobian
             pose3d_init = np.zeros([pose_client.FLIGHT_WINDOW_SIZE, 3, num_of_joints])
             for queue_index, pose3d_ in enumerate(pose_client.poseList_3d):
@@ -168,32 +169,30 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
         P_world_scrambled = optimized_res.x
 
         P_world = np.reshape(a = P_world_scrambled, newshape = result_shape, order = "C")
+        inv_hess = np.linalg.inv(objective.hessian(P_world))
+        pose_client.updateMeasurementCov(inv_hess)
 
-        if (pose_client.isCalibratingEnergy):
+        #if (pose_client.isCalibratingEnergy):
             #pre_kalman_pose = P_world
-            optimized_3d_pose = P_world
-        else:
+            #optimized_3d_pose = P_world
+        #else:
             #pre_kalman_pose = P_world[0, :,:]
-            optimized_3d_pose =  P_world[0, :,:]
-
-        #kalman predict
+            #optimized_3d_pose =  P_world[0, :,:]
         #pose_client.kalman.predict()
-
-        #kalman update
         #pose_client.kalman.update(z=np.reshape(a = pre_kalman_pose, newshape = [3*num_of_joints,1], order = "F"), noise_cov=cov)
         #pose_client.kalman.update(z=np.reshape(a = pre_kalman_pose, newshape = [3*num_of_joints,1], order = "F"), Hx=objective.forward, HJacobian=objective_jacobian, noise_cov=cov)
-        
-        #use kalman results as pose 
         #kalman_res = np.reshape(a = pose_client.kalman.x_post, newshape =[3, num_of_joints], order = "F")
 
         if (pose_client.isCalibratingEnergy):
             #optimized_3d_pose = kalman_res.copy()
+            optimized_3d_pose = P_world
             pose_client.update3dPos(optimized_3d_pose, is_calib = pose_client.isCalibratingEnergy)
             if airsim_client.linecount > 3:
                 for i, bone in enumerate(bone_connections):
                     pose_client.boneLengths[i] = np.sum(np.square(optimized_3d_pose[:, bone[0]] - optimized_3d_pose[:, bone[1]]))
         else:
             #P_world[0, :, :] = kalman_res.copy()
+            optimized_3d_pose =  P_world[0, :,:]
             pose_client.update3dPos(P_world, is_calib = pose_client.isCalibratingEnergy)
             #optimized_3d_pose = kalman_res.copy()
 
@@ -212,7 +211,8 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     pose_client.error_3d.append(error_3d)
     if (plot_loc != 0 and not quiet):
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
-        plot_drone_and_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d)
+        plot_drone_and_human(bone_pos_3d_GT, np.dot(optimized_3d_pose, pose_client.M), plot_loc, airsim_client.linecount, bone_connections, error_3d)
+        plot_matrix(pose_client.measurement_cov, plot_loc, airsim_client.linecount, "covariance", "covariance")
         if (not pose_client.isCalibratingEnergy):
             pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, joint_names, is_torch=False)
             bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch=False)
@@ -372,6 +372,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
     cov = transform_cov_matrix(R_drone.cpu().data.numpy(), measurement_cov_)
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
     plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": func_eval_time, "f_string": f_output_str}
+
 
     return positions, unreal_positions, cov, plot_end
 
