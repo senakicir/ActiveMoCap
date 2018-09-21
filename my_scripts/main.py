@@ -122,8 +122,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
         airsim_client = NonAirSimClient(filename_bones, filename_output)
 
-    pose_client = PoseEstimationClient(parameters["MODEL"])
-    
+    pose_client = PoseEstimationClient(parameters["MODEL"], parameters["PARAM_READ_M"])
 
     #define some variables
     airsim_client.linecount = 0
@@ -140,8 +139,6 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
     gt_hp = []
     est_hp = []
-    processing_time = []
-    plot_info = []
     global_plot_ind = 0
 
     filenames_anim = file_names[ANIMATION_NUM]
@@ -162,7 +159,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-    initial_positions, _, _, _  = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_, quiet=quiet)
+    initial_positions, _, _  = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_, quiet=quiet)
 
     current_state = State(initial_positions)
     
@@ -207,14 +204,13 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
             airsim_client.changeCalibrationMode(False)
             pose_client.changeCalibrationMode(False)
             global_plot_ind =0
-            plot_info = []
 
         if (USE_AIRSIM):
             photo_loc_ = foldernames_anim["images"] + '/img_' + str(airsim_client.linecount) + '.png'
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-        positions, unreal_positions, cov, plot_end = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_, quiet=quiet)
+        positions, unreal_positions, cov = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_, quiet=quiet)
         inFrame = True #TO DO
         
         current_state.updateState(positions, inFrame, cov) #updates human pos, human orientation, human vel, drone pos
@@ -258,15 +254,13 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         end = time.time()
         #elapsed_time = end - start
         #print("elapsed time: ", elapsed_time)
-        processing_time.append(plot_end["eval_time"])
         time.sleep(DELTA_T) 
         if (airsim_client.linecount % 3 == 0 and not quiet):
-            plot_info.append(plot_end)
-            plot_global_motion(plot_info, plot_loc_, global_plot_ind, pose_client.model, pose_client.isCalibratingEnergy)
+            plot_global_motion(pose_client, plot_loc_, global_plot_ind)
             global_plot_ind +=1
 
         #SAVE ALL VALUES OF THIS SIMULATION       
-        f_output_str = str(airsim_client.linecount)+plot_end["f_string"] + '\n'
+        f_output_str = str(airsim_client.linecount)+pose_client.f_string + '\n'
         f_output.write(f_output_str)
         f_groundtruth_str =  str(airsim_client.linecount) + '\t' +f_groundtruth_str + '\n'
         f_groundtruth.write(f_groundtruth_str)
@@ -296,7 +290,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     est_hv_arr = np.asarray(est_hv)
     estimate_folder_name = foldernames_anim["estimates"]
     plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, estimate_folder_name)
-    simple_plot(processing_time, estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
+    simple_plot(pose_client.processing_time, estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
     if (pose_client.modes["mode_3d"] == 3):
         simple_plot(pose_client.error_2d, estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
     simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
@@ -307,25 +301,25 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     f_output.close()
 
     airsim_client.reset()
-    pose_client.reset()
-    airsim_client.changeAnimation(0) #reset animation
+    pose_client.reset(plot_loc_)
 
-    #find_M(plot_info, pose_client.model)
+    airsim_client.changeAnimation(0) #reset animation
 
     return errors
 
 if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" :1, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1e-3}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
+    use_trackbar = False
     use_airsim = False
+    param_read_M = True
+    is_quiet = False
+
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":3, "mode_2d":1, "mode_lift":1} 
    
-    use_trackbar = False
-
-    #animations = [0,1,2,3]
     animations = ["02_01"]
     test_set = {}
     for animation_num in animations:
@@ -333,7 +327,7 @@ if __name__ == "__main__":
 
     file_names, folder_names, f_notes_name = reset_all_folders(animations)
 
-    parameters = {"QUIET": False, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
+    parameters = {"PARAM_READ_M": param_read_M, "QUIET": is_quiet, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
     
     weights_ = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
     weights = normalize_weights(weights_)
@@ -343,7 +337,6 @@ if __name__ == "__main__":
 
     if (use_airsim):
         for animation_num in animations:
-
             parameters["ANIMATION_NUM"]=  animation_num
             parameters["TEST_SET_NAME"]= ""
             errors = main(kalman_arguments, parameters, energy_parameters)

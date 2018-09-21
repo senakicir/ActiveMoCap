@@ -141,19 +141,40 @@ def save_bone_positions_2(index, bones, f_output):
 def do_nothing(x):
     pass
 
-def find_M(plot_info, model):
-    bone_connections,joint_names,num_of_joints,_= model_settings(model)
+def find_M(plot_info, model, rel = False):
+    _,joint_names,num_of_joints,_= model_settings(model) 
+    spine_index = joint_names.index('spine1')
     p_GT = np.zeros([3*len(plot_info),num_of_joints])
     p_est = np.zeros([3*len(plot_info),num_of_joints])
     for frame_ind, frame_plot_info in enumerate(plot_info):
         predicted_bones = frame_plot_info["est"]
         bones_GT = frame_plot_info["GT"]
-        p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT
-        p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones
+        if rel:
+            root_GT = bones_GT[:,spine_index]
+            root_est = predicted_bones[:,spine_index]
+            p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT-root_GT[:, np.newaxis]
+            p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones-root_est[:, np.newaxis]
+        else:
+            p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT
+            p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones
+    #remove spine row from both arrays
+
+    if rel:
+        p_est = np.delete(p_est, spine_index, 1)
+        p_GT = np.delete(p_GT, spine_index, 1)
+        filename = "M_rel.txt"
+    else:
+        filename = "M_gt.txt"
+
     X = np.linalg.inv(np.dot(p_est.T, p_est))
     M = np.dot(np.dot(X, p_est.T), p_GT)
 
-    M_file = open("M.txt", 'w')
+    if rel:
+        M = np.insert(M, spine_index, 0, axis=1)
+        M = np.insert(M, spine_index, 0, axis=0)
+        M[spine_index, spine_index] = 1
+
+    M_file = open(filename, 'w')
     M_str = ""
     for i in range(0, num_of_joints):
         for j in range(0, num_of_joints):
@@ -161,12 +182,14 @@ def find_M(plot_info, model):
         if (i != num_of_joints-1):
             M_str += "\n"
     M_file.write(M_str)
+
     return M
 
-def read_M(model):
+def read_M(model, name = "M"):
+    filename = name+".txt"
     _,_,num_of_joints,_= model_settings(model)
-    if os.path.exists("M.txt"):
-        X = read_csv("M.txt", sep='\t', header=None).ix[:,:].as_matrix().astype('float')     
+    if os.path.exists(filename):
+        X = read_csv(filename, sep='\t', header=None).ix[:,:].as_matrix().astype('float')     
         return X[:,0:num_of_joints]  
     else:
         return np.eye(num_of_joints)
@@ -435,13 +458,21 @@ def plot_drone_and_human(bones_GT, predicted_bones, location, ind,  bone_connect
     plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def plot_global_motion(plot_info, plot_loc, ind, model, isCalib):
+def plot_global_motion(pose_client, plot_loc, ind):
+    if (pose_client.isCalibratingEnergy):
+        plot_info = pose_client.calib_res_list
+        file_name = plot_loc + '/global_plot_calib_'+ str(ind) + '.png'
+    else:
+        plot_info = pose_client.flight_res_list
+        file_name = plot_loc + '/global_plot_flight_'+ str(ind) + '.png'
+
     fig = plt.figure()
-    bone_connections, _, num_of_joints, _ = model_settings(model)
+    bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     gs1 = gridspec.GridSpec(1, 1)
     ax = fig.add_subplot(gs1[0], projection='3d')
-    for frame_ind, frame_plot_info in enumerate(plot_info):
+    for frame_ind in range (0, len(plot_info), 3):
+        frame_plot_info = plot_info[frame_ind]
         predicted_bones = frame_plot_info["est"]
         bones_GT = frame_plot_info["GT"]
         drone = frame_plot_info["drone"]
@@ -485,10 +516,7 @@ def plot_global_motion(plot_info, plot_loc, ind, model, isCalib):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    if isCalib:
-        file_name = plot_loc + '/global_plot_calib_'+ str(ind) + '.png'
-    else:
-        file_name = plot_loc + '/global_plot_flight_'+ str(ind) + '.png'
+
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close()
 

@@ -8,10 +8,12 @@ from square_bounding_box import *
 from kalman_filters import *
 
 class PoseEstimationClient(object):
-    def __init__(self, model):
+    def __init__(self, model, param_read_M):
         self.FLIGHT_WINDOW_SIZE =6
         self.CALIBRATION_LENGTH =35
 
+
+        self.plot_info = []
         self.error_2d = []
         self.error_3d = []
         self.requiredEstimationData = []
@@ -28,15 +30,39 @@ class PoseEstimationClient(object):
         self.weights = {}
         self.model = model
         self.cropping_tool = Crop()
-        self.M = read_M(model)
+        self.param_read_M = param_read_M
+        if param_read_M:
+            self.M = read_M(model, "M_gt")
+        else:
+            _, _, num_of_joints, _ = model_settings(model)
+            self.M = np.eye(num_of_joints)
         #self.kalman = ExtendedKalman()#Kalman()
         self.measurement_cov = np.zeros([1,1])
+        
+        self.calib_res_list = []
+        self.flight_res_list = []
+        self.f_string = ""
+        self.processing_time = []
 
-    def reset(self):
+    def reset(self, plot_loc):
+        if not self.param_read_M:
+            M = find_M(self.flight_res_list, self.model)
+            plot_matrix(M, plot_loc, 0, "M", "M")
         self.error_2d = []
         self.error_3d = []
         self.isCalibratingEnergy = True
+        self.processing_time = []
+        self.calib_res_list = []
+        self.flight_res_list = []
         return 0
+
+    def append_res(self, new_res):
+        self.processing_time.append(new_res["eval_time"])
+        self.f_string = new_res["f_string"]
+        if self.isCalibratingEnergy:
+            self.calib_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
+        else:
+            self.flight_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
 
     def updateMeasurementCov(self, cov):
         self.measurement_cov = cov

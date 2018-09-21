@@ -22,15 +22,15 @@ objective_calib = pose3d_calibration_scipy()
 
 def determine_all_positions(airsim_client, pose_client, measurement_cov_ = 0,  plot_loc = 0, photo_loc = 0, quiet=True):
     if (pose_client.modes["mode_3d"] == 0):
-        positions, unreal_positions, cov, plot_end = determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc, quiet)
     elif (pose_client.modes["mode_3d"] == 1):
-        positions, unreal_positions, cov, plot_end = determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
     elif (pose_client.modes["mode_3d"] == 2):            
-        positions, unreal_positions, cov, plot_end = determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
     elif (pose_client.modes["mode_3d"] == 3):
-        positions, unreal_positions, cov, plot_end = determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
 
-    return positions, unreal_positions, cov, plot_end
+    return positions, unreal_positions, cov
 
 def determine_2d_positions(mode_2d, cropping_tool,  return_heatmaps=True, is_torch = True, unreal_positions = 0, bone_pos_3d_GT = 0, input_image = 0,  scales = [1]):
     if (mode_2d == 0):
@@ -224,7 +224,9 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     positions = form_positions_dict(angle, drone_pos_vec, optimized_3d_pose[:,joint_names.index('spine1')])
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
     plot_end = {"est": optimized_3d_pose, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": func_eval_time, "f_string": f_output_str}
-    return positions, unreal_positions, cov, plot_end
+    pose_client.append_res(plot_end)
+
+    return positions, unreal_positions, cov
 
 
 def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0, quiet=False):
@@ -372,9 +374,9 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
     cov = transform_cov_matrix(R_drone.cpu().data.numpy(), measurement_cov_)
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
     plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": func_eval_time, "f_string": f_output_str}
+    pose_client.append_res(plot_end)
 
-
-    return positions, unreal_positions, cov, plot_end
+    return positions, unreal_positions, cov
 
 def determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0, quiet = False):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
@@ -403,13 +405,15 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, measuremen
     positions = form_positions_dict(angle, drone_pos_vec, P_world[:,0])
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
     plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": f_output_str}
-    return positions, unreal_positions, cov, plot_end
+    pose_client.append_res(plot_end)
+
+    return positions, unreal_positions, cov
 
 def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc, quiet):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
     bone_connections, joint_names, num_of_joints, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
-   # R_drone = Variable(euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2], returnTensor=True), requires_grad = False)
-    #C_drone = Variable(torch.FloatTensor([[unreal_positions[DRONE_POS_IND, 0]],[unreal_positions[DRONE_POS_IND, 1]],[unreal_positions[DRONE_POS_IND, 2]]]), requires_grad = False)
+    R_drone = Variable(euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2], returnTensor=True), requires_grad = False)
+    C_drone = Variable(torch.FloatTensor([[unreal_positions[DRONE_POS_IND, 0]],[unreal_positions[DRONE_POS_IND, 1]],[unreal_positions[DRONE_POS_IND, 2]]]), requires_grad = False)
     
     if (pose_client.modes["mode_2d"] == 1):
         input_image = cv.imread(photo_loc)
@@ -455,8 +459,9 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)+'\n'
     cov = 1e-20 * np.eye(3,3)
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": f_output_str}
+    pose_client.append_res(plot_end)
 
-    return positions, unreal_positions, cov, plot_end
+    return positions, unreal_positions, cov
 
 def form_positions_dict(angle, drone_pos_vec, human_pos):
     positions = np.zeros([5, 3])

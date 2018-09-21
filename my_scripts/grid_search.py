@@ -11,6 +11,8 @@ def weight_search():
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_airsim = False
+    param_read_M = True
+    is_quiet = True
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
@@ -26,7 +28,7 @@ def weight_search():
         shutil.rmtree("grid_search")
 
     ave_errors_pos = np.zeros([len(weight_list),len(weight_list), len(weight_list)])
-    parameters = {"QUIET": True, "ANIMATION_NUM": animation_num, "TEST_SET_NAME": test_set, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
+    parameters = {"PARAM_READ_M":param_read_M, "QUIET": is_quiet, "ANIMATION_NUM": animation_num, "TEST_SET_NAME": test_set, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
 
     for smooth_ind, smooth_weights in enumerate(weight_list):
         for bone_ind, bone_weights in enumerate(weight_list):
@@ -37,8 +39,6 @@ def weight_search():
                 print(errors)
             simple_plot2(weight_list, ave_errors_pos[smooth_ind, bone_ind, :], "grid_search", "overall_err"+str(lift_ind), plot_title="For " + str(smooth_weights) +" " + str(bone_weights), x_label="Lift weight", y_label="Error")
 
-
-
     overall_errors = ave_errors_pos
     ind = np.unravel_index(np.argmin(overall_errors), overall_errors.shape)
     print(np.amin(overall_errors))
@@ -48,6 +48,8 @@ def oneaxis_weight_search():
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_airsim = False
+    is_quiet = False
+    param_read_M = True
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
@@ -60,7 +62,7 @@ def oneaxis_weight_search():
     if os.path.exists("grid_search"):
         shutil.rmtree("grid_search")
 
-    parameters = {"QUIET": True, "ANIMATION_NUM": animation_num, "TEST_SET_NAME": test_set, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
+    parameters = {"PARAM_READ_M":param_read_M, "QUIET": is_quiet, "ANIMATION_NUM": animation_num, "TEST_SET_NAME": test_set, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
 
     centered = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
 

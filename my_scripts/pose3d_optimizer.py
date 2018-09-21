@@ -169,6 +169,13 @@ class pose3d_calibration_pytorch(torch.nn.Module):
         pose3d_ = torch.from_numpy(pose3d_np).float()
         self.pose3d.data[:] = pose3d_.data[:]
 
+#class toy_example(torch.nn.Module):
+ #   def __init__(self, model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list, M):
+
+  #  def forward(self):
+
+   # def init_pose3d(self, pose3d_np):
+
 class pose3d_flight_pytorch(torch.nn.Module):
 
     def __init__(self, model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list, M):
