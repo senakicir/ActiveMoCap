@@ -35,4 +35,4 @@ ffmpeg -framerate 5 -start_number 7 -i 'heatmaps_scales_%01d.png' -c:v libx264 -
 
 ffmpeg -framerate 5 -start_number 7 -i 'img_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih+1:x=0:y=0:color=white" img.mp4
 
-ffmpeg -framerate 5 -i 'covariance%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih+1:x=0:y=0:color=white" covariance.mp4
+ffmpeg -framerate 2 -i 'covariance%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih+1:x=0:y=0:color=white" covariance.mp4

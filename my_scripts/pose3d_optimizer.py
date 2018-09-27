@@ -120,7 +120,17 @@ class pose3d_flight(torch.nn.Module):
         self.pose3d.data[queue_index, :, :] = pose3d_.data[:]
 
 
+class toy_example(torch.nn.Module):
+    def __init__(self, model, loss_dict, weights, data_list, M):
+        super(toy_example, self).__init__()
+        self.pose3d = torch.nn.Parameter(torch.zeros([4,1]), requires_grad=True)
 
+    def forward(self):
+        return self.pose3d[3]**2 + self.pose3d[2]*self.pose3d[1]*self.pose3d[0] + self.pose3d[0]**4
+ 
+    def init_pose3d(self, pose3d_np):
+        pose3d_ = torch.from_numpy(pose3d_np).float()
+        self.pose3d.data[:] = pose3d_.data[:]
 
 class pose3d_calibration_pytorch(torch.nn.Module):
 
@@ -168,13 +178,6 @@ class pose3d_calibration_pytorch(torch.nn.Module):
     def init_pose3d(self, pose3d_np):
         pose3d_ = torch.from_numpy(pose3d_np).float()
         self.pose3d.data[:] = pose3d_.data[:]
-
-#class toy_example(torch.nn.Module):
- #   def __init__(self, model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list, M):
-
-  #  def forward(self):
-
-   # def init_pose3d(self, pose3d_np):
 
 class pose3d_flight_pytorch(torch.nn.Module):
 

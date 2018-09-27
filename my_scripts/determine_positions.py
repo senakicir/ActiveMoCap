@@ -20,15 +20,15 @@ import liftnet as liftnet_module
 objective_flight = pose3d_flight_scipy()
 objective_calib = pose3d_calibration_scipy()
 
-def determine_all_positions(airsim_client, pose_client, measurement_cov_ = 0,  plot_loc = 0, photo_loc = 0, quiet=True):
+def determine_all_positions(airsim_client, pose_client, measurement_cov_ = 0,  plot_loc = 0, photo_loc = 0):
     if (pose_client.modes["mode_3d"] == 0):
-        positions, unreal_positions, cov = determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 1):
-        positions, unreal_positions, cov = determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 2):            
-        positions, unreal_positions, cov = determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 3):
-        positions, unreal_positions, cov = determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc, quiet)
+        positions, unreal_positions, cov = determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_cov_, plot_loc, photo_loc)
 
     return positions, unreal_positions, cov
 
@@ -84,7 +84,7 @@ def determine_relative_3d_pose(mode_lift, bone_2d, cropped_image, heatmap_2d, R_
         pose3d_relative = camera_to_world(R_drone, C_drone, pose3d_lift.cpu().data.numpy(), is_torch = False)
     return pose3d_relative
 
-def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0, quiet=True):
+def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
     bone_connections, joint_names, num_of_joints, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
     input_image = cv.imread(photo_loc)
@@ -97,9 +97,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
 
     #find 2d pose (using openpose or gt)
     bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, True, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
-    if (quiet == False):
-        save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
-        #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
     #find relative 3d pose using liftnet or GT relative pose
     pose3d_lift = determine_relative_3d_pose(pose_client.modes["mode_lift"], bone_2d, cropped_image, heatmap_2d, R_drone, C_drone, bone_pos_3d_GT)
@@ -134,7 +131,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     if airsim_client.linecount == FRAME_START_OPTIMIZING:
         pose_client.cropping_tool.update_bbox_margin(1)
 
-    if (airsim_client.linecount >0):
+    if (airsim_client.linecount > 0):
         #calibration mode parameters
         if (pose_client.isCalibratingEnergy): 
             loss_dict = CALIBRATION_LOSSES
@@ -169,8 +166,9 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
         P_world_scrambled = optimized_res.x
 
         P_world = np.reshape(a = P_world_scrambled, newshape = result_shape, order = "C")
-        inv_hess = np.linalg.inv(objective.hessian(P_world))
-        pose_client.updateMeasurementCov(inv_hess)
+        hess = objective.hessian(P_world)
+        #inv_hess = np.linalg.inv(objective.hessian(P_world))
+        pose_client.updateMeasurementCov(hess[:3*num_of_joints, :3*num_of_joints])
 
         #if (pose_client.isCalibratingEnergy):
             #pre_kalman_pose = P_world
@@ -204,21 +202,27 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     
     pose_client.error_2d.append(final_loss[0])
 
+    root_est = optimized_3d_pose[:,joint_names.index('spine1')]
+    optimized_3d_pose = np.dot(optimized_3d_pose - root_est[:, np.newaxis], pose_client.M)+root_est[:, np.newaxis]
+
     check,  _ = take_bone_projection(optimized_3d_pose, R_drone, C_drone)
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - optimized_3d_pose, axis=0))
     pose_client.error_3d.append(error_3d)
-    if (plot_loc != 0 and not quiet):
+    if (plot_loc != 0 and not pose_client.quiet): 
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
-        plot_drone_and_human(bone_pos_3d_GT, np.dot(optimized_3d_pose, pose_client.M), plot_loc, airsim_client.linecount, bone_connections, error_3d)
+        plot_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d)
         plot_matrix(pose_client.measurement_cov, plot_loc, airsim_client.linecount, "covariance", "covariance")
+        #save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
+        #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
+
         if (not pose_client.isCalibratingEnergy):
             pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, joint_names, is_torch=False)
             bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch=False)
             optimized_3d_pose_normalized, _ = normalize_pose(optimized_3d_pose, joint_names, is_torch=False)
-            plot_drone_and_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
-            plot_drone_and_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
+            plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
+            plot_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
             plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
 
     positions = form_positions_dict(angle, drone_pos_vec, optimized_3d_pose[:,joint_names.index('spine1')])
@@ -229,7 +233,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     return positions, unreal_positions, cov
 
 
-def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0, quiet=False):
+def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
     bone_connections, joint_names, num_of_joints, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
     input_image = cv.imread(photo_loc)
@@ -281,7 +285,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
             objective.init_pose3d(pose3d_) 
             loss_dict = CALIBRATION_LOSSES
             data_list = pose_client.requiredEstimationData_calibration
-            energy_weights = {"proj":0.5, "sym":0.5}
+            energy_weights = {"proj":0.8, "sym":0.2}
          #flight mode parameters
         else:
             objective = pose3d_flight(pose_client.boneLengths, pose_client.FLIGHT_WINDOW_SIZE, pose_client.model)
@@ -290,6 +294,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
             num_iterations = 5000
             #init all 3d pose 
             for queue_index, pose3d_ in enumerate(pose_client.poseList_3d):
+
                 objective.init_pose3d(pose3d_, queue_index)
             loss_dict = LOSSES
             data_list = pose_client.requiredEstimationData
@@ -321,7 +326,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
                             normalized_pose_3d, _ = normalize_pose(objective.pose3d[0, :, :], joint_names, is_torch = True)
                             normalized_lift, _ = normalize_pose(pose3d_lift, joint_names, is_torch = True)
                             bone_pos_3d_GT
-                            plot_drone_and_human(normalized_pose_3d.data.numpy(), normalized_lift.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, custom_name="lift_res_", orientation = "z_up")
+                            plot_human(normalized_pose_3d.data.numpy(), normalized_lift.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, custom_name="lift_res_", orientation = "z_up")
                     for loss_key in loss_dict:
                         outputs[loss_key].append(loss[loss_key])
                     queue_index += 1
@@ -366,7 +371,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
     pose_client.error_3d.append(error_3d)
     if (plot_loc != 0):
         #superimpose_on_image(bone_2d.data.numpy(), plot_loc, client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.data.numpy())
-        plot_drone_and_human(bone_pos_3d_GT, P_world, plot_loc, airsim_client.linecount, bone_connections, error_3d)
+        plot_human(bone_pos_3d_GT, P_world, plot_loc, airsim_client.linecount, bone_connections, error_3d)
         if (airsim_client.linecount >1):
             plot_optimization_losses(pltpts, plot_loc, airsim_client.linecount, loss_dict)
 
@@ -378,7 +383,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, measuremen
 
     return positions, unreal_positions, cov
 
-def determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0, quiet = False):
+def determine_3d_positions_backprojection(airsim_client, pose_client, measurement_cov_, plot_loc = 0, photo_loc = 0):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
     bone_connections, joint_names, _, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
 
@@ -398,7 +403,7 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, measuremen
     if (plot_loc != 0):
         check, _, _ = take_bone_projection(P_world, R_drone, C_drone)
         superimpose_on_image([check], plot_loc, airsim_client.linecount, bone_connections, photo_loc)
-        plot_drone_and_human(bone_pos_3d_GT, P_world, plot_loc, airsim_client.linecount, bone_connections, error_3d)
+        plot_human(bone_pos_3d_GT, P_world, plot_loc, airsim_client.linecount, bone_connections, error_3d)
 
     cov = transform_cov_matrix(R_drone, measurement_cov_)
 
@@ -409,7 +414,7 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, measuremen
 
     return positions, unreal_positions, cov
 
-def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc, quiet):
+def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
     bone_connections, joint_names, num_of_joints, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
     R_drone = Variable(euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2], returnTensor=True), requires_grad = False)
@@ -441,13 +446,13 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
         #pose3d_lift, _ = normalize_pose(pose3d_lift, joint_names, is_torch = True)
         #bone_pos_3d_GT, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch = False)
 
-        #if not quiet:
-            #plot_drone_and_human(bone_pos_3d_GT, pose3d_lift.cpu().numpy(), plot_loc, client.linecount, bone_connections, custom_name="lift_res_", orientation = "z_up")
+        #if not pose_client.quiet:
+            #plot_human(bone_pos_3d_GT, pose3d_lift.cpu().numpy(), plot_loc, client.linecount, bone_connections, custom_name="lift_res_", orientation = "z_up")
 
 
     elif (pose_client.modes["mode_2d"] == 0):
         bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, False, False, unreal_positions, bone_pos_3d_GT, photo_loc, 0)
-        if not quiet:
+        if not pose_client.quiet:
             superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_", scale = 0)
 
 

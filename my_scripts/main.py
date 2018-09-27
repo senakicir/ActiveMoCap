@@ -25,7 +25,6 @@ def get_client_unreal_values(client, X):
                 unreal_positions[value, :]  = (unreal_positions[value, :] - DRONE_INITIAL_POS)/100
             else:
                 unreal_positions[value, :] = np.array([element.x_val, element.y_val, element.z_val])
-
     else:
         do_nothing()
     return unreal_positions
@@ -77,22 +76,14 @@ def take_photo(airsim_client, image_folder_loc):
 
     return response.image_data_uint8, gt_str
 
-def main(kalman_arguments = None, parameters = None, energy_parameters = None):
+def main(kalman_arguments, parameters, energy_parameters):
 
     errors_pos = []
     errors_vel = []
     errors = {}
     end_test = False
-
-    if (kalman_arguments == None):
-        kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 3.72759372031e-11, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 7.19685673001e-08}
-        kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 77.4263682681 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
+   
     MEASUREMENT_NOISE_COV = np.array([[kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"], 0, 0], [0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"], 0], [0, 0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"]]])
-
-    if (parameters == None):
-        parameters = {"QUIET": False, "USE_TRACKBAR": False, "USE_AIRSIM": True, "ANIMATION_NUM": 1, "TEST_SET_NAME": "test_set_1", "FILE_NAMES": "", "FOLDER_NAMES": "", "MODEL": "mpi"}
-    if (energy_parameters == None):
-        energy_parameters = {"FTOL": 1e-3, "METHOD": "trf", "WEIGHTS": {"proj":0.25,"smooth":0.25, "bone":0.25, "lift":0.25}}
     
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
     global USE_AIRSIM
@@ -101,7 +92,6 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     test_set_name = parameters["TEST_SET_NAME"]
     file_names = parameters["FILE_NAMES"]
     folder_names = parameters["FOLDER_NAMES"]
-    quiet = parameters["QUIET"]
 
     #connect to the AirSim simulator
     if USE_AIRSIM:
@@ -122,20 +112,11 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
         airsim_client = NonAirSimClient(filename_bones, filename_output)
 
-    pose_client = PoseEstimationClient(parameters["MODEL"], parameters["PARAM_READ_M"])
+    pose_client = PoseEstimationClient(energy_parameters)
 
     #define some variables
     airsim_client.linecount = 0
-    pose_client.modes = parameters["MODES"]
-    pose_client.method = energy_parameters["METHOD"]
-    pose_client.ftol = energy_parameters["FTOL"]
-    pose_client.weights = energy_parameters["WEIGHTS"]
-    #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
 
-    if pose_client.model =="mpi":
-        pose_client.boneLengths = torch.zeros([14,1])
-    else:
-        pose_client.boneLengths = torch.zeros([20,1])
 
     gt_hp = []
     est_hp = []
@@ -159,7 +140,7 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-    initial_positions, _, _  = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_, quiet=quiet)
+    initial_positions, _, _  = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
 
     current_state = State(initial_positions)
     
@@ -188,17 +169,15 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
 
     while (not end_test):
 
-        start = time.time()
+        #start = time.time()
+
         if USE_AIRSIM:
             k = cv2.waitKey(1) & 0xFF
             if k == 27:
                 break
 
-        ##timedebug
-        photo, f_groundtruth_str = take_photo(airsim_client, foldernames_anim["images"])
+        _, f_groundtruth_str = take_photo(airsim_client, foldernames_anim["images"])
 
-        #set the mode for energy, calibration mode or no?
-        #if (USE_AIRSIM):
         if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
             #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
             airsim_client.changeCalibrationMode(False)
@@ -210,10 +189,9 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-        positions, unreal_positions, cov = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_, quiet=quiet)
-        inFrame = True #TO DO
+        positions, unreal_positions, cov = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
         
-        current_state.updateState(positions, inFrame, cov) #updates human pos, human orientation, human vel, drone pos
+        current_state.updateState(positions, cov) #updates human pos, human orientation, human vel, drone pos
 
         gt_hp.append(unreal_positions[HUMAN_POS_IND, :])
         est_hp.append(current_state.human_pos)
@@ -251,11 +229,11 @@ def main(kalman_arguments = None, parameters = None, energy_parameters = None):
         else:
             damping_speed = 0.5
         airsim_client.moveToPositionAsync(new_pos[0], new_pos[1], new_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
-        end = time.time()
+        #end = time.time()
         #elapsed_time = end - start
         #print("elapsed time: ", elapsed_time)
         time.sleep(DELTA_T) 
-        if (airsim_client.linecount % 3 == 0 and not quiet):
+        if (airsim_client.linecount % 3 == 0 and not pose_client.quiet):
             plot_global_motion(pose_client, plot_loc_, global_plot_ind)
             global_plot_ind +=1
 
@@ -313,7 +291,10 @@ if __name__ == "__main__":
     use_trackbar = False
     use_airsim = False
     param_read_M = True
+    param_find_M = False
     is_quiet = False
+    flight_window_size = 6
+    calibration_length = 35
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
@@ -325,14 +306,14 @@ if __name__ == "__main__":
     for animation_num in animations:
         test_set[animation_num] = TEST_SETS[animation_num]
 
-    file_names, folder_names, f_notes_name = reset_all_folders(animations)
+    file_names, folder_names, f_notes_name, _ = reset_all_folders(animations)
 
-    parameters = {"PARAM_READ_M": param_read_M, "QUIET": is_quiet, "USE_TRACKBAR": use_trackbar, "MODES": modes, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "MODEL": "mpi"}
+    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names}
     
-    weights_ = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
+    weights_ =  {'proj': 0.0004884205528035975, 'smooth': 0.4884205528035975, 'bone': 0.02267047384000158, 'lift': 0.4884205528035975}
     weights = normalize_weights(weights_)
 
-    energy_parameters = {"METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
+    energy_parameters = {"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
     fill_notes(f_notes_name, parameters, energy_parameters)   
 
     if (use_airsim):

@@ -141,7 +141,7 @@ def save_bone_positions_2(index, bones, f_output):
 def do_nothing(x):
     pass
 
-def find_M(plot_info, model, rel = False):
+def find_M(plot_info, model):
     _,joint_names,num_of_joints,_= model_settings(model) 
     spine_index = joint_names.index('spine1')
     p_GT = np.zeros([3*len(plot_info),num_of_joints])
@@ -149,30 +149,23 @@ def find_M(plot_info, model, rel = False):
     for frame_ind, frame_plot_info in enumerate(plot_info):
         predicted_bones = frame_plot_info["est"]
         bones_GT = frame_plot_info["GT"]
-        if rel:
-            root_GT = bones_GT[:,spine_index]
-            root_est = predicted_bones[:,spine_index]
-            p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT-root_GT[:, np.newaxis]
-            p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones-root_est[:, np.newaxis]
-        else:
-            p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT
-            p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones
+        root_GT = bones_GT[:,spine_index]
+        root_est = predicted_bones[:,spine_index]
+        p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT-root_GT[:, np.newaxis]
+        p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones-root_est[:, np.newaxis]
+
+
     #remove spine row from both arrays
-
-    if rel:
-        p_est = np.delete(p_est, spine_index, 1)
-        p_GT = np.delete(p_GT, spine_index, 1)
-        filename = "M_rel.txt"
-    else:
-        filename = "M_gt.txt"
-
+    p_est = np.delete(p_est, spine_index, 1)
+    p_GT = np.delete(p_GT, spine_index, 1)
+    filename = "M_rel.txt"
+    
     X = np.linalg.inv(np.dot(p_est.T, p_est))
     M = np.dot(np.dot(X, p_est.T), p_GT)
 
-    if rel:
-        M = np.insert(M, spine_index, 0, axis=1)
-        M = np.insert(M, spine_index, 0, axis=0)
-        M[spine_index, spine_index] = 1
+    M = np.insert(M, spine_index, 0, axis=1)
+    M = np.insert(M, spine_index, 0, axis=0)
+    M[spine_index, spine_index] = 1
 
     M_file = open(filename, 'w')
     M_str = ""
@@ -185,7 +178,7 @@ def find_M(plot_info, model, rel = False):
 
     return M
 
-def read_M(model, name = "M"):
+def read_M(model, name = "M_rel"):
     filename = name+".txt"
     _,_,num_of_joints,_= model_settings(model)
     if os.path.exists(filename):
@@ -194,6 +187,8 @@ def read_M(model, name = "M"):
     else:
         return np.eye(num_of_joints)
 
+def move_M(destination_folder):
+    os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
 
 def reset_all_folders(animation_list, base = ""):
     if (base == ""):
@@ -220,7 +215,7 @@ def reset_all_folders(animation_list, base = ""):
         file_names[animation] = {"f_output": sub_folder_name +  '/a_flight.txt', "f_groundtruth": sub_folder_name +  '/groundtruth.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
-    return file_names, folder_names, f_notes_name
+    return file_names, folder_names, f_notes_name, date_time_name
 
 
 def fill_notes(f_notes_name, parameters, energy_parameters):
@@ -377,7 +372,7 @@ def save_image(img, ind, plot_loc, custom_name=None):
     plt.close()
 
 
-def plot_drone_and_human(bones_GT, predicted_bones, location, ind,  bone_connections, error = -5, custom_name = None, orientation = "z_up", label_names =None):   
+def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, error = -5, custom_name = None, orientation = "z_up", label_names =None):   
     if custom_name == None:
         name = '/plot3d_'
     else: 

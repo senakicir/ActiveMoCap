@@ -8,10 +8,21 @@ from square_bounding_box import *
 from kalman_filters import *
 
 class PoseEstimationClient(object):
-    def __init__(self, model, param_read_M):
-        self.FLIGHT_WINDOW_SIZE =6
-        self.CALIBRATION_LENGTH =35
+    def __init__(self, param):
+        self.modes = param["MODES"]
+        self.method = param["METHOD"]
+        self.ftol = param["FTOL"]
+        self.weights = param["WEIGHTS"]
+    #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
+        self.model = param["MODEL"]
 
+        if self.model =="mpi":
+            self.boneLengths = torch.zeros([14,1])
+        else:
+            self.boneLengths = torch.zeros([20,1])
+
+        self.FLIGHT_WINDOW_SIZE = param["FLIGHT_WINDOW_SIZE"]
+        self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
 
         self.plot_info = []
         self.error_2d = []
@@ -19,42 +30,47 @@ class PoseEstimationClient(object):
         self.requiredEstimationData = []
         self.poseList_3d = []
         self.poseList_3d_calibration = []
-
         self.liftPoseList = []
         self.requiredEstimationData_calibration = []
-        self.isCalibratingEnergy = True
-        self.boneLengths = 0
-        self.lr = 0
-        self.mu = 0
-        self.iter_3d = 0
-        self.weights = {}
-        self.model = model
-        self.cropping_tool = Crop()
-        self.param_read_M = param_read_M
-        if param_read_M:
-            self.M = read_M(model, "M_gt")
-        else:
-            _, _, num_of_joints, _ = model_settings(model)
-            self.M = np.eye(num_of_joints)
-        #self.kalman = ExtendedKalman()#Kalman()
-        self.measurement_cov = np.zeros([1,1])
-        
+
         self.calib_res_list = []
         self.flight_res_list = []
         self.f_string = ""
         self.processing_time = []
 
+        self.isCalibratingEnergy = True
+
+        self.cropping_tool = Crop()
+        self.param_read_M = param["PARAM_READ_M"]
+        self.param_find_M = param["PARAM_FIND_M"]
+
+        if self.param_read_M:
+            self.M = read_M(self.model, "M_rel")
+        else:
+            _, _, num_of_joints, _ = model_settings(self.model)
+            self.M = np.eye(num_of_joints)
+        #self.kalman = ExtendedKalman()#Kalman()
+        self.measurement_cov = np.zeros([1,1])
+        
+        self.quiet = param["QUIET"]
+
+
     def reset(self, plot_loc):
-        if not self.param_read_M:
+        if not self.param_find_M:
             M = find_M(self.flight_res_list, self.model)
-            plot_matrix(M, plot_loc, 0, "M", "M")
+            #plot_matrix(M, plot_loc, 0, "M", "M")
+       
+        self.plot_info = []
         self.error_2d = []
         self.error_3d = []
+        self.requiredEstimationData = []
+        self.poseList_3d = []
+        self.poseList_3d_calibration = []
+        self.liftPoseList = []
+        self.requiredEstimationData_calibration = []
+
         self.isCalibratingEnergy = True
-        self.processing_time = []
-        self.calib_res_list = []
-        self.flight_res_list = []
-        return 0
+        return 0        
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])

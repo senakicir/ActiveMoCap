@@ -33,9 +33,8 @@ class State(object):
         self.current_degree = 0
         self.drone_orientation = np.array([0,0,0])
         projected_distance_vect = positions_[HUMAN_POS_IND, :]
-        self.inFrame = True
         self.radius = np.linalg.norm(projected_distance_vect[0:2,]) #to do
-        self.prev_human_pos = 0 #DELETE LATER
+        self.prev_human_pos = 0
 
         drone_polar_pos = - positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
@@ -57,24 +56,20 @@ class State(object):
         #9x1 initial state, no need to modify
         #self.kalman.statePost = np.array([[self.human_pos[0], self.human_pos[1], self.human_pos[2], 0, 0, 0, self.human_pos[0], self.human_pos[1], self.human_pos[2]]]).T
 
-    def updateState(self, positions_, inFrame_, cov_):
-        #self.kalman.measurementNoiseCov = cov_
+    def updateState(self, positions_, cov_):
         self.positions = positions_
-        self.inFrame = inFrame_
-        #get human position, delta human position, human drone_speedcity
 
+        #get human position, delta human position, human drone_speedcity
+        #self.kalman.measurementNoiseCov = cov_
         #prediction_human_pos = self.kalman.predict()
         #estimated_human_state = self.kalman.correct(self.positions[HUMAN_POS_IND,:])
-
         #Kalman parts
         #self.human_pos = np.copy(estimated_human_state[0:3,0])
         #self.human_vel = np.copy(estimated_human_state[3:6,0])
 
-        ####DELETE LATER
         self.human_pos  = self.positions[HUMAN_POS_IND,:]
         self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
         self.prev_human_pos = self.human_pos
-        ######
         self.human_speed = np.linalg.norm(self.human_vel) #the speed of the human (scalar)
         
         #what angle and polar position is the drone at currently
@@ -82,6 +77,7 @@ class State(object):
         self.drone_orientation = positions_[DRONE_ORIENTATION_IND, :]
         self.current_polar_pos = (self.drone_pos - self.human_pos)     #subtrack the human_pos in order to find the current polar position vector.
         self.current_degree = np.arctan2(self.current_polar_pos[1], self.current_polar_pos[0]) #NOT relative to initial human angle, not using currently
+     
         #calculate human orientation
         #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
         #prev_human_orientation = self.human_orientation

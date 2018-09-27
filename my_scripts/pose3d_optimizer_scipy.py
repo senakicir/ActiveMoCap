@@ -31,6 +31,7 @@ class pose3d_calibration_scipy():
             self.pltpts[loss_key] = []
         self.M = M
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_pytorch(model, loss_dict, weights, data_list, M)
+        self.pytorch_objective_toy = pytorch_optimizer.toy_example(model, loss_dict, weights, data_list, M)
 
     def forward_powell(self, pose_3d):
         pose_3d = np.reshape(a = pose_3d, newshape = [3, self.NUM_OF_JOINTS], order = "C")
@@ -121,6 +122,20 @@ class pose3d_calibration_scipy():
         hessian = hessian_torch.data.numpy()
 
         return hessian
+
+    def hessian_toy(self, x):
+        self.pytorch_objective_toy.zero_grad()
+        self.pytorch_objective_toy.init_pose3d(x)
+        overall_output = self.pytorch_objective_toy.forward()
+        gradient_torch = grad(overall_output, self.pytorch_objective_toy.pose3d, create_graph=True)
+        gradient_torch_flat = gradient_torch[0].view(-1)
+        jacobian = gradient_torch_flat
+        hessian_torch = torch.zeros(4,4)
+        for ind, ele in enumerate(gradient_torch_flat):
+            temp = grad(ele, self.pytorch_objective_toy.pose3d, create_graph=True)
+            hessian_torch[:, ind] = temp[0].view(-1)
+        hessian = hessian_torch.data.numpy()
+        return jacobian, hessian
 
     def jacobian_residuals(self,x):
         x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
