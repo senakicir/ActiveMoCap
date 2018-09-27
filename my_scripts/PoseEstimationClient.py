@@ -49,8 +49,9 @@ class PoseEstimationClient(object):
         else:
             _, _, num_of_joints, _ = model_settings(self.model)
             self.M = np.eye(num_of_joints)
+
         #self.kalman = ExtendedKalman()#Kalman()
-        self.measurement_cov = np.zeros([1,1])
+        self.measurement_cov = np.eye(3)
         
         self.quiet = param["QUIET"]
 

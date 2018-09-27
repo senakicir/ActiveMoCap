@@ -579,3 +579,97 @@ def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
     heatmap[-1, :, :] = 1.0 - np.max(heatmap[:-1, :, :], axis=0)
 
     return heatmap
+
+def matrix_to_ellipse(matrix, center):
+    _, s, rotation = np.linalg.svd(matrix)
+    radii = np.sqrt(s)
+
+    # now carry on with EOL's answer
+    u = np.linspace(0.0, 2.0 * np.pi, 100)
+    v = np.linspace(0.0, np.pi, 100)
+    x = radii[0] * np.outer(np.cos(u), np.sin(v))
+    y = radii[1] * np.outer(np.sin(u), np.sin(v))
+    z = radii[2] * np.outer(np.ones_like(u), np.cos(v))
+    for i in range(len(x)):
+        for j in range(len(x)):
+            [x[i,j],y[i,j],z[i,j]] = np.dot([x[i,j],y[i,j],z[i,j]], rotation) + center
+
+    return x,y,z
+
+def shape_cov(cov, model):
+    _, joint_names, num_of_joints, _ = model_settings(model)
+    hip_index = joint_names.index('spine1')
+    H = np.zeros([3,3])
+    H[:,0] = np.array([cov[hip_index, hip_index], cov[num_of_joints+hip_index, hip_index], cov[num_of_joints*2+hip_index, hip_index],])
+    H[:,1] = np.array([cov[hip_index, num_of_joints+hip_index], cov[num_of_joints+hip_index, num_of_joints+hip_index], cov[num_of_joints*2+hip_index, num_of_joints+hip_index],])
+    H[:,2] = np.array([cov[hip_index, num_of_joints*2+hip_index], cov[num_of_joints+hip_index, num_of_joints*2+hip_index], cov[num_of_joints*2+hip_index, num_of_joints*2+hip_index],])
+    return H
+
+def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
+    if (pose_client.isCalibratingEnergy):
+        plot_info = pose_client.calib_res_list
+        file_name = plot_loc + '/ellipse_calib_'+ str(ind) + '.png'
+    else:
+        plot_info = pose_client.flight_res_list
+        file_name = plot_loc + '/ellipse_flight_'+ str(ind) + '.png'
+
+    bone_connections, joint_names, _, _ = model_settings(pose_client.model)
+    hip_index = joint_names.index('spine1')
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    #plot final frame human
+    last_frame_plot_info = plot_info[-1]
+    predicted_bones = last_frame_plot_info["est"]
+    bones_GT = last_frame_plot_info["GT"]
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+
+    for i, bone in enumerate(left_bone_connections):
+        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+    for i, bone in enumerate(right_bone_connections):
+        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+
+    X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
+    Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
+    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+
+    #plot drone
+    for frame_ind in range (0, len(plot_info), 3):
+        frame_plot_info = plot_info[frame_ind]
+        drone = frame_plot_info["drone"]
+        plotd, = ax.plot(drone[0], drone[1], -drone[2], c='xkcd:lime', marker='^', label="drone")
+
+        X = np.concatenate([X, drone[0]])
+        Y = np.concatenate([Y, drone[1]])
+        Z = np.concatenate([Z, -drone[2]])
+
+    #plot ellipse
+    center = predicted_bones[:, hip_index]
+    center[2]= -center[2]
+    x,y,z = matrix_to_ellipse(pose_client.measurement_cov, center)
+    ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.45
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)

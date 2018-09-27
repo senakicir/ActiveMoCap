@@ -67,8 +67,6 @@ def find_2d_pose_gt(unreal_positions, bone_pos_3d_GT, input_image, cropping_tool
 
 def find_2d_pose_openpose(input_image, scales):
     poses, heatmaps, heatmaps_scales, poses_scales = openpose_module.run_only_model(input_image, scales)
-    #poses_, heatmaps, _ = openpose_module.run(input_image, scales)
-    #poses = torch.from_numpy(poses_[0]).float()
     return poses, heatmaps.cpu().numpy(), heatmaps_scales, poses_scales
 
 def determine_relative_3d_pose(mode_lift, bone_2d, cropped_image, heatmap_2d, R_drone, C_drone, bone_pos_3d_GT):
@@ -164,11 +162,16 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
         func_eval_time = time.time() - start_time
         print("least squares eval time", func_eval_time)
         P_world_scrambled = optimized_res.x
-
         P_world = np.reshape(a = P_world_scrambled, newshape = result_shape, order = "C")
+
+        start_find_hess = time.time()
+        #hess = objective.mini_hessian(P_world)
         hess = objective.hessian(P_world)
-        #inv_hess = np.linalg.inv(objective.hessian(P_world))
-        pose_client.updateMeasurementCov(hess[:3*num_of_joints, :3*num_of_joints])
+        end_find_hess = time.time()
+        inv_hess = np.linalg.inv(hess)
+        small_inv_hess = shape_cov(inv_hess, pose_client.model)
+        pose_client.updateMeasurementCov(small_inv_hess)
+        print("Time for finding hessian:", end_find_hess-start_find_hess)
 
         #if (pose_client.isCalibratingEnergy):
             #pre_kalman_pose = P_world
@@ -203,7 +206,8 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
     pose_client.error_2d.append(final_loss[0])
 
     root_est = optimized_3d_pose[:,joint_names.index('spine1')]
-    optimized_3d_pose = np.dot(optimized_3d_pose - root_est[:, np.newaxis], pose_client.M)+root_est[:, np.newaxis]
+    if (not pose_client.isCalibratingEnergy):
+        optimized_3d_pose = np.dot(optimized_3d_pose - root_est[:, np.newaxis], pose_client.M)+root_est[:, np.newaxis]
 
     check,  _ = take_bone_projection(optimized_3d_pose, R_drone, C_drone)
 
@@ -214,7 +218,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, measurement_
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
         plot_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d)
         plot_matrix(pose_client.measurement_cov, plot_loc, airsim_client.linecount, "covariance", "covariance")
-        #save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
+        save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
         if (not pose_client.isCalibratingEnergy):

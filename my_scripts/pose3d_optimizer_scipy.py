@@ -17,12 +17,26 @@ def cauchy_loss(input_1, input_2):
     C = (b*b)*np.log(1+np.square(sigma)/(b*b))
     return np.sum(C)/N
 
+def fun_jacobian(pytorch_objective, x, new_shape, new_shape_2):
+    pytorch_objective.zero_grad()
+    x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
+    pytorch_objective.init_pose3d(x_scrambled)
+    overall_output = pytorch_objective.forward()
+    overall_output.backward(create_graph=False)
+    gradient_torch = pytorch_objective.pose3d.grad
+    gradient_scrambled = gradient_torch.data.numpy()
+    gradient = np.reshape(a = gradient_scrambled, newshape = new_shape_2, order = "C")
+    return gradient
+
+def fun_hessian(pytorch_objective, x):
+    return 0
+
 class pose3d_calibration_scipy():
     def __init__(self):
         self.pytorch_objective = 0
 
     def reset(self, model, data_list, weights, loss_dict, M):
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
         self.data_list = data_list
         self.energy_weights = weights
         self.pltpts = {}
@@ -92,16 +106,7 @@ class pose3d_calibration_scipy():
         return overall_output
 
     def jacobian(self,x):
-        self.pytorch_objective.zero_grad()
-        x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
-        self.pytorch_objective.init_pose3d(x_scrambled)
-        overall_output = self.pytorch_objective.forward()
-        overall_output.backward(create_graph=False)
-        gradient_torch = self.pytorch_objective.pose3d.grad
-        gradient_scrambled = gradient_torch.data.numpy()
-        #gradient_torch = grad(overall_output, self.pytorch_objective.pose3d, create_graph=False)
-        #gradient_scrambled = gradient_torch[0].data.numpy()
-        gradient = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
+        gradient = fun_jacobian(self.pytorch_objective, x, [3, self.NUM_OF_JOINTS], [3*self.NUM_OF_JOINTS])
         return gradient
 
     def hessian(self, x):
@@ -115,6 +120,27 @@ class pose3d_calibration_scipy():
             temp = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
             hessian_torch[:, ind] = temp[0].view(-1)
 
+        #overall_output.backward(create_graph=True, retain_graph=True)
+        #gradient_torch = self.pytorch_objective.pose3d.grad
+        #gradient_torch.backward(gradient=torch.ones(gradient_torch.size()), create_graph=False, retain_graph=False)
+        #hessian_torch = self.pytorch_objective.pose3d.grad
+        hessian = hessian_torch.data.numpy()
+
+        return hessian
+
+    def mini_hessian(self,x):
+        self.pytorch_objective.zero_grad()
+        self.pytorch_objective.init_pose3d(x)
+        overall_output = self.pytorch_objective.forward()
+        gradient_torch_l = grad(overall_output, self.pytorch_objective.pose3d, create_graph=True)
+        gradient_torch = gradient_torch_l[0]
+        hessian_torch = torch.zeros(3,3)
+        hip_index = self.joint_names.index('spine1')
+        for i in range(0,3):
+            ele = gradient_torch[i,hip_index]
+            temp_l = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
+            temp = temp_l[0]
+            hessian_torch[:, i] = temp[:, hip_index]
         #overall_output.backward(create_graph=True, retain_graph=True)
         #gradient_torch = self.pytorch_objective.pose3d.grad
         #gradient_torch.backward(gradient=torch.ones(gradient_torch.size()), create_graph=False, retain_graph=False)
@@ -264,16 +290,7 @@ class pose3d_flight_scipy():
         return overall_output
         
     def jacobian(self,x):
-        self.pytorch_objective.zero_grad()
-        x_scrambled = np.reshape(a = x, newshape = [self.window_size, 3, self.NUM_OF_JOINTS], order = "C")
-        self.pytorch_objective.init_pose3d(x_scrambled)
-        overall_output = self.pytorch_objective.forward()
-        overall_output.backward(create_graph=False)
-        gradient_torch = self.pytorch_objective.pose3d.grad
-        gradient_scrambled = gradient_torch.data.numpy()
-       # gradient_torch = grad(overall_output, self.pytorch_objective.pose3d, create_graph=False)
-        #gradient_scrambled = gradient_torch[0].data.numpy()
-        gradient = np.reshape(a = gradient_scrambled, newshape = [self.window_size*3*self.NUM_OF_JOINTS,], order = "C")
+        gradient = fun_jacobian(self.pytorch_objective, x, [self.window_size, 3, self.NUM_OF_JOINTS], [self.window_size*3*self.NUM_OF_JOINTS,])
         return gradient
 
     def hessian(self, x):
@@ -287,6 +304,27 @@ class pose3d_flight_scipy():
             temp = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
             hessian_torch[:, ind] = temp[0].view(-1)
 
+        #overall_output.backward(create_graph=True, retain_graph=True)
+        #gradient_torch = self.pytorch_objective.pose3d.grad
+        #gradient_torch.backward(gradient=torch.ones(gradient_torch.size()), create_graph=False, retain_graph=False)
+        #hessian_torch = self.pytorch_objective.pose3d.grad
+        hessian = hessian_torch.data.numpy()
+
+        return hessian
+
+    def mini_hessian(self,x):
+        self.pytorch_objective.zero_grad()
+        self.pytorch_objective.init_pose3d(x)
+        overall_output = self.pytorch_objective.forward()
+        gradient_torch_l = grad(overall_output, self.pytorch_objective.pose3d, create_graph=True)
+        gradient_torch = gradient_torch_l[0]
+        hessian_torch = torch.zeros(3,3)
+        hip_index = self.joint_names.index('spine1')
+        for i in range(0,3):
+            ele = gradient_torch[0,i,hip_index]
+            temp_l = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
+            temp = temp_l[0]
+            hessian_torch[:, i] = temp[0, :, hip_index]
         #overall_output.backward(create_graph=True, retain_graph=True)
         #gradient_torch = self.pytorch_objective.pose3d.grad
         #gradient_torch.backward(gradient=torch.ones(gradient_torch.size()), create_graph=False, retain_graph=False)
