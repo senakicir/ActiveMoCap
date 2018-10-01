@@ -17,7 +17,10 @@ def cauchy_loss(input_1, input_2):
     C = (b*b)*np.log(1+np.square(sigma)/(b*b))
     return np.sum(C)/N
 
-def fun_jacobian(pytorch_objective, x, new_shape, new_shape_2):
+def fun_jacobian(pytorch_objective, x, new_shape):
+    multip_dim = 1
+    for i in new_shape:
+        multip_dim *= i
     pytorch_objective.zero_grad()
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
     pytorch_objective.init_pose3d(x_scrambled)
@@ -25,11 +28,46 @@ def fun_jacobian(pytorch_objective, x, new_shape, new_shape_2):
     overall_output.backward(create_graph=False)
     gradient_torch = pytorch_objective.pose3d.grad
     gradient_scrambled = gradient_torch.data.numpy()
-    gradient = np.reshape(a = gradient_scrambled, newshape = new_shape_2, order = "C")
+    gradient = np.reshape(a = gradient_scrambled, newshape =  [multip_dim, ], order = "C")
     return gradient
 
-def fun_hessian(pytorch_objective, x):
-    return 0
+def fun_jacobian_residuals(pytorch_objective, x, new_shape):
+    multip_dim = 1
+    for i in new_shape:
+        multip_dim *= i
+        
+    x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
+    pytorch_objective.init_pose3d(x_scrambled)
+    overall_output = pytorch_objective.forward()
+    gradient = np.zeros([overall_output.shape[0], multip_dim])
+
+    for ind, one_residual in enumerate(overall_output):
+        pytorch_objective.zero_grad()
+        one_residual.backward(retain_graph=True)
+        gradient_torch = pytorch_objective.pose3d.grad
+        gradient_scrambled = gradient_torch.data.numpy()
+        gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [multip_dim, ], order = "C")
+    #print("torch grad", gradient)
+    #import pdb; pdb.set_trace()
+    return gradient
+
+def fun_hessian(pytorch_objective, x, hess_size):
+    multip_dim = 1
+    for i in new_shape:
+        multip_dim = i*multip_dim
+
+    pytorch_objective.zero_grad()
+    pytorch_objective.init_pose3d(x)
+    overall_output = pytorch_objective.forward()
+    gradient_torch = grad(overall_output, pytorch_objective.pose3d, create_graph=True)
+    gradient_torch_flat = gradient_torch[0].view(-1)
+    hessian_torch = torch.zeros(hess_size, hess_size)
+    for ind, ele in enumerate(gradient_torch_flat):
+        temp = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
+        hessian_torch[:, ind] = temp[0].view(-1)
+
+    hessian = hessian_torch.data.numpy()
+    return hessian
 
 class pose3d_calibration_scipy():
     def __init__(self):
@@ -45,8 +83,9 @@ class pose3d_calibration_scipy():
             self.pltpts[loss_key] = []
         self.M = M
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_pytorch(model, loss_dict, weights, data_list, M)
-        self.pytorch_objective_toy = pytorch_optimizer.toy_example(model, loss_dict, weights, data_list, M)
+        #self.pytorch_objective_toy = pytorch_optimizer.toy_example(model, loss_dict, weights, data_list, M)
 
+    #delete this useless now
     def forward_powell(self, pose_3d):
         pose_3d = np.reshape(a = pose_3d, newshape = [3, self.NUM_OF_JOINTS], order = "C")
 
@@ -106,7 +145,7 @@ class pose3d_calibration_scipy():
         return overall_output
 
     def jacobian(self,x):
-        gradient = fun_jacobian(self.pytorch_objective, x, [3, self.NUM_OF_JOINTS], [3*self.NUM_OF_JOINTS])
+        gradient = fun_jacobian(self.pytorch_objective, x, [3, self.NUM_OF_JOINTS])
         return gradient
 
     def hessian(self, x):
@@ -125,8 +164,17 @@ class pose3d_calibration_scipy():
         #gradient_torch.backward(gradient=torch.ones(gradient_torch.size()), create_graph=False, retain_graph=False)
         #hessian_torch = self.pytorch_objective.pose3d.grad
         hessian = hessian_torch.data.numpy()
-
         return hessian
+
+    def jacobian_residuals(self,x):
+        gradient = fun_jacobian_residuals(self.pytorch_objective, x, [3, self.NUM_OF_JOINTS])
+        return gradient
+
+    def jacobian_3(self,x):
+        gradient = approx_derivative(self.forward, x, rel_step=None, method="2-point", sparsity=None)
+        #print("approx grad", gradient)
+        #import pdb; pdb.set_trace()
+        return gradient
 
     def mini_hessian(self,x):
         self.pytorch_objective.zero_grad()
@@ -149,40 +197,20 @@ class pose3d_calibration_scipy():
 
         return hessian
 
-    def hessian_toy(self, x):
-        self.pytorch_objective_toy.zero_grad()
-        self.pytorch_objective_toy.init_pose3d(x)
-        overall_output = self.pytorch_objective_toy.forward()
-        gradient_torch = grad(overall_output, self.pytorch_objective_toy.pose3d, create_graph=True)
-        gradient_torch_flat = gradient_torch[0].view(-1)
-        jacobian = gradient_torch_flat
-        hessian_torch = torch.zeros(4,4)
-        for ind, ele in enumerate(gradient_torch_flat):
-            temp = grad(ele, self.pytorch_objective_toy.pose3d, create_graph=True)
-            hessian_torch[:, ind] = temp[0].view(-1)
-        hessian = hessian_torch.data.numpy()
-        return jacobian, hessian
+    # def hessian_toy(self, x):
+    #     self.pytorch_objective_toy.zero_grad()
+    #     self.pytorch_objective_toy.init_pose3d(x)
+    #     overall_output = self.pytorch_objective_toy.forward()
+    #     gradient_torch = grad(overall_output, self.pytorch_objective_toy.pose3d, create_graph=True)
+    #     gradient_torch_flat = gradient_torch[0].view(-1)
+    #     jacobian = gradient_torch_flat
+    #     hessian_torch = torch.zeros(4,4)
+    #     for ind, ele in enumerate(gradient_torch_flat):
+    #         temp = grad(ele, self.pytorch_objective_toy.pose3d, create_graph=True)
+    #         hessian_torch[:, ind] = temp[0].view(-1)
+    #     hessian = hessian_torch.data.numpy()
+    #     return jacobian, hessian
 
-    def jacobian_residuals(self,x):
-        x_scrambled = np.reshape(a = x, newshape = [3, self.NUM_OF_JOINTS], order = "C")
-        self.pytorch_objective.init_pose3d(x_scrambled)
-        overall_output = self.pytorch_objective.forward()
-        gradient = np.zeros([overall_output.shape[0], 3*self.NUM_OF_JOINTS])
-        for ind, one_residual in enumerate(overall_output):
-            self.pytorch_objective.zero_grad()
-            one_residual.backward(retain_graph=True)
-            gradient_torch = self.pytorch_objective.pose3d.grad
-            gradient_scrambled = gradient_torch.data.numpy()
-            gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [3*self.NUM_OF_JOINTS,], order = "C")
-        #print("torch grad", gradient)
-        #import pdb; pdb.set_trace()
-        return gradient
-
-    def jacobian_3(self,x):
-        gradient = approx_derivative(self.forward, x, rel_step=None, method="2-point", sparsity=None)
-        #print("approx grad", gradient)
-        #import pdb; pdb.set_trace()
-        return gradient
 
 class pose3d_flight_scipy():
     def __init__(self):
@@ -203,7 +231,7 @@ class pose3d_flight_scipy():
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
         self.M = M
 
-    def forward(self, pose_3d):
+    def forward_old(self, pose_3d):
         pose_3d = np.reshape(a = pose_3d, newshape = [self.window_size, 3, self.NUM_OF_JOINTS], order = "C")
 
         output = {}
@@ -288,9 +316,57 @@ class pose3d_flight_scipy():
             self.pltpts[loss_key].append(output[loss_key])
         
         return overall_output
+
+    def forward(self, pose_3d):
+        pose_3d = np.reshape(a = pose_3d, newshape = [self.window_size+1, 3, self.NUM_OF_JOINTS], order = "C")
+
+        output = {}
+        for loss_key in self.loss_dict:
+            output[loss_key] = 0
+
+        queue_index = 0 #0'th pose is t+1, 1 is t, etc. 
+        for bone_2d_, R_drone_, C_drone_ in self.data_list:
+            pose_3d_curr = pose_3d[queue_index, :, :]
+            if queue_index != 0: #future pose has no projection or lift term
+                #pose_3d_curr = np.dot(pose_3d[queue_index, :, :], self.M)
+                #projection
+                projected_2d, _ = take_bone_projection(pose_3d_curr, R_drone_, C_drone_)
+                output["proj"] += mse_loss(projected_2d, bone_2d_)
+
+                #lift
+                pose3d_lift_directions = self.lift_list[queue_index]
+                pose_est_directions = np.zeros([3, len(self.lift_bone_directions)])
+                for i, bone in enumerate(self.lift_bone_directions):
+                    bone_vector = pose_3d_curr[:,bone[0]] -pose_3d_curr[:,bone[1]]
+                    pose_est_directions[:, i] = bone_vector/(np.linalg.norm(bone_vector)+EPSILON)
+                output["lift"] += mse_loss(pose3d_lift_directions, pose_est_directions)
+
+            #bone length consistency 
+            bonelosses = np.zeros([self.NUM_OF_JOINTS-1,])
+            for i, bone in enumerate(self.bone_connections):
+                length_of_bone = (np.sum(np.square(pose_3d_curr[:,bone[0]] - pose_3d_curr[:,bone[1]])))
+                bonelosses[i] = np.square((self.bone_lengths[i] - length_of_bone))
+            output["bone"] += np.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+
+            #smoothness
+            #find velocities
+            pose_vel = np.zeros([2, 3, self.NUM_OF_JOINTS])
+            if (queue_index != 0 or queue_index != 1):
+                pose_vel[0]  = pose_3d[queue_index-1, :, :]- pose_3d[queue_index-2, :, :]
+                pose_vel[1]  = pose_3d[queue_index, :, :]- pose_3d[queue_index-1, :, :]
+                output["smooth"] += mse_loss(pose_vel[0] , pose_vel[1])
+
+            queue_index += 1
+
+        overall_output = 0
+        for loss_key in self.loss_dict:
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
+        
+        return overall_output
         
     def jacobian(self,x):
-        gradient = fun_jacobian(self.pytorch_objective, x, [self.window_size, 3, self.NUM_OF_JOINTS], [self.window_size*3*self.NUM_OF_JOINTS,])
+        gradient = fun_jacobian(self.pytorch_objective, x, [self.window_size+1, 3, self.NUM_OF_JOINTS])
         return gradient
 
     def hessian(self, x):
@@ -299,7 +375,7 @@ class pose3d_flight_scipy():
         overall_output = self.pytorch_objective.forward()
         gradient_torch = grad(overall_output, self.pytorch_objective.pose3d, create_graph=True)
         gradient_torch_flat = gradient_torch[0].view(-1)
-        hessian_torch = torch.zeros(self.window_size*3*self.NUM_OF_JOINTS, self.window_size*3*self.NUM_OF_JOINTS)
+        hessian_torch = torch.zeros((self.window_size+1)*3*self.NUM_OF_JOINTS, (self.window_size+1)*3*self.NUM_OF_JOINTS)
         for ind, ele in enumerate(gradient_torch_flat):
             temp = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
             hessian_torch[:, ind] = temp[0].view(-1)
@@ -334,16 +410,5 @@ class pose3d_flight_scipy():
         return hessian
 
     def jacobian_residuals(self,x):
-        x_scrambled = np.reshape(a = x, newshape = [self.window_size, 3, self.NUM_OF_JOINTS], order = "C")
-        self.pytorch_objective.init_pose3d(x_scrambled)
-        overall_output = self.pytorch_objective.forward()
-        gradient = np.zeros([overall_output.shape[0], self.window_size*3*self.NUM_OF_JOINTS])
-        for ind, one_residual in enumerate(overall_output):
-            self.pytorch_objective.zero_grad()
-            one_residual.backward(retain_graph=True)
-            gradient_torch = self.pytorch_objective.pose3d.grad
-            gradient_scrambled = gradient_torch.data.numpy()
-            gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [self.window_size*3*self.NUM_OF_JOINTS,], order = "C")
-        #print("torch grad", gradient)
-        #import pdb; pdb.set_trace()
+        gradient = fun_jacobian_residuals(self.pytorch_objective, x, [self.window_size+1, 3, self.NUM_OF_JOINTS])
         return gradient

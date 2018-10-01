@@ -5,7 +5,7 @@ from math import pi, cos, sin, degrees
 import numpy as np
 
 neat_tensor = Variable(torch.FloatTensor([[0, 0, 0, 1]]), requires_grad=False) #this tensor is neat!
-DEFAULT_TORSO_SIZE = 0.436*0.55#0.86710678118
+DEFAULT_TORSO_SIZE = 0.436*0.50#0.86710678118
 
 def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
     if (returnTensor == True):

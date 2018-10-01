@@ -15,12 +15,9 @@ class PoseEstimationClient(object):
         self.weights = param["WEIGHTS"]
     #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
         self.model = param["MODEL"]
+        _, _, num_of_joints, _ = model_settings(self.model)
 
-        if self.model =="mpi":
-            self.boneLengths = torch.zeros([14,1])
-        else:
-            self.boneLengths = torch.zeros([20,1])
-
+        self.boneLengths = torch.zeros([num_of_joints-1,1])
         self.FLIGHT_WINDOW_SIZE = param["FLIGHT_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
 
@@ -42,22 +39,30 @@ class PoseEstimationClient(object):
 
         self.cropping_tool = Crop()
         self.param_read_M = param["PARAM_READ_M"]
-        self.param_find_M = param["PARAM_FIND_M"]
+        if self.param_read_M:
+            self.param_find_M = False
+        else:
+            self.param_find_M = param["PARAM_FIND_M"]
+        self.calc_hess = param["CALCULATE_HESSIAN"]
+        self.future_pose = np.zeros([3, num_of_joints])
 
         if self.param_read_M:
             self.M = read_M(self.model, "M_rel")
         else:
-            _, _, num_of_joints, _ = model_settings(self.model)
             self.M = np.eye(num_of_joints)
 
         #self.kalman = ExtendedKalman()#Kalman()
         self.measurement_cov = np.eye(3)
+        self.future_measurement_cov = np.eye(3)
+
+        self.calib_cov_list = []
+        self.flight_cov_list = []
         
         self.quiet = param["QUIET"]
 
 
     def reset(self, plot_loc):
-        if not self.param_find_M:
+        if self.param_find_M:
             M = find_M(self.flight_res_list, self.model)
             #plot_matrix(M, plot_loc, 0, "M", "M")
        
@@ -69,6 +74,9 @@ class PoseEstimationClient(object):
         self.poseList_3d_calibration = []
         self.liftPoseList = []
         self.requiredEstimationData_calibration = []
+        
+        self.calib_cov_list = []
+        self.flight_cov_list = []
 
         self.isCalibratingEnergy = True
         return 0        
@@ -81,8 +89,17 @@ class PoseEstimationClient(object):
         else:
             self.flight_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
 
-    def updateMeasurementCov(self, cov):
-        self.measurement_cov = cov
+    def updateMeasurementCov(self, cov, curr_pose_ind, future_pose_ind):
+        if  self.isCalibratingEnergy:
+            curr_pose_ind = 0
+        curr_inv_hess = shape_cov(cov, self.model, curr_pose_ind)
+        self.measurement_cov = curr_inv_hess
+        if self.isCalibratingEnergy:
+            self.calib_cov_list.append(self.measurement_cov)
+        else:
+            future_inv_hess = shape_cov(cov, self.model, future_pose_ind)
+            self.future_measurement_cov = future_inv_hess
+            self.flight_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
     def changeCalibrationMode(self, calibMode):
         self.isCalibratingEnergy = calibMode
@@ -91,7 +108,6 @@ class PoseEstimationClient(object):
         self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone])
         if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_LENGTH):
             self.requiredEstimationData_calibration.pop()
-        
         self.poseList_3d_calibration = pose3d_
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, pose3d_, pose3d_lift = None):

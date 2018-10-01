@@ -1,13 +1,18 @@
 from main import *
 
 def run_simulation(weights, animation_num, kalman_arguments, energy_parameters):
-    normalized_weights = normalize_weights(weights)
-    energy_parameters["WEIGHTS"] = normalized_weights
     file_names, folder_names, f_notes_name, date_time_name = reset_all_folders([animation_num], base="grid_search")
     test_set = TEST_SETS[animation_num]
     parameters = {"USE_TRACKBAR": False, "USE_AIRSIM": False, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "ANIMATION_NUM": animation_num, "TEST_SET_NAME":test_set}
+    normalized_weights = normalize_weights(weights)
+    energy_parameters["WEIGHTS"] = normalized_weights
     fill_notes(f_notes_name, parameters, energy_parameters)   
-    return main(kalman_arguments, parameters, energy_parameters), date_time_name
+
+    energy_parameters["PARAM_READ_M"] = False
+    energy_parameters["PARAM_FIND_M"] = True
+    main(kalman_arguments, parameters, energy_parameters)
+    move_M(folder_names[animation_num]["estimates"])
+    return errors, date_time_name   
 
 def run_simulation_2(weights, animation_num, kalman_arguments, energy_parameters):
     file_names, folder_names, f_notes_name, date_time_name = reset_all_folders([animation_num], base="grid_search")
@@ -38,6 +43,7 @@ def weight_search(with_M = True):
     param_read_M = True
     param_find_M = False
     is_quiet = True
+    calculate_hess = False
     flight_window_size = 6
     calibration_length = 35
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
@@ -54,7 +60,7 @@ def weight_search(with_M = True):
     ave_errors_pos = np.zeros([len(weight_list),len(weight_list), len(weight_list)])
     folder_name_grid = []          
 
-    energy_parameters = {"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3}
+    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess, "FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3}
 
     for smooth_ind, smooth_weights in enumerate(weight_list):
         for bone_ind, bone_weights in enumerate(weight_list):
@@ -81,6 +87,7 @@ def oneaxis_weight_search():
     param_read_M = True
     param_find_M = False
     is_quiet = True
+    calculate_hess = False
     flight_window_size = 6
     calibration_length = 35
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
@@ -92,7 +99,7 @@ def oneaxis_weight_search():
     if os.path.exists("grid_search"):
         shutil.rmtree("grid_search")
 
-    energy_parameters = {"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3}
+    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess, "FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3}
 
     centered = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
 
@@ -138,5 +145,5 @@ def oneaxis_weight_search():
 
 
 if __name__ == "__main__":
-    weight_search(with_M= True)
+    weight_search(with_M= False)
 

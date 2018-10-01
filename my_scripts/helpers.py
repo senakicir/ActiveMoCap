@@ -11,6 +11,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib import cm, colors
 import time, os
 import cv2
 from math import degrees, radians, pi, ceil, exp
@@ -293,6 +294,83 @@ def plot_matrix(matrix, plot_loc, ind, plot_title, custom_name):
     matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind) + '.png'
     plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
+
+def plot_matrices(matrix1, matrix2, plot_loc, ind, custom_name):
+    fig = plt.figure()
+    ax1 = plt.subplot(1,2,1)
+    im = ax1.imshow(matrix1)
+    plt.title("current frame")    
+
+    ax2 = plt.subplot(1,2,2)
+    im = ax2.imshow(matrix2)
+    plt.title("future frame")    
+
+    divider = make_axes_locatable(ax2)
+
+    cax = divider.append_axes("right", size="5%", pad=0.05)
+    plt.colorbar(im, cax=cax)
+    matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind) + '.png'
+    plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_covariances(pose_client, plot_loc, custom_name):    
+    calib_list_min = []
+    calib_list_max = []
+    for img in pose_client.calib_cov_list:
+        calib_list_min.append(img.min())
+        calib_list_max.append(img.max())
+    vmin_calib = min(calib_list_min)
+    vmax_calib = max(calib_list_max)
+
+    flight_list_min = []
+    flight_list_max = []
+    for ele in pose_client.flight_cov_list:
+        curr = ele["curr"]
+        future = ele["future"]
+        flight_list_min.append(curr.min())
+        flight_list_max.append(curr.max())
+        flight_list_min.append(future.min())
+        flight_list_max.append(future.max())
+    vmin_flight = min(flight_list_min)
+    vmax_flight = max(flight_list_max)
+
+    cmap = cm.viridis
+    norm_calib = colors.Normalize(vmin=vmin_calib, vmax=vmax_calib)
+    norm_flight = colors.Normalize(vmin=vmin_flight, vmax=vmax_flight)
+
+    for ind, matrix1 in enumerate(pose_client.calib_cov_list):
+        fig = plt.figure()
+        ax1 = plt.subplot(1,1,1)
+        #  divider = make_axes_locatable(ax1)
+        #  cax = divider.append_axes("right", size="5%", pad=0.05)
+        im = ax1.imshow(matrix1, cmap=cmap, norm=norm_calib)
+        fig.colorbar(im)
+        plt.title("Current Frame Covariance Matrix")  
+        matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind+1) + '.png'
+        plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
+        plt.close()
+
+    for ind, ele in enumerate(pose_client.flight_cov_list):
+        curr = ele["curr"]
+        future = ele["future"]
+
+        fig, _ = plt.subplots(1,2)
+        #divider = make_axes_locatable(axs)
+        #cax = divider.append_axes("right", size="5%", pad=0.05)
+        ax1 = plt.subplot(1,2,1)
+        im = ax1.imshow(curr, cmap=cmap, norm=norm_flight)
+        plt.title("Current frame")    
+
+        ax2 = plt.subplot(1,2,2)
+        im = ax2.imshow(future, cmap=cmap, norm=norm_flight)
+        fig.colorbar(im)
+        plt.title("Future frame")  
+        
+        fig.suptitle('Covariance matrix')
+        matrix_plot_loc = plot_loc +'/'+ custom_name + str(pose_client.CALIBRATION_LENGTH+ind+1) + '.png'
+        plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
+        plt.close()
+
 
 def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_location, custom_name=None, scale=-1, projection = np.zeros([1,1])):
     if custom_name == None:
@@ -596,13 +674,14 @@ def matrix_to_ellipse(matrix, center):
 
     return x,y,z
 
-def shape_cov(cov, model):
+def shape_cov(cov, model, frame_index):
     _, joint_names, num_of_joints, _ = model_settings(model)
     hip_index = joint_names.index('spine1')
     H = np.zeros([3,3])
-    H[:,0] = np.array([cov[hip_index, hip_index], cov[num_of_joints+hip_index, hip_index], cov[num_of_joints*2+hip_index, hip_index],])
-    H[:,1] = np.array([cov[hip_index, num_of_joints+hip_index], cov[num_of_joints+hip_index, num_of_joints+hip_index], cov[num_of_joints*2+hip_index, num_of_joints+hip_index],])
-    H[:,2] = np.array([cov[hip_index, num_of_joints*2+hip_index], cov[num_of_joints+hip_index, num_of_joints*2+hip_index], cov[num_of_joints*2+hip_index, num_of_joints*2+hip_index],])
+    offset = hip_index + frame_index*3*num_of_joints
+    H[:,0] = np.array([cov[offset, offset], cov[num_of_joints+offset, offset], cov[num_of_joints*2+offset, offset],])
+    H[:,1] = np.array([cov[offset, num_of_joints+offset], cov[num_of_joints+offset, num_of_joints+offset], cov[num_of_joints*2+offset, num_of_joints+offset],])
+    H[:,2] = np.array([cov[offset, num_of_joints*2+offset], cov[num_of_joints+offset, num_of_joints*2+offset], cov[num_of_joints*2+offset, num_of_joints*2+offset],])
     return H
 
 def plot_covariance_as_ellipse(pose_client, plot_loc, ind):

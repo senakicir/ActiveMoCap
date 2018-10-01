@@ -25,7 +25,6 @@ class State(object):
         #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
         #self.human_rotation_speed = 0
         self.human_pos = positions_[HUMAN_POS_IND,:]
-        print(self.human_pos)
         self.human_vel = 0
         self.human_speed = 0
         self.drone_pos = np.array([0,0,0])
@@ -56,7 +55,7 @@ class State(object):
         #9x1 initial state, no need to modify
         #self.kalman.statePost = np.array([[self.human_pos[0], self.human_pos[1], self.human_pos[2], 0, 0, 0, self.human_pos[0], self.human_pos[1], self.human_pos[2]]]).T
 
-    def updateState(self, positions_, cov_):
+    def updateState(self, positions_):
         self.positions = positions_
 
         #get human position, delta human position, human drone_speedcity

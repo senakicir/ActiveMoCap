@@ -82,9 +82,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     errors_vel = []
     errors = {}
     end_test = False
-   
-    MEASUREMENT_NOISE_COV = np.array([[kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"], 0, 0], [0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"], 0], [0, 0, kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"]]])
-    
+       
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
     global USE_AIRSIM
     USE_AIRSIM = parameters["USE_AIRSIM"]
@@ -140,7 +138,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-    initial_positions, _, _  = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc=plot_loc_, photo_loc=photo_loc_)
+    initial_positions, _  = determine_all_positions(airsim_client, pose_client, plot_loc=plot_loc_, photo_loc=photo_loc_)
 
     current_state = State(initial_positions)
     
@@ -189,9 +187,9 @@ def main(kalman_arguments, parameters, energy_parameters):
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-        positions, unreal_positions, cov = determine_all_positions(airsim_client, pose_client, MEASUREMENT_NOISE_COV, plot_loc = plot_loc_, photo_loc = photo_loc_)
+        positions, unreal_positions = determine_all_positions(airsim_client, pose_client, plot_loc = plot_loc_, photo_loc = photo_loc_)
         
-        current_state.updateState(positions, cov) #updates human pos, human orientation, human vel, drone pos
+        current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
 
         gt_hp.append(unreal_positions[HUMAN_POS_IND, :])
         est_hp.append(current_state.human_pos)
@@ -235,7 +233,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         time.sleep(DELTA_T) 
         if (airsim_client.linecount % 3 == 0 and not pose_client.quiet):
             plot_global_motion(pose_client, plot_loc_, global_plot_ind)
-            plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
+            #plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
             global_plot_ind +=1
 
         #SAVE ALL VALUES OF THIS SIMULATION       
@@ -274,6 +272,9 @@ def main(kalman_arguments, parameters, energy_parameters):
         simple_plot(pose_client.error_2d, estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
     simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
     simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="flight_error_3d", x_label="Frames", y_label="Error")
+    
+    if (pose_client.calc_hess and not pose_client.quiet):
+        plot_covariances(pose_client, plot_loc_, "future_current_cov_")
 
     print('End it!')
     f_groundtruth.close()
@@ -294,6 +295,7 @@ if __name__ == "__main__":
     param_read_M = True
     param_find_M = False
     is_quiet = False
+    calculate_hess = True
     flight_window_size = 6
     calibration_length = 35
 
@@ -314,7 +316,7 @@ if __name__ == "__main__":
     weights_ =  {'proj': 0.0004884205528035975, 'smooth': 0.4884205528035975, 'bone': 0.02267047384000158, 'lift': 0.4884205528035975}
     weights = normalize_weights(weights_)
 
-    energy_parameters = {"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
+    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess,"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
     fill_notes(f_notes_name, parameters, energy_parameters)   
 
     if (use_airsim):
