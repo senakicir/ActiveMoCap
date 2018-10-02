@@ -10,7 +10,7 @@ def run_simulation(weights, animation_num, kalman_arguments, energy_parameters):
 
     energy_parameters["PARAM_READ_M"] = False
     energy_parameters["PARAM_FIND_M"] = True
-    main(kalman_arguments, parameters, energy_parameters)
+    errors = main(kalman_arguments, parameters, energy_parameters)
     move_M(folder_names[animation_num]["estimates"])
     return errors, date_time_name   
 
