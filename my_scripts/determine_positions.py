@@ -133,34 +133,28 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     if (airsim_client.linecount > 0):
         #calibration mode parameters
         if (pose_client.isCalibratingEnergy): 
-            loss_dict = CALIBRATION_LOSSES
-            data_list = pose_client.requiredEstimationData_calibration
-            energy_weights = {"proj":0.5, "sym":0.5}
+            loss_dict = pose_client.loss_dict_calib
             objective = objective_calib
             pose3d_init_scrambled = pose_client.poseList_3d_calibration.copy()
-            result_shape = [3, num_of_joints]
+            result_shape = pose_client.result_shape_calib
             result_size = result_shape[0]*result_shape[1]
             pose3d_init = np.reshape(a = pose3d_init_scrambled, newshape = [result_size,], order = "C")
-            objective.reset(pose_client.model, data_list, energy_weights, loss_dict, pose_client.M)
+            objective.reset(pose_client)
             objective_jacobian =  objective_calib.jacobian
 
         #flight mode parameters
         else:
-            loss_dict = LOSSES
-            data_list = pose_client.requiredEstimationData
-            lift_list = pose_client.liftPoseList
-            energy_weights = pose_client.weights
-            objective = objective_flight
-            objective.reset(pose_client.model, data_list, lift_list, energy_weights, loss_dict, pose_client.FLIGHT_WINDOW_SIZE, pose_client.boneLengths, pose_client.M)
-            objective_jacobian = objective_flight.jacobian
-            result_shape = [pose_client.FLIGHT_WINDOW_SIZE+1, 3, num_of_joints]
+            loss_dict = pose_client.loss_dict_flight
+            result_shape = pose_client.result_shape_flight
             result_size = result_shape[0]*result_shape[1]*result_shape[2]
             pose3d_init = np.zeros(result_shape)
             for queue_index, pose3d_ in enumerate(pose_client.poseList_3d):
                 pose3d_init[queue_index+1, :] = pose3d_.copy()
             pose3d_init[FUTURE_POSE_INDEX, :] = pose3d_init[CURRENT_POSE_INDEX, :] #initialize future pose as current pose
             pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size,], order = "C")
-            
+            objective = objective_flight
+            objective.reset(pose_client)
+            objective_jacobian = objective_flight.jacobian
 
         start_time = time.time()
         optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
@@ -283,9 +277,9 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc =
             else:
                 num_iterations = 500
             objective.init_pose3d(pose3d_) 
-            loss_dict = CALIBRATION_LOSSES
+            loss_dict = pose_client.loss_dict_calib
             data_list = pose_client.requiredEstimationData_calibration
-            energy_weights = {"proj":0.8, "sym":0.2}
+            energy_weights = pose_client.weights_calib
          #flight mode parameters
         else:
             objective = pose3d_flight(pose_client.boneLengths, pose_client.FLIGHT_WINDOW_SIZE, pose_client.model)
@@ -296,9 +290,9 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc =
             for queue_index, pose3d_ in enumerate(pose_client.poseList_3d):
 
                 objective.init_pose3d(pose3d_, queue_index)
-            loss_dict = LOSSES
+            loss_dict = pose_client.loss_dict_flight
             data_list = pose_client.requiredEstimationData
-            energy_weights = pose_client.weights
+            energy_weights = pose_client.weights_flight
 
         for loss_key in loss_dict:
             pltpts[loss_key] = np.zeros([num_iterations])
@@ -360,7 +354,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc =
     #if the frame is the first frame, the energy is found through backprojection
     else:
         P_world = pose3d_
-        loss_dict = CALIBRATION_LOSSES
+        loss_dict = pose_client.loss_dict_calib
         func_eval_time = 0
     
     pose_client.error_2d.append(final_loss[0])

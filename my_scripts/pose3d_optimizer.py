@@ -134,15 +134,15 @@ class toy_example(torch.nn.Module):
 
 class pose3d_calibration(torch.nn.Module):
 
-    def __init__(self, model, loss_dict, weights, data_list, M):
+    def __init__(self, pose_client):
         super(pose3d_calibration, self).__init__()
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(model)
+        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
         self.left_bone_connections, self.right_bone_connections, _ = split_bone_connections(self.bone_connections)
-        self.pose3d = torch.nn.Parameter(torch.zeros([3, self.NUM_OF_JOINTS]), requires_grad=True)
-        self.energy_weights = weights
-        self.loss_dict = loss_dict
-        self.data_list = data_list
-        self.M = torch.from_numpy(M).float()
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_calib), requires_grad=True)
+        self.energy_weights = pose_client.weights_calib
+        self.loss_dict = pose_client.loss_dict_calib
+        self.data_list = pose_client.requiredEstimationData_calibration
+        self.M = torch.from_numpy(pose_client.M).float()
     
     def forward(self):        
         output = {}
@@ -180,18 +180,18 @@ class pose3d_calibration(torch.nn.Module):
 
 class pose3d_flight(torch.nn.Module):
 
-    def __init__(self, model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list, M):
+    def __init__(self, pose_client):
         super(pose3d_flight, self).__init__()
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
-        self.window_size = window_size
-        self.pose3d = torch.nn.Parameter(torch.zeros([self.window_size+1, 3, self.NUM_OF_JOINTS]), requires_grad=True)
-        self.bone_lengths = Variable(bone_lengths, requires_grad = False)
-        self.loss_dict = loss_dict
-        self.data_list = data_list
-        self.lift_list = lift_list
-        self.energy_weights = weights
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.window_size = pose_client.FLIGHT_WINDOW_SIZE
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_flight), requires_grad=True)
+        self.bone_lengths = Variable(pose_client.boneLengths, requires_grad = False)
+        self.loss_dict = pose_client.loss_dict_flight
+        self.data_list = pose_client.requiredEstimationData
+        self.lift_list = pose_client.liftPoseList
+        self.energy_weights = pose_client.weights_flight
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
-        self.M = torch.from_numpy(M).float()
+        self.M = torch.from_numpy(pose_client.M).float()
 
     def forward_old(self):
         output = {}
@@ -315,15 +315,16 @@ class pose3d_flight(torch.nn.Module):
 
 class pose3d_future(torch.nn.Module):
 
-    def __init__(self, model, pose3d_est_future, bone_lengths, R_drone, C_drone, loss_dict):
+    def __init__(self, pose_client, R_drone, C_drone):
         super(pose3d_future, self).__init__()
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
-        self.future_pose3d = torch.nn.Parameter(torch.zeros([3, self.NUM_OF_JOINTS]), requires_grad=True)
-        self.bone_lengths = Variable(bone_lengths, requires_grad = False)
-        self.loss_dict = loss_dict
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.future_pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_future), requires_grad=True)
+        self.bone_lengths = Variable(pose_client.boneLengths, requires_grad = False)
+        self.loss_dict = pose_client.loss_dict_future
         self.R_drone = torch.from_numpy(R_drone).float()
         self.C_drone = torch.from_numpy(C_drone).float()
-        pose3d_est_future_torch = torch.from_numpy(pose3d_est_future).float()
+        self.energy_weights = pose_client.weights_future
+        pose3d_est_future_torch = torch.from_numpy(pose_client.future_pose).float()
         self.projected_est, _ = take_bone_projection_pytorch(pose3d_est_future_torch, R_drone, C_drone)
     
     def forward(self):

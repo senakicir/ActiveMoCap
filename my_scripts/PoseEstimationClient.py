@@ -12,8 +12,7 @@ class PoseEstimationClient(object):
         self.modes = param["MODES"]
         self.method = param["METHOD"]
         self.ftol = param["FTOL"]
-        self.weights = param["WEIGHTS"]
-    #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
+        #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
         self.model = param["MODEL"]
         _, _, num_of_joints, _ = model_settings(self.model)
 
@@ -24,10 +23,11 @@ class PoseEstimationClient(object):
         self.plot_info = []
         self.error_2d = []
         self.error_3d = []
-        self.requiredEstimationData = []
         self.poseList_3d = []
         self.poseList_3d_calibration = []
         self.liftPoseList = []
+
+        self.requiredEstimationData = []
         self.requiredEstimationData_calibration = []
 
         self.calib_res_list = []
@@ -44,6 +44,7 @@ class PoseEstimationClient(object):
         else:
             self.param_find_M = param["PARAM_FIND_M"]
         self.calc_hess = param["CALCULATE_HESSIAN"]
+        
         self.future_pose = np.zeros([3, num_of_joints])
 
         if self.param_read_M:
@@ -60,6 +61,17 @@ class PoseEstimationClient(object):
         
         self.quiet = param["QUIET"]
 
+        self.result_shape_calib = [3, num_of_joints]
+        self.result_shape_future = [3, num_of_joints]
+        self.result_shape_flight = [self.FLIGHT_WINDOW_SIZE+1, 3, num_of_joints]
+
+        self.weights_calib = {"proj":0.8, "sym":0.2}
+        self.weights_flight = param["WEIGHTS"]
+        self.weights_future = {"proj":0.8, "bone":0.2}
+
+        self.loss_dict_calib = CALIBRATION_LOSSES
+        self.loss_dict_flight = LOSSES
+        self.loss_dict_future = FUTURE_LOSSES
 
     def reset(self, plot_loc):
         if self.param_find_M:

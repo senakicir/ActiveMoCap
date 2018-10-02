@@ -74,18 +74,18 @@ class pose3d_calibration_scipy():
     def __init__(self):
         self.pytorch_objective = 0
 
-    def reset(self, model, data_list, weights, loss_dict, M):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
-        self.data_list = data_list
-        self.energy_weights = weights
+    def reset(self, pose_client):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.data_list = pose_client.requiredEstimationData_calibration
+        self.energy_weights = pose_client.weights_calib
         self.pltpts = {}
-        self.loss_dict = loss_dict
+        self.loss_dict = pose_client.loss_dict_calib
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
-        self.M = M
-        self.pytorch_objective = pytorch_optimizer.pose3d_calibration(model, loss_dict, weights, data_list, M)
+        self.M = pose_client.M
+        self.pytorch_objective = pytorch_optimizer.pose3d_calibration(pose_client)
         #self.pytorch_objective_toy = pytorch_optimizer.toy_example(model, loss_dict, weights, data_list, M)
-        self.result_shape = [3, self.NUM_OF_JOINTS]
+        self.result_shape = pose_client.result_shape_calib
 
     #delete this useless now
     def forward_powell(self, pose_3d):
@@ -202,21 +202,21 @@ class pose3d_calibration_scipy():
 
 class pose3d_flight_scipy():
 
-    def reset(self, model, data_list, lift_list, weights, loss_dict, window_size, bone_lengths, M):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
-        self.data_list = data_list
-        self.lift_list = lift_list
-        self.energy_weights = weights
+    def reset(self, pose_client):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.data_list = pose_client.requiredEstimationData
+        self.lift_list = pose_client.liftPoseList
+        self.energy_weights = pose_client.weights_flight
         self.pltpts = {}
-        self.loss_dict = loss_dict
-        self.window_size = window_size
-        self.bone_lengths = bone_lengths
+        self.loss_dict = pose_client.loss_dict_flight
+        self.window_size = pose_client.FLIGHT_WINDOW_SIZE
+        self.bone_lengths = pose_client.boneLengths
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
-        self.pytorch_objective = pytorch_optimizer.pose3d_flight(model, bone_lengths, window_size, loss_dict, weights, data_list, lift_list, M)
+        self.pytorch_objective = pytorch_optimizer.pose3d_flight(pose_client)
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
-        self.M = M
-        self.result_shape = [self.window_size+1, 3, self.NUM_OF_JOINTS]
+        self.M = pose_client.M
+        self.result_shape = pose_client.result_shape_flight
 
     def forward_old(self, pose_3d):
         pose_3d = np.reshape(a = pose_3d, newshape = [self.window_size, 3, self.NUM_OF_JOINTS], order = "C")
@@ -387,15 +387,16 @@ class pose3d_flight_scipy():
     
 class pose3d_future():
 
-    def reset(self, model, pose3d_est_future, bone_lengths, R_drone, C_drone, loss_dict):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
-        self.bone_lengths = bone_lengths
+    def reset(self, pose_client, R_drone, C_drone):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_lengths = pose_client.boneLengths
         self.R_drone = R_drone
         self.C_drone = C_drone
-        self.pytorch_objective = pytorch_optimizer.pose3d_future(model, pose3d_est_future, bone_lengths, R_drone, C_drone, loss_dict)
-        self.loss_dict = loss_dict
-        self.result_shape = [3, self.NUM_OF_JOINTS]
-        self.projected_est, _ = take_bone_projection(pose3d_est_future, R_drone, C_drone)
+        self.pytorch_objective = pytorch_optimizer.pose3d_future(pose_client, R_drone, C_drone)
+        self.loss_dict = pose_client.loss_dict_future
+        self.result_shape = pose_client.result_shape_future
+        self.projected_est, _ = take_bone_projection(pose_client.future_pose, R_drone, C_drone)
+        self.energy_weights = pose_client.weights_future
 
     def forward(self, pose_3d):
         pose_3d = np.reshape(a = pose_3d, newshape = self.result_shape, order = "C")
