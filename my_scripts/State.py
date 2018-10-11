@@ -1,7 +1,7 @@
 import cv2 as cv2
 from math import radians, cos, sin, pi
 import numpy as np
-from helpers import range_angle
+from helpers import range_angle, model_settings
 
 #constants
 BETA = 0.35
@@ -18,8 +18,13 @@ DELTA_T = 0.2
 N = 4.0
 TIME_HORIZON = N*DELTA_T
 
+def find_current_polar_info(drone_pos, human_pos):
+    polar_pos = drone_pos - human_pos  #subtrack the human_pos in order to find the current polar position vector.
+    polar_degree = np.arctan2(polar_pos[1], polar_pos[0])  #NOT relative to initial human angle, not using currently
+    return polar_pos, polar_degree
+
 class State(object):
-    def __init__(self, positions_):#, KALMAN_PROCESS_NOISE_AMOUNT = 1e-5):
+    def __init__(self, positions_):
         self.positions = positions_
         #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
         #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
@@ -38,34 +43,8 @@ class State(object):
         drone_polar_pos = - positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
 
-        #self.kalman = cv2.KalmanFilter(6, 3, 0) #6, state variables. 3 measurement variables 
-
-        #9x9 F: no need for further modification
-        #self.kalman.transitionMatrix = 1. * np.array([[1, 0, 0, DELTA_T, 0, 0, 0, 0, 0], [0, 1, 0, 0, DELTA_T, 0, 0, 0, 0], [0, 0, 1, 0, 0, DELTA_T,  0, 0, 0],
-        #[1/DELTA_T, 0, 0, 0, 0, 0,  -1/DELTA_T, 0, 0], [0, 1/DELTA_T, 0, 0, 0, 0, 0, -1/DELTA_T, 0], [0, 0, 1/DELTA_T, 0, 0, 0, 0, 0, -1/DELTA_T],
-        # [1, 0, 0, 0, 0, 0,  0, 0, 0], [0, 1, 0, 0, 0, 0, 0, 0, 0], [0, 0, 1, 0, 0, 0, 0, 0, 0]])
-        #3x9: H just takes the position values from state. 
-        #self.kalman.measurementMatrix = np.array([[1., 0, 0, 0, 0, 0, 0, 0, 0], [0, 1., 0, 0, 0, 0, 0, 0, 0], [0, 0, 1., 0, 0, 0, 0, 0, 0]])
-        #9x9: Process noise, no need to modify
-        #self.kalman.processNoiseCov = KALMAN_PROCESS_NOISE_AMOUNT * np.eye(9,9)
-        #3x3: measurement noise, WILL NEED TO MODIFY
-        #self.kalman.measurementNoiseCov = 1. * np.eye(3,3)
-        #9x9 initial covariance matrix
-        #self.kalman.errorCovPost = 1. * np.eye(9, 9)
-        #9x1 initial state, no need to modify
-        #self.kalman.statePost = np.array([[self.human_pos[0], self.human_pos[1], self.human_pos[2], 0, 0, 0, self.human_pos[0], self.human_pos[1], self.human_pos[2]]]).T
-
     def updateState(self, positions_):
         self.positions = positions_
-
-        #get human position, delta human position, human drone_speedcity
-        #self.kalman.measurementNoiseCov = cov_
-        #prediction_human_pos = self.kalman.predict()
-        #estimated_human_state = self.kalman.correct(self.positions[HUMAN_POS_IND,:])
-        #Kalman parts
-        #self.human_pos = np.copy(estimated_human_state[0:3,0])
-        #self.human_vel = np.copy(estimated_human_state[3:6,0])
-
         self.human_pos  = self.positions[HUMAN_POS_IND,:]
         self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
         self.prev_human_pos = self.human_pos
@@ -74,8 +53,7 @@ class State(object):
         #what angle and polar position is the drone at currently
         self.drone_pos = positions_[DRONE_POS_IND, :] #airsim gives us the drone coordinates with initial drone loc. as origin
         self.drone_orientation = positions_[DRONE_ORIENTATION_IND, :]
-        self.current_polar_pos = (self.drone_pos - self.human_pos)     #subtrack the human_pos in order to find the current polar position vector.
-        self.current_degree = np.arctan2(self.current_polar_pos[1], self.current_polar_pos[0]) #NOT relative to initial human angle, not using currently
+        self.current_polar_pos, self.current_degree = find_current_polar_info(self.drone_orientation, self.human_pos)     #subtrack the human_pos in order to find the current polar position vector.
      
         #calculate human orientation
         #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
@@ -107,3 +85,46 @@ class State(object):
         desired_pos = desired_polar_pos + self.human_pos - np.array([0,0,desired_z_pos])
         desired_yaw = desired_polar_angle - pi
         return desired_pos, desired_yaw
+        
+class Potential_States_Fetcher(object):
+    def __init__(self, current_drone_pos, current_human_pos, future_human_pos, model):
+        _, joint_names, _, _ = model_settings(model)
+        self.hip_index = joint_names.index('spine1')
+
+        self.current_drone_pos = np.squeeze(current_drone_pos)
+        self.future_human_pos = future_human_pos
+        self.current_human_pos = current_human_pos
+        self.potential_positions = []
+
+    def get_potential_positions(self):
+        delta_radius_list = [-2, 0, 2]
+        delta_angle_list = [radians(-20), 0, radians(20)]
+        neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))
+        _, neutral_yaw = find_current_polar_info(neutral_drone_pos, self.future_human_pos[:, self.hip_index])
+       
+        projected_distance_vect = neutral_drone_pos - self.future_human_pos[:, self.hip_index]
+        cur_radius = np.linalg.norm(projected_distance_vect[0:2,])
+
+        for delta_ang in delta_angle_list:
+            for delta_rad in delta_radius_list:
+                new_yaw = neutral_yaw + delta_ang 
+                new_rad = cur_radius + delta_rad
+                x = new_rad*cos(new_yaw) + self.future_human_pos[0, self.hip_index]
+                y = new_rad*sin(new_yaw) + self.future_human_pos[1, self.hip_index]
+                drone_pos = np.array([x, y, neutral_drone_pos[2]])
+                self.potential_positions.append({"position":np.copy(drone_pos), "orientation": new_yaw+pi})
+        return self.potential_positions
+
+    def get_potential_positions2(self):
+        x_list = [-2, 0, 2]
+        y_list = [-2, 0, 2]
+        neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))
+        for x in x_list:
+            for y in y_list:
+                drone_pos = np.array([neutral_drone_pos[0] + x, neutral_drone_pos[1] + y, neutral_drone_pos[2]])
+                _, polar_degree = find_current_polar_info(drone_pos, self.future_human_pos[:, self.hip_index])
+                self.potential_positions.append({"position":np.copy(drone_pos), "orientation": polar_degree+pi})
+        return self.potential_positions
+
+
+

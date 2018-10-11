@@ -44,7 +44,7 @@ class PoseEstimationClient(object):
         else:
             self.param_find_M = param["PARAM_FIND_M"]
         self.calc_hess = param["CALCULATE_HESSIAN"]
-        
+
         self.future_pose = np.zeros([3, num_of_joints])
 
         if self.param_read_M:
@@ -62,12 +62,12 @@ class PoseEstimationClient(object):
         self.quiet = param["QUIET"]
 
         self.result_shape_calib = [3, num_of_joints]
-        self.result_shape_future = [3, num_of_joints]
+        #self.result_shape_future = [3, num_of_joints]
         self.result_shape_flight = [self.FLIGHT_WINDOW_SIZE+1, 3, num_of_joints]
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_flight = param["WEIGHTS"]
-        self.weights_future = {"proj":0.8, "bone":0.2}
+        self.weights_future = param["WEIGHTS"]
 
         self.loss_dict_calib = CALIBRATION_LOSSES
         self.loss_dict_flight = LOSSES
@@ -110,6 +110,18 @@ class PoseEstimationClient(object):
             self.calib_cov_list.append(self.measurement_cov)
         else:
             future_inv_hess = shape_cov(cov, self.model, future_pose_ind)
+            self.future_measurement_cov = future_inv_hess
+            self.flight_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
+
+    def updateMeasurementCov_mini(self, cov, curr_pose_ind, future_pose_ind):
+        if self.isCalibratingEnergy:
+            curr_pose_ind = 0
+        curr_inv_hess = shape_cov_mini(cov, curr_pose_ind)
+        self.measurement_cov = curr_inv_hess
+        if self.isCalibratingEnergy:
+            self.calib_cov_list.append(self.measurement_cov)
+        else:
+            future_inv_hess = shape_cov_mini(cov, future_pose_ind)
             self.future_measurement_cov = future_inv_hess
             self.flight_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 

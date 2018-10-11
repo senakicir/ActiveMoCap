@@ -25,7 +25,11 @@ cd t*/superimposed_images
 [ -e covariance_calib.mp4 ] && rm covariance_calib.mp4
 [ -e covariance_flight.mp4 ] && rm covariance_flight.mp4
 
+[ -e future_plot.mp4 ] && rm future_plot.mp4
 [ -e future_current_cov.mp4 ] && rm future_current_cov.mp4
+[ -e potential_covs.mp4 ] && rm potential_covs.mp4
+[ -e potential_states.mp4 ] && rm potential_states.mp4
+[ -e potential_ellipses.mp4] && rm potential_ellipses.mp4
 
 
 ffmpeg -framerate 5 -start_number 35 -i  'lift_res_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih:x=0:y=0:color=white" lift_res.mp4
@@ -45,8 +49,12 @@ ffmpeg -framerate 5 -start_number 7 -i 'img_%01d.png' -c:v libx264 -pix_fmt yuv4
 ffmpeg -framerate 2 -i 'covariance%01d.png' -vframes 35 -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih+1:x=0:y=0:color=white" covariance_calib.mp4
 ffmpeg -framerate 2 -start_number 35 -i 'covariance%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih+1:x=0:y=0:color=white" covariance_flight.mp4
 
-
 ffmpeg -framerate 2 -i 'ellipse_flight_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih:x=0:y=0:color=white" ellipse_flight.mp4
 ffmpeg -framerate 2 -i 'ellipse_calib_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih:x=0:y=0:color=white" ellipse_calib.mp4
 
-ffmpeg -framerate 2 -start_number 35 -i 'future_current_cov_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih+1:x=0:y=0:color=white" future_current_cov.mp4
+ffmpeg -framerate 2 -start_number 35 -i 'future_plot_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih:x=0:y=0:color=white" future_plot.mp4
+ffmpeg -framerate 2 -start_number 35 -i 'future_current_cov_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih+1:x=0:y=0:color=white" future_current_cov.mp4
+ffmpeg -framerate 2 -start_number 35 -i 'potential_covs_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih+1:x=0:y=0:color=white" potential_covs.mp4
+ffmpeg -framerate 2 -start_number 35 -i 'potential_states_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih:x=0:y=0:color=white" potential_states.mp4
+ffmpeg -framerate 2 -start_number 35 -i 'potential_ellipses_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw+1:height=ih:x=0:y=0:color=white" potential_ellipses.mp4
+

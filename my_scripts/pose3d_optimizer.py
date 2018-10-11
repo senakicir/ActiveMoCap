@@ -164,6 +164,7 @@ class pose3d_calibration(torch.nn.Module):
             R_drone_torch = torch.from_numpy(R_drone_).float()
             C_drone_torch = torch.from_numpy(C_drone_).float()
             bone_2d_torch = torch.from_numpy(bone_2d_).float()
+            
             projected_2d, _ = take_bone_projection_pytorch(pose_3d_M, R_drone_torch, C_drone_torch)
             output["proj"] += mse_loss(projected_2d, bone_2d_torch)
             #current_residuals = find_residuals(projected_2d, bone_2d_torch)* self.energy_weights["proj"]
@@ -193,74 +194,6 @@ class pose3d_flight(torch.nn.Module):
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
         self.M = torch.from_numpy(pose_client.M).float()
 
-    def forward_old(self):
-        output = {}
-        for loss_key in self.loss_dict:
-            output[loss_key] = 0
-
-        queue_index = 0
-        for bone_2d_, R_drone_, C_drone_ in self.data_list:
-            #pose_3d_M = torch.mm(self.pose3d[queue_index, :, :].cpu(), self.M)
-            pose_3d_M = self.pose3d[queue_index, :, :].cpu()
-            #projection
-            R_drone_torch = torch.from_numpy(R_drone_).float()
-            C_drone_torch = torch.from_numpy(C_drone_).float()
-            bone_2d_torch = torch.from_numpy(bone_2d_).float()
-            projected_2d, _ = take_bone_projection_pytorch(pose_3d_M, R_drone_torch, C_drone_torch)
-            output["proj"] += mse_loss(projected_2d, bone_2d_torch)
-            #current_residuals = find_residuals(projected_2d, bone_2d_torch)* self.energy_weights["proj"]
-            #if (queue_index == 0):
-            #    residuals = current_residuals
-            #else: 
-                #residuals =  torch.cat((residuals, current_residuals))
-
-            #smoothness
-           # if (queue_index != self.window_size-1 and queue_index != 0):
-              #  output["smooth"] += mse_loss(self.pose3d[queue_index, :, :], self.pose3d[queue_index+1, :, :]) +  mse_loss(self.pose3d[queue_index-1, :, :], self.pose3d[queue_index, :, :])
-                #current_residuals = (find_residuals(self.pose3d[queue_index, :, :], self.pose3d[queue_index+1, :, :]) + find_residuals(self.pose3d[queue_index-1, :, :], self.pose3d[queue_index, :, :]))* self.energy_weights["smooth"]
-           # elif (queue_index != self.window_size-1 ):
-             #   output["smooth"] += mse_loss(self.pose3d[queue_index, :, :], self.pose3d[queue_index+1, :, :])
-                #current_residuals = find_residuals(self.pose3d[queue_index, :, :], self.pose3d[queue_index+1, :, :]) * self.energy_weights["smooth"]
-           # elif (queue_index != 0):
-               # output["smooth"] += mse_loss(self.pose3d[queue_index-1, :, :], self.pose3d[queue_index, :, :])
-                #current_residuals = find_residuals(self.pose3d[queue_index-1, :, :], self.pose3d[queue_index, :, :]) * self.energy_weights["smooth"]
-            #residuals =  torch.cat((residuals, current_residuals))
-            
-            pose_vel = torch.zeros([2, 3, self.NUM_OF_JOINTS])
-            if (queue_index != 0 or queue_index != 1):
-                pose_vel[0]  = self.pose3d[queue_index-1, :, :]- self.pose3d[queue_index-2, :, :]
-                pose_vel[1]  = self.pose3d[queue_index, :, :]- self.pose3d[queue_index-1, :, :]
-                output["smooth"] += mse_loss(pose_vel[0] , pose_vel[1])
-
-
-            #bone length consistency 
-            bonelosses = Variable(torch.zeros([self.NUM_OF_JOINTS-1,]), requires_grad = False)
-            for i, bone in enumerate(self.bone_connections):
-                length_of_bone = (torch.sum(torch.pow(pose_3d_M[:,bone[0]] - pose_3d_M[:,bone[1]], 2)))
-                bonelosses[i] = torch.pow((self.bone_lengths[i] - length_of_bone),2)
-            output["bone"] += torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
-            #current_residuals = bonelosses* self.energy_weights["bone"]
-            #residuals =  torch.cat((residuals, current_residuals))
-
-            #lift
-            pose3d_lift_directions = torch.from_numpy(self.lift_list[queue_index]).float()
-            pose_est_directions = torch.zeros([3, len(self.lift_bone_directions)])
-            for i, bone in enumerate(self.lift_bone_directions):
-                bone_vector = pose_3d_M[:,bone[0]] - pose_3d_M[:,bone[1]]
-                pose_est_directions[:, i] = bone_vector/(torch.norm(bone_vector)+EPSILON)
-            output["lift"] += mse_loss(pose3d_lift_directions, pose_est_directions)
-            #current_residuals = find_residuals(pose3d_lift_directions, pose_est_directions) * self.energy_weights["lift"]
-            #residuals =  torch.cat((residuals, current_residuals))
-
-            queue_index += 1
-
-        overall_output = 0
-        for loss_key in self.loss_dict:
-            overall_output += self.energy_weights[loss_key]*output[loss_key]
-
-        return overall_output
-
-    
     def forward(self):
         output = {}
         for loss_key in self.loss_dict:
@@ -287,6 +220,13 @@ class pose3d_flight(torch.nn.Module):
                     pose_est_directions[:, i] = bone_vector/(torch.norm(bone_vector)+EPSILON)
                 output["lift"] += mse_loss(pose3d_lift_directions, pose_est_directions)
 
+            #bone length consistency 
+            bonelosses = Variable(torch.zeros([self.NUM_OF_JOINTS-1,]), requires_grad = False)
+            for i, bone in enumerate(self.bone_connections):
+                length_of_bone = (torch.sum(torch.pow(pose_3d_curr[:,bone[0]] - pose_3d_curr[:,bone[1]], 2)))
+                bonelosses[i] = torch.pow((self.bone_lengths[i] - length_of_bone),2)
+            output["bone"] += torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+
             #smoothness term
             pose_vel = torch.zeros([2, 3, self.NUM_OF_JOINTS])
             if (queue_index != 0 or queue_index != 1):
@@ -294,12 +234,6 @@ class pose3d_flight(torch.nn.Module):
                 pose_vel[1]  = self.pose3d[queue_index, :, :]- self.pose3d[queue_index-1, :, :]
                 output["smooth"] += mse_loss(pose_vel[0] , pose_vel[1])
 
-            #bone length consistency 
-            bonelosses = Variable(torch.zeros([self.NUM_OF_JOINTS-1,]), requires_grad = False)
-            for i, bone in enumerate(self.bone_connections):
-                length_of_bone = (torch.sum(torch.pow(pose_3d_curr[:,bone[0]] - pose_3d_curr[:,bone[1]], 2)))
-                bonelosses[i] = torch.pow((self.bone_lengths[i] - length_of_bone),2)
-            output["bone"] += torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
             queue_index += 1
 
@@ -318,30 +252,79 @@ class pose3d_future(torch.nn.Module):
     def __init__(self, pose_client, R_drone, C_drone):
         super(pose3d_future, self).__init__()
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
-        self.future_pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_future), requires_grad=True)
+        self.window_size = pose_client.FLIGHT_WINDOW_SIZE
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_flight), requires_grad=True)
         self.bone_lengths = Variable(pose_client.boneLengths, requires_grad = False)
         self.loss_dict = pose_client.loss_dict_future
-        self.R_drone = torch.from_numpy(R_drone).float()
-        self.C_drone = torch.from_numpy(C_drone).float()
+        self.data_list = pose_client.requiredEstimationData
+        self.lift_list = pose_client.liftPoseList
         self.energy_weights = pose_client.weights_future
-        pose3d_est_future_torch = torch.from_numpy(pose_client.future_pose).float()
-        self.projected_est, _ = take_bone_projection_pytorch(pose3d_est_future_torch, R_drone, C_drone)
+        self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
+
+
+        self.potential_R_drone = torch.from_numpy(R_drone).float()
+        self.potential_C_drone = torch.from_numpy(C_drone).float()
+        pose3d_est_future_torch = Variable(torch.from_numpy(pose_client.future_pose).float(), requires_grad=False)
+        self.potential_projected_est, _ = take_bone_projection_pytorch(pose3d_est_future_torch, self.potential_R_drone, self.potential_C_drone)
     
     def forward(self):
         output = {}
         for loss_key in self.loss_dict:
             output[loss_key] = 0
 
-        #projection
-        projected_2d, _ = take_bone_projection_pytorch(self.future_pose3d, self.R_drone, self.C_drone)
-        output["proj"] += mse_loss(projected_2d, self.projected_est)
+        queue_index = 0
+        for bone_2d_, R_drone_, C_drone_ in self.data_list:
+            pose_3d_curr = self.pose3d[queue_index, :, :].cpu()
 
-        #bone length consistency 
-        bonelosses = Variable(torch.zeros([self.NUM_OF_JOINTS-1,]), requires_grad = False)
-        for i, bone in enumerate(self.bone_connections):
-            length_of_bone = (torch.sum(torch.pow(self.future_pose3d[:,bone[0]] - self.future_pose3d[:,bone[1]], 2)))
-            bonelosses[i] = torch.pow((self.bone_lengths[i] - length_of_bone),2)
-        output["bone"] += torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+            if (queue_index != 0): #future pose has no lift term but a special projection
+                #projection
+                R_drone_torch = torch.from_numpy(R_drone_).float()
+                C_drone_torch = torch.from_numpy(C_drone_).float()
+                bone_2d_torch = torch.from_numpy(bone_2d_).float()
+                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, R_drone_torch, C_drone_torch)
+                output["proj"] += mse_loss(projected_2d, bone_2d_torch)
+
+                current_residuals = find_residuals(projected_2d, bone_2d_torch)* self.energy_weights["proj"]
+                residuals = torch.cat((residuals, current_residuals))
+
+                #lift
+                pose3d_lift_directions = torch.from_numpy(self.lift_list[queue_index]).float()
+                pose_est_directions = torch.zeros([3, len(self.lift_bone_directions)])
+                for i, bone in enumerate(self.lift_bone_directions):
+                    bone_vector = pose_3d_curr[:,bone[0]] - pose_3d_curr[:,bone[1]]
+                    pose_est_directions[:, i] = bone_vector/(torch.norm(bone_vector)+EPSILON)
+                output["lift"] += mse_loss(pose3d_lift_directions, pose_est_directions)
+
+                current_residuals = find_residuals(pose3d_lift_directions, pose_est_directions)* self.energy_weights["lift"]
+                residuals = torch.cat((residuals, current_residuals))
+
+            else:
+                #projection for future
+                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, self.potential_R_drone, self.potential_C_drone)
+                output["proj"] += mse_loss(projected_2d, self.potential_projected_est)
+                residuals = find_residuals(projected_2d, self.potential_projected_est)* self.energy_weights["proj"]
+
+            #bone length consistency 
+            bonelosses = Variable(torch.zeros([self.NUM_OF_JOINTS-1,]), requires_grad = False)
+            for i, bone in enumerate(self.bone_connections):
+                length_of_bone = (torch.sum(torch.pow(pose_3d_curr[:,bone[0]] - pose_3d_curr[:,bone[1]], 2)))
+                bonelosses[i] = torch.pow((self.bone_lengths[i] - length_of_bone),2)
+            output["bone"] += torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+
+            current_residuals = bonelosses* self.energy_weights["bone"]
+            residuals = torch.cat((residuals, current_residuals))
+
+            #smoothness term
+            pose_vel = torch.zeros([2, 3, self.NUM_OF_JOINTS])
+            if (queue_index != 0 or queue_index != 1):
+                pose_vel[0]  = self.pose3d[queue_index-1, :, :]- self.pose3d[queue_index-2, :, :]
+                pose_vel[1]  = self.pose3d[queue_index, :, :]- self.pose3d[queue_index-1, :, :]
+                output["smooth"] += mse_loss(pose_vel[0] , pose_vel[1])
+
+                current_residuals = find_residuals(pose_vel[0], pose_vel[1]) * self.energy_weights["smooth"]
+                residuals = torch.cat((residuals, current_residuals))
+
+            queue_index += 1
 
         overall_output = 0
         for loss_key in self.loss_dict:
@@ -351,5 +334,4 @@ class pose3d_future(torch.nn.Module):
     
     def init_pose3d(self, pose3d_np):
         pose3d_ = torch.from_numpy(pose3d_np).float()
-        self.future_pose3d.data[:] = pose3d_.data[:]
-
+        self.pose3d.data[:] = pose3d_.data[:]

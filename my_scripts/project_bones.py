@@ -1,20 +1,11 @@
-from helpers import *
 import torch
 from torch.autograd import Variable
 from math import pi, cos, sin, degrees
 import numpy as np
+from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, px, py, FOCAL_LENGTH, SIZE_X, SIZE_Y 
 
 neat_tensor = Variable(torch.FloatTensor([[0, 0, 0, 1]]), requires_grad=False) #this tensor is neat!
 DEFAULT_TORSO_SIZE = 0.436*0.50#0.86710678118
-
-def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
-    if (returnTensor == True):
-        return torch.FloatTensor([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
-                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
-                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
-    return np.array([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
-                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
-                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
 
 R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
 C_cam = np.array([[CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z]]).T
@@ -54,6 +45,7 @@ def take_bone_projection(P_world, R_drone, C_drone):
     return x, heatmaps
 
 def take_bone_projection_pytorch(P_world, R_drone, C_drone):
+
     P_camera = world_to_camera(R_drone, C_drone, P_world)
     x_ = torch.mm(K_torch, P_camera)
     x = x_.clone()
@@ -147,3 +139,10 @@ def transform_cov_matrix(R_drone, cov_):
     transformed_cov = (R_drone@R_cam)@cov_@(R_drone@R_cam).T
     return transformed_cov
 
+def take_potential_projection(potential_state, future_pose):
+    C_drone = potential_state["position"]
+    C_drone = C_drone[:, np.newaxis]
+    yaw = potential_state["orientation"]
+    R_drone = euler_to_rotation_matrix(0,0,yaw)
+    proj, _ =  take_bone_projection(future_pose, R_drone, C_drone)
+    return proj

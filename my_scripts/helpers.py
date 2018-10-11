@@ -1,7 +1,8 @@
 import setup_path 
 import airsim
 
-import shutil, skimage.io
+import shutil
+import skimage.io
 import numpy as np
 import torch as torch
 from pandas import read_csv
@@ -14,13 +15,13 @@ import matplotlib.gridspec as gridspec
 from matplotlib import cm, colors
 import time, os
 import cv2
-from math import degrees, radians, pi, ceil, exp
+from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin
 
 
 energy_mode = {1:True, 0:False}
 LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 CALIBRATION_LOSSES = ["proj", "sym"]
-FUTURE_LOSSES = ["proj", "bone"]
+FUTURE_LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
@@ -343,36 +344,37 @@ def plot_covariances(pose_client, plot_loc, custom_name):
     for ind, matrix1 in enumerate(pose_client.calib_cov_list):
         fig = plt.figure()
         ax1 = plt.subplot(1,1,1)
-        #  divider = make_axes_locatable(ax1)
-        #  cax = divider.append_axes("right", size="5%", pad=0.05)
+
         im = ax1.imshow(matrix1, cmap=cmap, norm=norm_calib)
-        fig.colorbar(im)
-        plt.title("Current Frame Covariance Matrix")  
+        fig.subplots_adjust(right=0.8, hspace = 0.5)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        fig.colorbar(im, cax=cbar_ax)
+        
+        plt.suptitle("Current Frame Covariance Matrix")  
         matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind+1) + '.png'
         plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
-        plt.close()
+        plt.close(fig)
 
     for ind, ele in enumerate(pose_client.flight_cov_list):
         curr = ele["curr"]
         future = ele["future"]
-
         fig, _ = plt.subplots(1,2)
-        #divider = make_axes_locatable(axs)
-        #cax = divider.append_axes("right", size="5%", pad=0.05)
+
         ax1 = plt.subplot(1,2,1)
-        im = ax1.imshow(curr, cmap=cmap, norm=norm_flight)
+        _ = ax1.imshow(curr, cmap=cmap, norm=norm_flight)
         plt.title("Current frame")    
 
         ax2 = plt.subplot(1,2,2)
-        im = ax2.imshow(future, cmap=cmap, norm=norm_flight)
-        fig.colorbar(im)
+        im2 = ax2.imshow(future, cmap=cmap, norm=norm_flight)
         plt.title("Future frame")  
-        
+
         fig.suptitle('Covariance matrix')
+        fig.subplots_adjust(right=0.8, hspace = 0.5)
+        cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+        fig.colorbar(im2, cax=cbar_ax)
         matrix_plot_loc = plot_loc +'/'+ custom_name + str(pose_client.CALIBRATION_LENGTH+ind+1) + '.png'
         plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
-        plt.close()
-
+        plt.close(fig)
 
 def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_location, custom_name=None, scale=-1, projection = np.zeros([1,1])):
     if custom_name == None:
@@ -408,7 +410,7 @@ def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_locati
         ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=1)   
     plt.legend(handles=[p0,p1,p2])
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
-    plt.close()
+    plt.close(fig)
 
 def save_heatmaps(heatmaps, ind, plot_loc, custom_name=None, scales=None, poses=None, bone_connections=None):
     if custom_name == None:
@@ -449,7 +451,7 @@ def save_image(img, ind, plot_loc, custom_name=None):
     plt.imshow(img)
     img_loc = plot_loc + name + str(ind) + '.png'
     plt.savefig(img_loc, bbox_inches='tight', pad_inches=0)
-    plt.close()
+    plt.close(fig)
 
 
 def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, error = -5, custom_name = None, orientation = "z_up", label_names =None):   
@@ -660,9 +662,9 @@ def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
 
     return heatmap
 
-def matrix_to_ellipse(matrix, center):
+def matrix_to_ellipse(matrix, center, plot_scale = 1):
     _, s, rotation = np.linalg.svd(matrix)
-    radii = np.sqrt(s)
+    radii = np.sqrt(s)/plot_scale
 
     # now carry on with EOL's answer
     u = np.linspace(0.0, 2.0 * np.pi, 100)
@@ -684,6 +686,14 @@ def shape_cov(cov, model, frame_index):
     H[:,0] = np.array([cov[offset, offset], cov[num_of_joints+offset, offset], cov[num_of_joints*2+offset, offset],])
     H[:,1] = np.array([cov[offset, num_of_joints+offset], cov[num_of_joints+offset, num_of_joints+offset], cov[num_of_joints*2+offset, num_of_joints+offset],])
     H[:,2] = np.array([cov[offset, num_of_joints*2+offset], cov[num_of_joints+offset, num_of_joints*2+offset], cov[num_of_joints*2+offset, num_of_joints*2+offset],])
+    return H
+
+def shape_cov_mini(cov, frame_index):
+    H = np.zeros([3,3])
+    offset = frame_index*3
+    H[:,0] = np.array([cov[offset, offset], cov[1+offset, offset], cov[2+offset, offset],])
+    H[:,1] = np.array([cov[offset, 1+offset], cov[1+offset, 1+offset], cov[2+offset, 1+offset],])
+    H[:,2] = np.array([cov[offset, 2+offset], cov[1+offset, 2+offset], cov[2+offset, 2+offset],])
     return H
 
 def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
@@ -734,7 +744,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
         Z = np.concatenate([Z, -drone[2]])
 
     #plot ellipse
-    center = predicted_bones[:, hip_index]
+    center = np.copy(predicted_bones[:, hip_index])
     center[2]= -center[2]
     x,y,z = matrix_to_ellipse(pose_client.measurement_cov, center)
     ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
@@ -752,5 +762,175 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
 
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+def rotation_matrix_to_euler(R) :
+    sy = sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    singular = sy < 1e-6
+    if  not singular :
+        x = atan2(R[2,1] , R[2,2])
+        y = atan2(-R[2,0], sy)
+        z = atan2(R[1,0], R[0,0])
+    else :
+        x = atan2(-R[1,2], R[1,1])
+        y = atan2(-R[2,0], sy)
+        z = 0
+    return np.array([x, y, z])
+
+def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
+    if (returnTensor == True):
+        return torch.FloatTensor([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
+                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
+                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
+    return np.array([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
+                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
+                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
+
+
+def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, potential_states, C_drone, R_drone, model, plot_loc, ind):
+    _, joint_names, _, _ = model_settings(model)
+    hip_index = joint_names.index('spine1')
+
+    current_human_pos = current_human_pose[0:2, hip_index]
+    future_human_pos =  future_human_pose[0:2, hip_index]
+    gt_human_pos = gt_human_pose[0:2, hip_index]
+    
+    fig, ax = plt.subplots()
+    plt.axis(v=['scaled'])
+
+    #plot the people
+    plot1, = ax.plot(float(current_human_pos[0]), float(current_human_pos[1]), c='xkcd:light red', marker='^', label="current human pos")
+    plot2, = ax.plot(float(future_human_pos[0]), float(future_human_pos[1]), c='xkcd:royal blue', marker='^', label="future human pos")
+    plot5, = ax.plot(float(gt_human_pos[0]), float(gt_human_pos[1]), c='xkcd:orchid', marker='^', label="GT current human pos")
+
+    #plot potential states
+    for state_ind, potential_state in enumerate(potential_states):
+        yaw = potential_state["orientation"]
+        state_pos =  potential_state["position"]
+        plot4, = plt.plot([float(state_pos[0] - (cos(yaw)*0.5)/2), float(state_pos[0] + (cos(yaw)*0.5)/2)], [float(state_pos[1] - (sin(yaw)*0.5)/2), float(state_pos[1] + (sin(yaw)*0.5)/2)], c='xkcd:hot pink', label="potential state")
+        plt.text(state_pos[0], state_pos[1], str(state_ind))
+    
+    #plot current drone state
+    current_drone_pos = C_drone[0:2]
+    _,_,yaw = rotation_matrix_to_euler(R_drone)
+    plot3, = plt.plot([float(current_drone_pos[0] - (cos(yaw)*0.5)/2), float(current_drone_pos[0] + (cos(yaw)*0.5)/2)], [float(current_drone_pos[1] - (sin(yaw)*0.5)/2), float(current_drone_pos[1] + (sin(yaw)*0.5)/2)], c='xkcd:green', label="current drone pos")
+
+    plt.legend(handles=[plot1, plot2, plot3, plot4, plot5])
+    #plt.show()
+    file_name = plot_loc + "/potential_states_" + str(ind) + ".png"
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    
+def plot_potential_hessians(hessians, linecount, plot_loc):
+    fig, axes = plt.subplots(nrows=3, ncols=3)
+
+    list_min = []
+    list_max = []
+    for img in hessians:
+        list_min.append(img.min())
+        list_max.append(img.max())
+    vmin = min(list_min)
+    vmax = max(list_max)
+
+    cmap = cm.viridis
+    norm = colors.Normalize(vmin=vmin, vmax=vmax)
+    plt.suptitle("Covariance matrices for potential states")
+    for ind, hess in enumerate(hessians):
+        ax = axes.flat[ind]
+        im = ax.imshow(hess, cmap=cmap, norm=norm)
+        ax.set_title(str(ind))
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False)
+        uncertainty1 = float("{0:.4f}".format(np.linalg.det(hess)))
+        uncertainty2 = float("{0:.4f}".format(max([hess[0,0],hess[1,1],hess[2,2]])))
+        ax.text(0.05,0.05,str(uncertainty1))
+        ax.text(0.05,0.5,str(uncertainty2))   
+
+    fig.subplots_adjust(right=0.8, hspace = 0.5)
+    cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+    fig.colorbar(im, cax=cbar_ax)
+
+    file_name = plot_loc + "/potential_covs_" + str(linecount) + ".png"
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    
+def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, model):
+    bone_connections, joint_names, _, _ = model_settings(model)
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+
+    superimposed_plot_loc = plot_loc + "/potential_projections_" + str(linecount) + '.png'
+
+    fig, axes = plt.subplots(nrows=3, ncols=3)
+    im = plt.imread(photo_loc)
+    im = np.array(im[:,:,0:3])
+    for ind, pose in enumerate(pose2d_list):
+        ax = axes.flat[ind]
+        ax.imshow(im)
+    
+        #plot part
+        for _, bone in enumerate(left_bone_connections):    
+            p1, = ax.plot( pose[0, bone], pose[1,bone], color = "r", linewidth=1, label="Left")   
+        for i, bone in enumerate(right_bone_connections):    
+            p2, = ax.plot( pose[0, bone], pose[1,bone], color = "b", linewidth=1, label="Right")   
+        for i, bone in enumerate(middle_bone_connections):    
+            ax.plot( pose[0, bone], pose[1,bone], color = "b", linewidth=1)   
+        ax.set_title(str(ind))
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False) 
+
+    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+
+def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose, potential_states, hessians, model, plot_loc, ind):
+    _, joint_names, _, _ = model_settings(model)
+    hip_index = joint_names.index('spine1')
+
+    current_human_pos = current_human_pose[:, hip_index]
+    future_human_pos =  future_human_pose[:, hip_index]
+    gt_human_pos = gt_human_pose[:, hip_index]
+    
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    #plot the people
+    plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='^', label="current human pos")
+    plot2, = ax.plot([future_human_pos[0]], [future_human_pos[1]], [-future_human_pos[2]], c='xkcd:royal blue', marker='^', label="future human pos")
+    plot3, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='^', label="GT current human pos")
+
+    #for ax limits
+    X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
+    Y = np.array([current_human_pos[1], future_human_pos[1], gt_human_pos[1]])
+    Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
+
+    #plot ellipses
+    for state_ind, potential_state in enumerate(potential_states):
+        state_pos =  potential_state["position"]
+        center = np.copy(state_pos)
+        center[2] = -center[2]
+        x,y,z = matrix_to_ellipse(hessians[state_ind], center, 5)
+        ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+        ax.text(center[0], center[1], center[2], str(state_ind))
+
+        X = np.concatenate([X, np.array([center[0]])])
+        Y = np.concatenate([Y, np.array([center[1]])])
+        Z = np.concatenate([Z, np.array([center[2]])])
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    ax.legend(handles=[plot1, plot2, plot3])
+    #plt.show()
+    file_name = plot_loc + "/potential_ellipses_" + str(ind) + ".png"
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)

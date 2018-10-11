@@ -19,6 +19,7 @@ import liftnet as liftnet_module
 
 objective_flight = pose3d_flight_scipy()
 objective_calib = pose3d_calibration_scipy()
+objective_future = pose3d_future()
 CURRENT_POSE_INDEX = 1
 FUTURE_POSE_INDEX = 0
 
@@ -83,6 +84,7 @@ def determine_relative_3d_pose(mode_lift, bone_2d, cropped_image, heatmap_2d, R_
         pose3d_lift = rearrange_bones_to_mpi(pose3d_lift, True)
         pose3d_relative = camera_to_world(R_drone, C_drone, pose3d_lift.cpu().data.numpy(), is_torch = False)
     return pose3d_relative
+
 
 def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
@@ -163,15 +165,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         P_world_scrambled = optimized_res.x
         P_world = np.reshape(a = P_world_scrambled, newshape = result_shape, order = "C")
 
-        if (pose_client.calc_hess):
-            start_find_hess = time.time()
-            #hess = objective.mini_hessian(P_world)
-            hess = objective.hessian(P_world)
-            end_find_hess = time.time()
-            inv_hess = np.linalg.inv(hess)
-            pose_client.updateMeasurementCov(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
-            print("Time for finding hessian:", end_find_hess-start_find_hess)
-
         if (pose_client.isCalibratingEnergy):
             optimized_3d_pose = P_world
             pose_client.update3dPos(optimized_3d_pose, is_calib = pose_client.isCalibratingEnergy)
@@ -183,6 +176,49 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
             optimized_3d_pose =  P_world[CURRENT_POSE_INDEX, :,:] #current pose
             pose_client.future_pose =  P_world[FUTURE_POSE_INDEX, :,:] #future pose
             pose_client.update3dPos(P_world, is_calib = pose_client.isCalibratingEnergy)
+
+        if (pose_client.calc_hess):
+            start_find_hess = time.time()
+            #hess = objective.mini_hessian(P_world)
+            hess = objective.hessian(P_world)
+            #hess = objective.approx_hessian(P_world)
+            end_find_hess = time.time()
+            inv_hess = np.linalg.inv(hess)
+            pose_client.updateMeasurementCov(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
+            #pose_client.updateMeasurementCov_mini(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
+            print("Time for finding hessian:", end_find_hess-start_find_hess)
+
+            #find candidate drone positions
+            potential_states_fetcher = Potential_States_Fetcher(C_drone, optimized_3d_pose, pose_client.future_pose, pose_client.model)
+            potential_states = potential_states_fetcher.get_potential_positions()
+
+            if not pose_client.isCalibratingEnergy:
+                #find hessian for each drone position
+                objective = objective_future
+                potential_hessians = []
+                potential_pose2d_list =[]
+                
+                for potential_state_ind, potential_state in enumerate(potential_states):
+                    objective.reset(pose_client, potential_state)
+
+                    start_find_hess = time.time()
+                    hess = objective.approx_hessian(P_world)
+                    #hess = objective.mini_hessian(P_world)
+                    
+                    end_find_hess = time.time()
+                    print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess-start_find_hess)
+                    inv_hess = np.linalg.inv(hess)
+                    potential_hessians.append(shape_cov(inv_hess, pose_client.model, 0))
+                    #potential_hessians.append(shape_cov_mini(inv_hess, 0))
+
+                    #take projection 
+                    potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
+                if not pose_client.quiet:
+                    #plot potential states and current state, projections of each state, cov's of each state
+                    plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
+                    plot_potential_projections(potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
+                    plot_potential_hessians(potential_hessians, airsim_client.linecount, plot_loc)
+                    plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, potential_hessians, pose_client.model, plot_loc, airsim_client.linecount)
 
     #if the frame is the first frame, the energy is found through backprojection
     else:
@@ -206,7 +242,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     if (plot_loc != 0 and not pose_client.quiet): 
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
         plot_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d)
-
         #save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
@@ -217,7 +252,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
             #optimized_3d_pose_normalized, _ = normalize_pose(optimized_3d_pose, joint_names, is_torch=False)
             #plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
             #plot_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
-            plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
+            #plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
 
     positions = form_positions_dict(angle, drone_pos_vec, optimized_3d_pose[:,joint_names.index('spine1')])
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)

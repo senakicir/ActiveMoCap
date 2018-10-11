@@ -233,10 +233,10 @@ def main(kalman_arguments, parameters, energy_parameters):
         time.sleep(DELTA_T) 
         if (airsim_client.linecount % 3 == 0 and not pose_client.quiet):
             plot_global_motion(pose_client, plot_loc_, global_plot_ind)
-            #plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
+            plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
             global_plot_ind +=1
 
-        #SAVE ALL VALUES OF THIS SIMULATION       
+        #SAVE ALL VALUES OF THIS SIMULATION
         f_output_str = str(airsim_client.linecount)+pose_client.f_string + '\n'
         f_output.write(f_output_str)
         f_groundtruth_str =  str(airsim_client.linecount) + '\t' +f_groundtruth_str + '\n'
@@ -281,7 +281,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     f_output.close()
 
     airsim_client.reset()
-    pose_client.reset(plot_loc_)
+    pose_client.reset(plot_loc_) #DO NOT FORGET
 
     airsim_client.changeAnimation(0) #reset animation
 
@@ -313,7 +313,7 @@ if __name__ == "__main__":
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names}
     
-    weights_ =  {'proj': 0.0004884205528035975, 'smooth': 0.4884205528035975, 'bone': 0.02267047384000158, 'lift': 0.4884205528035975}
+    weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
     weights = normalize_weights(weights_)
 
     energy_parameters = {"CALCULATE_HESSIAN":calculate_hess,"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
