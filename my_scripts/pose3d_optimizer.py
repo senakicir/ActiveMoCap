@@ -143,6 +143,9 @@ class pose3d_calibration(torch.nn.Module):
         self.loss_dict = pose_client.loss_dict_calib
         self.data_list = pose_client.requiredEstimationData_calibration
         self.M = torch.from_numpy(pose_client.M).float()
+        self.pltpts = {}
+        for loss_key in self.loss_dict:
+            self.pltpts[loss_key] = []
     
     def forward(self):        
         output = {}
@@ -158,14 +161,12 @@ class pose3d_calibration(torch.nn.Module):
         output["sym"] += torch.sum(bonelosses)/bonelosses.data.nelement()
         #residuals = bonelosses* self.energy_weights["sym"]
 
-        #pose_3d_M = torch.mm(self.pose3d, self.M)
-        pose_3d_M = self.pose3d.cpu()
         for bone_2d_, R_drone_, C_drone_ in self.data_list:
             R_drone_torch = torch.from_numpy(R_drone_).float()
             C_drone_torch = torch.from_numpy(C_drone_).float()
             bone_2d_torch = torch.from_numpy(bone_2d_).float()
             
-            projected_2d, _ = take_bone_projection_pytorch(pose_3d_M, R_drone_torch, C_drone_torch)
+            projected_2d, _ = take_bone_projection_pytorch(self.pose3d, R_drone_torch, C_drone_torch)
             output["proj"] += mse_loss(projected_2d, bone_2d_torch)
             #current_residuals = find_residuals(projected_2d, bone_2d_torch)* self.energy_weights["proj"]
             #residuals = torch.cat((residuals, current_residuals))
@@ -173,6 +174,7 @@ class pose3d_calibration(torch.nn.Module):
         overall_output = Variable(torch.FloatTensor([0]))
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
         return overall_output
 
     def init_pose3d(self, pose3d_np):
@@ -192,7 +194,9 @@ class pose3d_flight(torch.nn.Module):
         self.lift_list = pose_client.liftPoseList
         self.energy_weights = pose_client.weights_flight
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
-        self.M = torch.from_numpy(pose_client.M).float()
+        self.pltpts = {}
+        for loss_key in self.loss_dict:
+            self.pltpts[loss_key] = []
 
     def forward(self):
         output = {}
@@ -201,7 +205,6 @@ class pose3d_flight(torch.nn.Module):
 
         queue_index = 0
         for bone_2d_, R_drone_, C_drone_ in self.data_list:
-            #pose_3d_curr = torch.mm(self.pose3d[queue_index, :, :].cpu(), self.M)
             pose_3d_curr = self.pose3d[queue_index, :, :].cpu()
 
             if (queue_index != 0): #future term does not have projection or lift term
@@ -234,12 +237,12 @@ class pose3d_flight(torch.nn.Module):
                 pose_vel[1]  = self.pose3d[queue_index, :, :]- self.pose3d[queue_index-1, :, :]
                 output["smooth"] += mse_loss(pose_vel[0] , pose_vel[1])
 
-
             queue_index += 1
 
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
 
         return overall_output
     
@@ -260,13 +263,15 @@ class pose3d_future(torch.nn.Module):
         self.lift_list = pose_client.liftPoseList
         self.energy_weights = pose_client.weights_future
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
-
-
         self.potential_R_drone = torch.from_numpy(R_drone).float()
         self.potential_C_drone = torch.from_numpy(C_drone).float()
         pose3d_est_future_torch = Variable(torch.from_numpy(pose_client.future_pose).float(), requires_grad=False)
         self.potential_projected_est, _ = take_bone_projection_pytorch(pose3d_est_future_torch, self.potential_R_drone, self.potential_C_drone)
     
+        self.pltpts = {}
+        for loss_key in self.loss_dict:
+            self.pltpts[loss_key] = []
+            
     def forward(self):
         output = {}
         for loss_key in self.loss_dict:
@@ -329,6 +334,7 @@ class pose3d_future(torch.nn.Module):
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
 
         return overall_output
     

@@ -688,13 +688,40 @@ def shape_cov(cov, model, frame_index):
     H[:,2] = np.array([cov[offset, num_of_joints*2+offset], cov[num_of_joints+offset, num_of_joints*2+offset], cov[num_of_joints*2+offset, num_of_joints*2+offset],])
     return H
 
-def shape_cov_mini(cov, frame_index):
+def shape_cov_hip(cov, model, frame_index):
     H = np.zeros([3,3])
     offset = frame_index*3
     H[:,0] = np.array([cov[offset, offset], cov[1+offset, offset], cov[2+offset, offset],])
     H[:,1] = np.array([cov[offset, 1+offset], cov[1+offset, 1+offset], cov[2+offset, 1+offset],])
     H[:,2] = np.array([cov[offset, 2+offset], cov[1+offset, 2+offset], cov[2+offset, 2+offset],])
     return H
+
+def shape_cov_mini(cov, model, frame_index):
+    _, joint_names, _, _ = model_settings(model)
+    hip_index = joint_names.index('spine1')
+    H = np.zeros([3,3])
+    H[:,0] = np.array([cov[hip_index, hip_index], cov[1+hip_index, hip_index], cov[2+hip_index, hip_index],])
+    H[:,1] = np.array([cov[hip_index, 1+hip_index], cov[1+hip_index, 1+hip_index], cov[2+hip_index, 1+hip_index],])
+    H[:,2] = np.array([cov[hip_index, 2+hip_index], cov[1+hip_index, 2+hip_index], cov[2+hip_index, 2+hip_index],])
+    return H
+
+def shape_cov_test(cov, model):
+    _, _, num_of_joints, _ = model_settings(model)
+    return cov[0:num_of_joints*3, 0:num_of_joints*3]
+
+def shape_cov_test2(cov, model):
+    _, joint_names, num_of_joints, _ = model_settings(model)
+    hip_index = joint_names.index('spine1')
+
+    ind = []
+    for frame in range(0,7):
+        for i in range(0,3):
+            ind.append(hip_index+frame*3*num_of_joints+i)
+    x,y = np.meshgrid(ind, ind)
+    new_cov = cov[x, y]
+    
+    print(new_cov.shape)
+    return new_cov
 
 def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     if (pose_client.isCalibratingEnergy):
@@ -822,7 +849,12 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
     
-def plot_potential_hessians(hessians, linecount, plot_loc):
+def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
+    if custom_name == None:
+        name = '/potential_covs_'
+    else: 
+        name = '/'+custom_name
+
     fig, axes = plt.subplots(nrows=3, ncols=3)
 
     list_min = []
@@ -851,7 +883,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc):
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
     fig.colorbar(im, cax=cbar_ax)
 
-    file_name = plot_loc + "/potential_covs_" + str(linecount) + ".png"
+    file_name = plot_loc + name + str(linecount) + ".png"
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
     

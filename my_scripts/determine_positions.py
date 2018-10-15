@@ -178,15 +178,15 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
             pose_client.update3dPos(P_world, is_calib = pose_client.isCalibratingEnergy)
 
         if (pose_client.calc_hess):
-            start_find_hess = time.time()
+            #start_find_hess = time.time()
             #hess = objective.mini_hessian(P_world)
-            hess = objective.hessian(P_world)
+            #hess = objective.hessian(P_world)
             #hess = objective.approx_hessian(P_world)
-            end_find_hess = time.time()
-            inv_hess = np.linalg.inv(hess)
-            pose_client.updateMeasurementCov(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
+            #end_find_hess = time.time()
+            #inv_hess = np.linalg.inv(hess)
+            #pose_client.updateMeasurementCov(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
             #pose_client.updateMeasurementCov_mini(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
-            print("Time for finding hessian:", end_find_hess-start_find_hess)
+            #print("Time for finding hessian:", end_find_hess-start_find_hess)
 
             #find candidate drone positions
             potential_states_fetcher = Potential_States_Fetcher(C_drone, optimized_3d_pose, pose_client.future_pose, pose_client.model)
@@ -195,30 +195,62 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
             if not pose_client.isCalibratingEnergy:
                 #find hessian for each drone position
                 objective = objective_future
-                potential_hessians = []
-                potential_pose2d_list =[]
-                
+                potential_hessians_mini = []
+                potential_hessians_hip = []
+                potential_hessians_normal = []
+                potential_pose2d_list =[]  
+                potential_covs_mini = []
+                potential_covs_normal = []
+                potential_covs_hip = []
+
                 for potential_state_ind, potential_state in enumerate(potential_states):
                     objective.reset(pose_client, potential_state)
 
-                    start_find_hess = time.time()
-                    hess = objective.approx_hessian(P_world)
-                    #hess = objective.mini_hessian(P_world)
+                    start_find_hess1 = time.time()
+                    hess1 = objective.mini_hessian(P_world)
+                    end_find_hess1 = time.time()
+                    start_find_hess2 = time.time()
+                    hess2 = objective.hessian(P_world)
+                    end_find_hess2 = time.time()
+                    start_find_hess3 = time.time()
+                    hess3 = objective.mini_hessian_hip(P_world)
+                    end_find_hess3 = time.time()
+                    print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess1-start_find_hess1, end_find_hess2-start_find_hess2, end_find_hess3-start_find_hess3)
                     
-                    end_find_hess = time.time()
-                    print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess-start_find_hess)
-                    inv_hess = np.linalg.inv(hess)
-                    potential_hessians.append(shape_cov(inv_hess, pose_client.model, 0))
-                    #potential_hessians.append(shape_cov_mini(inv_hess, 0))
+                   # hess2_reshaped = shape_cov_test2(hess2, pose_client.model)
+
+                    potential_hessians_mini.append(hess1)
+                    potential_hessians_normal.append(hess2)
+                    potential_hessians_hip.append(hess3)
+
+                    inv_hess1 = np.linalg.inv(hess1)
+                    inv_hess2 = np.linalg.inv(hess2)
+                    inv_hess3 = np.linalg.inv(hess3)
+
+                    potential_covs_mini.append(shape_cov_mini(inv_hess1, pose_client.model, 0))
+                    potential_covs_normal.append(shape_cov(inv_hess2, pose_client.model, 0))
+                    potential_covs_hip.append(shape_cov_hip(inv_hess3, pose_client.model, 0))
+                    #hess2 = shape_cov_test(hess2, pose_client.model)
+                    #inv_hess2 = shape_cov_test(inv_hess2, pose_client.model)
+
+                    #potential_covs_mini.append(inv_hess1)
+                    #potential_covs_normal.append(inv_hess2)
 
                     #take projection 
-                    potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
+                    #potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
                 if not pose_client.quiet:
                     #plot potential states and current state, projections of each state, cov's of each state
-                    plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
-                    plot_potential_projections(potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
-                    plot_potential_hessians(potential_hessians, airsim_client.linecount, plot_loc)
-                    plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, potential_hessians, pose_client.model, plot_loc, airsim_client.linecount)
+                    #plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
+                    #plot_potential_projections(potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
+                    #plot_potential_hessians(potential_hessians, airsim_client.linecount, plot_loc, custom_name = "potential_covs_")
+
+                    plot_potential_hessians(potential_covs_mini, airsim_client.linecount, plot_loc, custom_name = "potential_covs_mini_")
+                    plot_potential_hessians(potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
+                    plot_potential_hessians(potential_hessians_mini, airsim_client.linecount, plot_loc, custom_name = "potential_hess_mini_")
+                    plot_potential_hessians(potential_hessians_normal, airsim_client.linecount, plot_loc, custom_name = "potential_hess_normal_")
+                    plot_potential_hessians(potential_covs_hip, airsim_client.linecount, plot_loc, custom_name = "potential_covs_hip_")
+                    plot_potential_hessians(potential_hessians_hip, airsim_client.linecount, plot_loc, custom_name = "potential_hess_hip_")
+                    plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, potential_covs_mini, pose_client.model, plot_loc, airsim_client.linecount)
 
     #if the frame is the first frame, the energy is found through backprojection
     else:

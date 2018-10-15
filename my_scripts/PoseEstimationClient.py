@@ -116,12 +116,12 @@ class PoseEstimationClient(object):
     def updateMeasurementCov_mini(self, cov, curr_pose_ind, future_pose_ind):
         if self.isCalibratingEnergy:
             curr_pose_ind = 0
-        curr_inv_hess = shape_cov_mini(cov, curr_pose_ind)
+        curr_inv_hess = shape_cov_mini(cov, self.model, curr_pose_ind)
         self.measurement_cov = curr_inv_hess
         if self.isCalibratingEnergy:
             self.calib_cov_list.append(self.measurement_cov)
         else:
-            future_inv_hess = shape_cov_mini(cov, future_pose_ind)
+            future_inv_hess = shape_cov_mini(cov, self.model, future_pose_ind)
             self.future_measurement_cov = future_inv_hess
             self.flight_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
