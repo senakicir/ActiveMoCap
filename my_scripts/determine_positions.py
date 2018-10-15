@@ -14,8 +14,8 @@ from scipy.optimize import least_squares
 
 import util as demo_util
 
-import openpose as openpose_module
-import liftnet as liftnet_module
+#import openpose as openpose_module
+#import liftnet as liftnet_module
 
 objective_flight = pose3d_flight_scipy()
 objective_calib = pose3d_calibration_scipy()

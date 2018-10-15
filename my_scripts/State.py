@@ -1,5 +1,5 @@
 import cv2 as cv2
-from math import radians, cos, sin, pi
+from math import radians, cos, sin, pi, degrees
 import numpy as np
 from helpers import range_angle, model_settings
 
@@ -21,6 +21,7 @@ TIME_HORIZON = N*DELTA_T
 def find_current_polar_info(drone_pos, human_pos):
     polar_pos = drone_pos - human_pos  #subtrack the human_pos in order to find the current polar position vector.
     polar_degree = np.arctan2(polar_pos[1], polar_pos[0])  #NOT relative to initial human angle, not using currently
+
     return polar_pos, polar_degree
 
 class State(object):
@@ -53,8 +54,9 @@ class State(object):
         #what angle and polar position is the drone at currently
         self.drone_pos = positions_[DRONE_POS_IND, :] #airsim gives us the drone coordinates with initial drone loc. as origin
         self.drone_orientation = positions_[DRONE_ORIENTATION_IND, :]
-        self.current_polar_pos, self.current_degree = find_current_polar_info(self.drone_orientation, self.human_pos)     #subtrack the human_pos in order to find the current polar position vector.
-     
+
+        self.current_polar_pos , self.current_degree  = find_current_polar_info(self.drone_pos, self.human_pos)
+ 
         #calculate human orientation
         #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
         #prev_human_orientation = self.human_orientation
@@ -62,13 +64,15 @@ class State(object):
         #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])*BETA + prev_human_orientation*(1-BETA)
         #self.human_rotation_speed = (self.human_orientation-prev_human_orientation)/DELTA_T
 
+
     def getDesiredPosAndAngle(self):
         desired_polar_angle = self.current_degree + INCREMENT_DEGREE_AMOUNT
+        print("desired polar angle", degrees(desired_polar_angle))
         desired_polar_pos = np.array([cos(desired_polar_angle) * self.radius, sin(desired_polar_angle) * self.radius, 0])
-        desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel - np.array([0,0,z_pos]) - np.array([0,0,1])
-        #desired_pos = desired_polar_pos + self.human_pos - np.array([0,0,z_pos])
-        desired_yaw = desired_polar_angle + pi
+        desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel - np.array([0,0,z_pos]) - np.array([0,0,1])        
+        desired_yaw = self.current_degree + INCREMENT_DEGREE_AMOUNT/N + pi
         #desired_yaw = desired_polar_angle
+        #print ("desired_polar_pos", desired_polar_pos)
         return desired_pos, desired_yaw
 
     def getDesiredPosAndAngleTrackbar(self):
@@ -115,7 +119,7 @@ class Potential_States_Fetcher(object):
                 self.potential_positions.append({"position":np.copy(drone_pos), "orientation": new_yaw+pi})
         return self.potential_positions
 
-    def get_potential_positions2(self):
+    def get_potential_positions_cartesian(self):
         x_list = [-2, 0, 2]
         y_list = [-2, 0, 2]
         neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))

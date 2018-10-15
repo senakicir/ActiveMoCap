@@ -226,6 +226,7 @@ def main(kalman_arguments, parameters, energy_parameters):
             damping_speed = 0.025*airsim_client.linecount
         else:
             damping_speed = 0.5
+        print(new_pos)
         airsim_client.moveToPositionAsync(new_pos[0], new_pos[1], new_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         #end = time.time()
         #elapsed_time = end - start
@@ -291,11 +292,11 @@ if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" :1, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1e-3}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
-    use_airsim = False
+    use_airsim = True
     param_read_M = True
     param_find_M = False
-    is_quiet = False
-    calculate_hess = True
+    is_quiet = True
+    calculate_hess = False
     flight_window_size = 6
     calibration_length = 35
 
