@@ -302,7 +302,7 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":1} 
+    modes = {"mode_3d":0, "mode_2d":0, "mode_lift":0} 
    
     animations = ["02_01"]
     test_set = {}

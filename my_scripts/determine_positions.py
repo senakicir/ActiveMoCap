@@ -452,12 +452,9 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, plot_loc =
     R_drone = euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2])
     C_drone = unreal_positions[DRONE_POS_IND, :]
     C_drone = C_drone[:, np.newaxis]
-    #Uncomment for AirSim Metrics
-    #R_drone = euler_to_rotation_matrix(angle[1], angle[0], angle[2])
-    #C_drone = np.array([[drone_pos_vec.x_val],[drone_pos_vec.y_val],[drone_pos_vec.z_val]])
-
+    
     P_world = take_bone_backprojection(bone_2d, R_drone, C_drone, joint_names)
-    error_3d = np.linalg.norm(bone_pos_3d_GT - P_world, )
+    error_3d = np.linalg.norm(bone_pos_3d_GT - P_world)
     pose_client.error_3d.append(error_3d)
 
     if (plot_loc != 0):
@@ -480,18 +477,19 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
     
     if (pose_client.modes["mode_2d"] == 1):
         input_image = cv.imread(photo_loc)
-        if (airsim_client.linecount == FRAME_START_OPTIMIZING+1):
+        if (airsim_client.linecount > 10):
             pose_client.cropping_tool.update_bbox_margin(1)
 
         cropped_image = pose_client.cropping_tool.crop(input_image)
-        save_image(cropped_image, airsim_client.linecount, plot_loc, custom_name="cropped_img_")
         scales = pose_client.cropping_tool.scales
         bone_2d, heatmap_2d, heatmaps_scales, poses_scales = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
-        save_heatmaps(heatmap_2d.cpu().numpy(), airsim_client.linecount, plot_loc)
-        save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
-
         bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
         pose_client.cropping_tool.update_bbox(numpy_to_tuples(bone_2d))
+
+        if (not pose_client.quiet):
+            save_image(cropped_image, airsim_client.linecount, plot_loc, custom_name="cropped_img_")
+            save_heatmaps(heatmap_2d.cpu().numpy(), airsim_client.linecount, plot_loc)
+            save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
         #pose = torch.cat((torch.t(bone_2d), torch.ones(num_of_joints,1)), 1)
 
@@ -520,7 +518,6 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
     positions[L_SHOULDER_IND,:] = unreal_positions[L_SHOULDER_IND,:]
 
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)+'\n'
-    cov = 1e-20 * np.eye(3,3)
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": f_output_str}
     pose_client.append_res(plot_end)
 
