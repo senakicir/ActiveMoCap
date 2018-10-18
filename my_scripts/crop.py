@@ -1,10 +1,10 @@
 import numpy as np
 from math import ceil
 from square_bounding_box import *
-from helpers import SIZE_X, SIZE_Y
+from helpers import SIZE_X, SIZE_Y, numpy_to_tuples
 
 crop_alpha = 0.95
-
+STABLE_FRAME = 5
 class Crop:
 
     def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y]):
@@ -14,8 +14,17 @@ class Crop:
         self.scales= [1]
         self.bounding_box_calculator = BoundingBox(3)
         self.bounding_box_margin = 3
+        self.unstable = True
 
-    def crop(self, image):
+    def crop(self, image, linecount):
+        if linecount >= STABLE_FRAME:
+            self.unstable = False
+
+        if self.unstable:
+            return image, [1]
+        
+        self.update_bbox_margin(1)
+
         orig_image_width = image.shape[1]
         orig_image_height = image.shape[0]
 
@@ -60,13 +69,16 @@ class Crop:
         #else:
         self.scales = [0.75, 1, 1.25, 1.5,]
 
-
-        return crop_frame
+        return crop_frame, self.scales
 
     def uncrop_pose(self, pose_2d):
+        if self.unstable:
+            return pose_2d
+
         pose_2d[0,:] = pose_2d[0,:] + self.image_bounds[0]
         pose_2d[1,:] = pose_2d[1,:] + self.image_bounds[1]
-   
+        self.update_bbox(numpy_to_tuples(pose_2d))
+
         return pose_2d
     
     def update_bbox(self, pose_2d):

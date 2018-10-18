@@ -64,6 +64,8 @@ def take_bone_projection_pytorch(P_world, R_drone, C_drone):
 def take_bone_backprojection(bone_pred, R_drone, C_drone, joint_names):
     TORSO_SIZE_ = DEFAULT_TORSO_SIZE
     img_torso_size = np.linalg.norm(bone_pred[:, joint_names.index('neck')] - bone_pred[:, joint_names.index('spine1')])
+    if (img_torso_size == 0):
+        img_torso_size = 40
     z_val = (FOCAL_LENGTH * TORSO_SIZE_) / img_torso_size
 
     bone_pos_3d = np.zeros([3, bone_pred.shape[1]])
@@ -82,7 +84,6 @@ def take_bone_backprojection_pytorch(bone_pred, R_drone, C_drone, joint_names):
 
     ones_tensor = Variable(torch.ones([1, num_of_joints]), requires_grad=False)*1.0
     img_torso_size = torch.norm(bone_pred[:, joint_names.index('neck')] - bone_pred[:, joint_names.index('spine1')])
-
     z_val = ((FOCAL_LENGTH * TORSO_SIZE_) / img_torso_size)
 
     bone_pos_3d = Variable(torch.zeros([3, num_of_joints]))

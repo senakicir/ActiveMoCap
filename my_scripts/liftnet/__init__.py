@@ -26,7 +26,7 @@ from .util import same_margin_bounding_box, crop_input
 mod = importlib.import_module(model_['module'], package=__package__)
 m = mod.LiftNetModel(model_)
 
-def run(image, heatmap_body, pose):
+def run(image, heatmap_body, pose):    
     # Transpose the heatmap to ensure order is compatible for resize
     heatmap_body = np.transpose(heatmap_body, (1, 2, 0))
     bbox = same_margin_bounding_box(pose, model_type, model_['marginBox'])

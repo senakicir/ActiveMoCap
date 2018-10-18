@@ -77,17 +77,17 @@ def same_margin_bounding_box(pose_array, model_type, margin):
     width = max_values[0] - min_values[0]
     height = max_values[1] - min_values[1]
 
-    # Check if the legs exist
-    if np.any(pose_array[10] > 0) or np.any(pose_array[13] > 0):
+    # Check if the legs exist    
+    if (pose_array[10] > 0).any() or (pose_array[13] > 0).any():
         # Feet exist so do nothing
         pass
-    elif np.any(pose_array[9] > 0) or np.any(pose_array[12] > 0):
+    elif (pose_array[9] > 0).any() or (pose_array[12] > 0).any():
         # Knees exist. Add a third of the height
         height *= 4 / 3
-    elif np.any(pose_array[8] > 0) or np.any(pose_array[11] > 0):
+    elif (pose_array[8] > 0).any() or (pose_array[11] > 0).any():
         # Hip exists so double the height
         height *= 2
-    elif model_type == 'MPI' and np.any(pose_array[14] > 0):
+    elif model_type == 'MPI' and (pose_array[14] > 0).any():
         height *= 2
     else:
         # We only have the upper body so maybe times 2.5 of the height ?!?

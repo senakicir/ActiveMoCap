@@ -407,8 +407,14 @@ def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_locati
     for i, bone in enumerate(right_bone_connections):    
         p2, = ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=1, label="OpenPose Right")   
     for i, bone in enumerate(middle_bone_connections):    
-        ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=1)   
-    plt.legend(handles=[p0,p1,p2])
+        ax.plot( openpose[0, bone], openpose[1,bone], color = "b", linewidth=1) 
+
+    if np.count_nonzero(projection) != 0:
+        plot_handles = [p0,p1,p2]
+    else:
+        plot_handles = [p1,p2]
+
+    plt.legend(handles=plot_handles)
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 

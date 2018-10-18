@@ -44,6 +44,9 @@ class State(object):
         drone_polar_pos = - positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
 
+        self.goal_pos = 0
+        self.goal_yaw = 0
+
     def updateState(self, positions_):
         self.positions = positions_
         self.human_pos  = self.positions[HUMAN_POS_IND,:]
@@ -64,16 +67,21 @@ class State(object):
         #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])*BETA + prev_human_orientation*(1-BETA)
         #self.human_rotation_speed = (self.human_orientation-prev_human_orientation)/DELTA_T
 
+    def set_goal_pos_and_yaw(self, goal_state):
+        self.goal_pos = goal_state["position"]
+        self.goal_yaw = goal_state["orientation"]
 
     def getDesiredPosAndAngle(self):
         desired_polar_angle = self.current_degree + INCREMENT_DEGREE_AMOUNT
-        print("desired polar angle", degrees(desired_polar_angle))
         desired_polar_pos = np.array([cos(desired_polar_angle) * self.radius, sin(desired_polar_angle) * self.radius, 0])
         desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel - np.array([0,0,z_pos]) - np.array([0,0,1])        
         desired_yaw = self.current_degree + INCREMENT_DEGREE_AMOUNT/N + pi
         #desired_yaw = desired_polar_angle
         #print ("desired_polar_pos", desired_polar_pos)
         return desired_pos, desired_yaw
+
+    def get_goal_pos_and_yaw(self):
+        return self.goal_pos , self.goal_yaw
 
     def getDesiredPosAndAngleTrackbar(self):
         #calculate new polar coordinates according to circular motion (the circular offset required to rotate around human)
@@ -102,7 +110,7 @@ class Potential_States_Fetcher(object):
 
     def get_potential_positions(self):
         delta_radius_list = [-2, 0, 2]
-        delta_angle_list = [radians(-20), 0, radians(20)]
+        delta_angle_list = [radians(-INCREMENT_DEGREE_AMOUNT), 0, radians(INCREMENT_DEGREE_AMOUNT)]
         neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))
         _, neutral_yaw = find_current_polar_info(neutral_drone_pos, self.future_human_pos[:, self.hip_index])
        

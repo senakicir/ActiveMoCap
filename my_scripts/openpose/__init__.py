@@ -70,14 +70,18 @@ def run_only_model(image, scales):
     poses_scales = torch.zeros((heatmaps_scales.shape[0], 2,heatmap_avg.shape[0]-1))
     for heatmap in range(0, heatmap_avg.shape[0]-1):
         temp = heatmap_avg[heatmap, :, :]
-        tempPoses = np.unravel_index(np.argmax(temp), temp.shape)
-        poses[:, heatmap] = torch.FloatTensor([tempPoses[1], tempPoses[0]])    
+        max_ind = torch.argmax(temp)
+        x = max_ind/temp.shape[1]
+        y = max_ind%temp.shape[1]
+        poses[:, heatmap] = torch.FloatTensor([y, x])    
 
     for heatmap_ind in range(0, heatmaps_scales.shape[0]):
         heatmap_temp = heatmaps_scales[heatmap_ind, :, :]
         for heatmap in range(0, heatmap_avg.shape[0]-1):
             temp = heatmap_temp[heatmap, :, :]
-            tempPoses = np.unravel_index(np.argmax(temp), temp.shape)
-            poses_scales[heatmap_ind, :, heatmap] = torch.FloatTensor([tempPoses[1], tempPoses[0]])    
+            max_ind = torch.argmax(temp)
+            x = max_ind/temp.shape[1]
+            y = max_ind%temp.shape[1]
+            poses_scales[heatmap_ind, :, heatmap] = torch.FloatTensor([y, x])     
 
     return poses, heatmap_avg, heatmaps_scales, poses_scales

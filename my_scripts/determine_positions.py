@@ -14,16 +14,18 @@ from scipy.optimize import least_squares
 
 import util as demo_util
 
-#import openpose as openpose_module
-#import liftnet as liftnet_module
+import openpose as openpose_module
+import liftnet as liftnet_module
 
 objective_flight = pose3d_flight_scipy()
 objective_calib = pose3d_calibration_scipy()
 objective_future = pose3d_future()
+
 CURRENT_POSE_INDEX = 1
 FUTURE_POSE_INDEX = 0
 
 def determine_all_positions(airsim_client, pose_client,  plot_loc = 0, photo_loc = 0):
+    airsim_client.simPause(True)
     if (pose_client.modes["mode_3d"] == 0):
         positions, unreal_positions = determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 1):
@@ -32,6 +34,7 @@ def determine_all_positions(airsim_client, pose_client,  plot_loc = 0, photo_loc
         positions, unreal_positions = determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 3):
         positions, unreal_positions = determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc, photo_loc)
+    airsim_client.simPause(False)
 
     return positions, unreal_positions
 
@@ -90,8 +93,8 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
     bone_connections, joint_names, num_of_joints, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
     input_image = cv.imread(photo_loc)
-    cropped_image = pose_client.cropping_tool.crop(input_image)
-    scales = pose_client.cropping_tool.scales
+    cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+
     R_drone = euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2])
     C_drone = unreal_positions[DRONE_POS_IND, :]
     C_drone = C_drone[:, np.newaxis]
@@ -101,8 +104,9 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
 
     #find relative 3d pose using liftnet or GT relative pose
     pose3d_lift = determine_relative_3d_pose(pose_client.modes["mode_lift"], bone_2d, cropped_image, heatmap_2d, R_drone, C_drone, bone_pos_3d_GT)
-    bone_2d = bone_2d.data.numpy()
-
+    bone_2d = bone_2d.cpu().numpy() 
+    superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
+        
     #find liftnet bone directions and save them
     lift_bone_directions = return_lift_bone_connections(bone_connections)
     pose3d_lift_directions = np.zeros([3, len(lift_bone_directions)])
@@ -110,16 +114,16 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         bone_vector = pose3d_lift[:, bone[0]] - pose3d_lift[:, bone[1]]
         pose3d_lift_directions[:, i] = bone_vector/(np.linalg.norm(bone_vector)+EPSILON)
 
-    #uncrop 2d pose 
+    #uncrop 2d pose     
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
-    pose_client.cropping_tool.update_bbox(numpy_to_tuples(bone_2d))
 
     #add current pose as initial pose. if first frame, take backprojection for initialization
     if (airsim_client.linecount != 0):
         pre_pose_3d = pose_client.future_pose#poseList_3d[0]
     else:
-       # pre_pose_3d = np.dot(take_bone_backprojection(bone_2d, R_drone, C_drone, joint_names), pose_client.M)
+        print("bone_2d", bone_2d)
         pre_pose_3d = take_bone_backprojection(bone_2d, R_drone, C_drone, joint_names)
+        print("pre_pose_3d", pre_pose_3d)
         pose_client.poseList_3d_calibration = pre_pose_3d
        # pose_client.kalman.init_state(np.reshape(a = pre_pose_3d, newshape = [3*num_of_joints,1], order = "F"))
 
@@ -195,46 +199,43 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
             if not pose_client.isCalibratingEnergy:
                 #find hessian for each drone position
                 objective = objective_future
-                potential_hessians_mini = []
-                potential_hessians_hip = []
+                
+                #potential_hessians_mini = []
+                #potential_hessians_hip = []
                 potential_hessians_normal = []
-                potential_pose2d_list =[]  
-                potential_covs_mini = []
+                #potential_pose2d_list =[]  
+                #potential_covs_mini = []
                 potential_covs_normal = []
-                potential_covs_hip = []
+                #potential_covs_hip = []
 
                 for potential_state_ind, potential_state in enumerate(potential_states):
                     objective.reset(pose_client, potential_state)
 
-                    start_find_hess1 = time.time()
-                    hess1 = objective.mini_hessian(P_world)
-                    end_find_hess1 = time.time()
+                    #start_find_hess1 = time.time()
+                    #hess1 = objective.mini_hessian(P_world)
+                    #end_find_hess1 = time.time()
                     start_find_hess2 = time.time()
                     hess2 = objective.hessian(P_world)
                     end_find_hess2 = time.time()
-                    start_find_hess3 = time.time()
-                    hess3 = objective.mini_hessian_hip(P_world)
-                    end_find_hess3 = time.time()
-                    print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess1-start_find_hess1, end_find_hess2-start_find_hess2, end_find_hess3-start_find_hess3)
-                    
+                    #start_find_hess3 = time.time()
+                    #hess3 = objective.mini_hessian_hip(P_world)
+                    #end_find_hess3 = time.time()
+                    #print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess1-start_find_hess1, end_find_hess2-start_find_hess2, end_find_hess3-start_find_hess3)
+                    print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess2-start_find_hess2)
+
                    # hess2_reshaped = shape_cov_test2(hess2, pose_client.model)
 
-                    potential_hessians_mini.append(hess1)
+                    #potential_hessians_mini.append(hess1)
                     potential_hessians_normal.append(hess2)
-                    potential_hessians_hip.append(hess3)
+                    #potential_hessians_hip.append(hess3)
 
-                    inv_hess1 = np.linalg.inv(hess1)
+                    #inv_hess1 = np.linalg.inv(hess1)
                     inv_hess2 = np.linalg.inv(hess2)
-                    inv_hess3 = np.linalg.inv(hess3)
+                    #inv_hess3 = np.linalg.inv(hess3)
 
-                    potential_covs_mini.append(shape_cov_mini(inv_hess1, pose_client.model, 0))
+                    #potential_covs_mini.append(shape_cov_mini(inv_hess1, pose_client.model, 0))
                     potential_covs_normal.append(shape_cov(inv_hess2, pose_client.model, 0))
-                    potential_covs_hip.append(shape_cov_hip(inv_hess3, pose_client.model, 0))
-                    #hess2 = shape_cov_test(hess2, pose_client.model)
-                    #inv_hess2 = shape_cov_test(inv_hess2, pose_client.model)
-
-                    #potential_covs_mini.append(inv_hess1)
-                    #potential_covs_normal.append(inv_hess2)
+                    #potential_covs_hip.append(shape_cov_hip(inv_hess3, pose_client.model, 0))
 
                     #take projection 
                     #potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
@@ -244,12 +245,12 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
                     #plot_potential_projections(potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
                     #plot_potential_hessians(potential_hessians, airsim_client.linecount, plot_loc, custom_name = "potential_covs_")
 
-                    plot_potential_hessians(potential_covs_mini, airsim_client.linecount, plot_loc, custom_name = "potential_covs_mini_")
+                    #plot_potential_hessians(potential_covs_mini, airsim_client.linecount, plot_loc, custom_name = "potential_covs_mini_")
                     plot_potential_hessians(potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
-                    plot_potential_hessians(potential_hessians_mini, airsim_client.linecount, plot_loc, custom_name = "potential_hess_mini_")
+                    #plot_potential_hessians(potential_hessians_mini, airsim_client.linecount, plot_loc, custom_name = "potential_hess_mini_")
                     plot_potential_hessians(potential_hessians_normal, airsim_client.linecount, plot_loc, custom_name = "potential_hess_normal_")
-                    plot_potential_hessians(potential_covs_hip, airsim_client.linecount, plot_loc, custom_name = "potential_covs_hip_")
-                    plot_potential_hessians(potential_hessians_hip, airsim_client.linecount, plot_loc, custom_name = "potential_hess_hip_")
+                    #plot_potential_hessians(potential_covs_hip, airsim_client.linecount, plot_loc, custom_name = "potential_covs_hip_")
+                    #plot_potential_hessians(potential_hessians_hip, airsim_client.linecount, plot_loc, custom_name = "potential_hess_hip_")
                     plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, potential_covs_mini, pose_client.model, plot_loc, airsim_client.linecount)
 
     #if the frame is the first frame, the energy is found through backprojection
@@ -279,12 +280,12 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
 
         if (not pose_client.isCalibratingEnergy):
             plot_human(optimized_3d_pose, M_future_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
-            #pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, joint_names, is_torch=False)
-            #bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch=False)
-            #optimized_3d_pose_normalized, _ = normalize_pose(optimized_3d_pose, joint_names, is_torch=False)
-            #plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
-            #plot_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
-            #plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
+            pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, joint_names, is_torch=False)
+            bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch=False)
+            optimized_3d_pose_normalized, _ = normalize_pose(optimized_3d_pose, joint_names, is_torch=False)
+            plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
+            plot_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
+            plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
 
     positions = form_positions_dict(angle, drone_pos_vec, optimized_3d_pose[:,joint_names.index('spine1')])
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
@@ -476,51 +477,37 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
     C_drone = Variable(torch.FloatTensor([[unreal_positions[DRONE_POS_IND, 0]],[unreal_positions[DRONE_POS_IND, 1]],[unreal_positions[DRONE_POS_IND, 2]]]), requires_grad = False)
     
     if (pose_client.modes["mode_2d"] == 1):
-        input_image = cv.imread(photo_loc)
-        if (airsim_client.linecount > 10):
-            pose_client.cropping_tool.update_bbox_margin(1)
+        input_image = cv.imread(photo_loc) 
 
-        cropped_image = pose_client.cropping_tool.crop(input_image)
-        scales = pose_client.cropping_tool.scales
-        bone_2d, heatmap_2d, heatmaps_scales, poses_scales = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
+        cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+               
+        #find 2d pose (using openpose or gt)
+        bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, True, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
+
+        #uncrop 2d pose 
         bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
-        pose_client.cropping_tool.update_bbox(numpy_to_tuples(bone_2d))
 
         if (not pose_client.quiet):
+            superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_")
             save_image(cropped_image, airsim_client.linecount, plot_loc, custom_name="cropped_img_")
-            save_heatmaps(heatmap_2d.cpu().numpy(), airsim_client.linecount, plot_loc)
-            save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
-
-        #pose = torch.cat((torch.t(bone_2d), torch.ones(num_of_joints,1)), 1)
-
-        #pose3d_lift, cropped_img, cropped_heatmap = liftnet_module.run(input_image, heatmap_2d.cpu().numpy(), pose)
-        
-        #pose3d_lift = pose3d_lift.view(num_of_joints+2,  -1).permute(1, 0)
-        #pose3d_lift = rearrange_bones_to_mpi(pose3d_lift, is_torch = True)
-        #pose3d_lift = camera_to_world(R_drone, C_drone, pose3d_lift.cpu(), is_torch = True)
-
-        #pose3d_lift, _ = normalize_pose(pose3d_lift, joint_names, is_torch = True)
-        #bone_pos_3d_GT, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch = False)
-
-        #if not pose_client.quiet:
-            #plot_human(bone_pos_3d_GT, pose3d_lift.cpu().numpy(), plot_loc, client.linecount, bone_connections, custom_name="lift_res_", orientation = "z_up")
+            save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
+            #save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
 
     elif (pose_client.modes["mode_2d"] == 0):
         bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, False, False, unreal_positions, bone_pos_3d_GT, photo_loc, 0)
-        if not pose_client.quiet:
-            superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_", scale = 0)
+        #if not pose_client.quiet:
+            #superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_", scale = 0)
 
 
     positions = form_positions_dict(angle, drone_pos_vec, unreal_positions[HUMAN_POS_IND,:])
     positions[HUMAN_POS_IND,2] = positions[HUMAN_POS_IND,2]
     positions[R_SHOULDER_IND,:] = unreal_positions[R_SHOULDER_IND,:]
     positions[L_SHOULDER_IND,:] = unreal_positions[L_SHOULDER_IND,:]
-
     f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)+'\n'
-    plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": f_output_str}
+    plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone.cpu().numpy(), "eval_time": 0, "f_string": f_output_str}
     pose_client.append_res(plot_end)
-
+    print(bone_pos_3d_GT[:, joint_names.index("spine1")])
     return positions, unreal_positions
 
 def form_positions_dict(angle, drone_pos_vec, human_pos):

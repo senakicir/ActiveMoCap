@@ -130,7 +130,7 @@ class PoseEstimationClient(object):
 
     def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, pose3d_):
         self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone])
-        if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_LENGTH):
+        if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_LENGTH-10):
             self.requiredEstimationData_calibration.pop()
         self.poseList_3d_calibration = pose3d_
 
