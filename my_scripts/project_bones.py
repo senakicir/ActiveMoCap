@@ -5,7 +5,7 @@ import numpy as np
 from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, px, py, FOCAL_LENGTH, SIZE_X, SIZE_Y 
 
 neat_tensor = Variable(torch.FloatTensor([[0, 0, 0, 1]]), requires_grad=False) #this tensor is neat!
-DEFAULT_TORSO_SIZE = 0.436*0.50#0.86710678118
+DEFAULT_TORSO_SIZE = 0.42 #0.86710678118
 
 R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
 C_cam = np.array([[CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z]]).T
@@ -65,7 +65,7 @@ def take_bone_backprojection(bone_pred, R_drone, C_drone, joint_names):
     TORSO_SIZE_ = DEFAULT_TORSO_SIZE
     img_torso_size = np.linalg.norm(bone_pred[:, joint_names.index('neck')] - bone_pred[:, joint_names.index('spine1')])
     if (img_torso_size == 0):
-        img_torso_size = 40
+        img_torso_size = 50
     z_val = (FOCAL_LENGTH * TORSO_SIZE_) / img_torso_size
 
     bone_pos_3d = np.zeros([3, bone_pred.shape[1]])

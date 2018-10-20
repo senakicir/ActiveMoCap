@@ -88,6 +88,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     test_set_name = parameters["TEST_SET_NAME"]
     file_names = parameters["FILE_NAMES"]
     folder_names = parameters["FOLDER_NAMES"]
+    IS_ACTIVE = parameters["ACTIVE"]
 
     #connect to the AirSim simulator
     if USE_AIRSIM:
@@ -164,8 +165,6 @@ def main(kalman_arguments, parameters, energy_parameters):
 
     while (not end_test):
 
-        #start = time.time()
-
         if USE_AIRSIM:
             k = cv2.waitKey(1) & 0xFF
             if k == 27:
@@ -196,40 +195,32 @@ def main(kalman_arguments, parameters, energy_parameters):
             est_hv.append(current_state.human_vel)
             errors_vel.append(np.linalg.norm( (gt_hp[-1]-gt_hp[-2])/DELTA_T - current_state.human_vel))
 
-        #finds desired position and angle
+        #finds desired position and yaw angle
         if (USE_TRACKBAR):
-            [desired_pos, desired_yaw] = current_state.getDesiredPosAndAngleTrackbar()
+            [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
+        elif (IS_ACTIVE):
+            if(pose_client.isCalibratingEnergy):
+                [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
+            else:
+                [desired_pos, desired_yaw_deg] = current_state.get_goal_pos_and_yaw_active(pose_client)
         else:
-            [desired_pos, desired_yaw] = current_state.getDesiredPosAndAngle()
+            [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
         
         #find desired drone speed
-        delta_pos = desired_pos - current_state.drone_pos #how much the drone will have to move for this iteration
-        desired_vel = delta_pos/TIME_HORIZON
-        drone_speed = np.linalg.norm(desired_vel)
-
-        #update drone position
-        curr_pos = current_state.drone_pos
-        new_pos = desired_pos
-
-        #angle required to face the hiker
-        angle = current_state.drone_orientation
-        current_yaw_deg = degrees(angle[2])
-        yaw_candidates = np.array([degrees(desired_yaw), degrees(desired_yaw) - 360, degrees(desired_yaw) +360])
-        min_diff = np.array([abs(current_yaw_deg -  yaw_candidates[0]), abs(current_yaw_deg -  yaw_candidates[1]), abs(current_yaw_deg -  yaw_candidates[2])])
-        desired_yaw_deg = yaw_candidates[np.argmin(min_diff)]
+        desired_vel = (desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
+        drone_speed = np.linalg.norm(desired_vel)        
 
         #move drone!
         if (airsim_client.linecount <5):
             damping_speed = 0.025*airsim_client.linecount
         else:
             damping_speed = 0.5
-        airsim_client.moveToPositionAsync(new_pos[0], new_pos[1], new_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
-        #end = time.time()
-        #elapsed_time = end - start
-        #print("elapsed time: ", elapsed_time)
+        airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
+
         time.sleep(DELTA_T) 
-        if (airsim_client.linecount % 3 == 0 and not pose_client.quiet):
-            plot_global_motion(pose_client, plot_loc_, global_plot_ind)
+        if (airsim_client.linecount % 1 == 0 and not pose_client.quiet):
+            #plot_global_motion(pose_client, plot_loc_, global_plot_ind)
+            plot_drone_traj(pose_client, plot_loc_, global_plot_ind)
             plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
             global_plot_ind +=1
 
@@ -293,8 +284,9 @@ if __name__ == "__main__":
     param_find_M = False
     is_quiet = False
     calculate_hess = True
+    active = True
     flight_window_size = 6
-    calibration_length = 35
+    calibration_length = 15
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
@@ -308,7 +300,7 @@ if __name__ == "__main__":
 
     file_names, folder_names, f_notes_name, _ = reset_all_folders(animations)
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names}
+    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "ACTIVE": active}
     
     weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
     weights = normalize_weights(weights_)

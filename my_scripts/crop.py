@@ -21,6 +21,7 @@ class Crop:
             self.unstable = False
 
         if self.unstable:
+            print("unstable, will not crop")
             return image, [1]
         
         self.update_bbox_margin(1)
@@ -93,6 +94,5 @@ class Crop:
     def crop_pose(self, pose_2d):
         pose_2d[0,:] = pose_2d[0,:] - self.image_bounds[0]
         pose_2d[1,:] = pose_2d[1,:] - self.image_bounds[1]
-
         return pose_2d
     

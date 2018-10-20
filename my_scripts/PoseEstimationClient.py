@@ -73,6 +73,8 @@ class PoseEstimationClient(object):
         self.loss_dict_flight = LOSSES
         self.loss_dict_future = FUTURE_LOSSES
 
+        self.goal_state = 0
+
     def reset(self, plot_loc):
         if self.param_find_M:
             M = find_M(self.flight_res_list, self.model)

@@ -473,7 +473,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
         blue_label = label_names[0]
         red_label = label_names[1]
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5,5))
     gs1 = gridspec.GridSpec(1, 1)
     ax = fig.add_subplot(gs1[0], projection='3d')
 
@@ -549,7 +549,7 @@ def plot_global_motion(pose_client, plot_loc, ind):
         plot_info = pose_client.flight_res_list
         file_name = plot_loc + '/global_plot_flight_'+ str(ind) + '.png'
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5,5))
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     gs1 = gridspec.GridSpec(1, 1)
@@ -585,6 +585,74 @@ def plot_global_motion(pose_client, plot_loc, ind):
             X = np.concatenate([X, np.concatenate([np.concatenate([bones_GT[0,:], predicted_bones[0,:]]), drone[0]])])
             Y = np.concatenate([Y, np.concatenate([np.concatenate([bones_GT[1,:], predicted_bones[1,:]]), drone[1]])])
             Z = np.concatenate([Z, np.concatenate([np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]]), -drone[2]])])
+
+    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_drone_traj(pose_client, plot_loc, ind):
+    if (pose_client.isCalibratingEnergy):
+        plot_info = pose_client.calib_res_list
+        file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
+    else:
+        plot_info = pose_client.flight_res_list
+        file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
+
+    fig = plt.figure(figsize=(5,5))
+    bone_connections, _, _, _ = model_settings(pose_client.model)
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    gs1 = gridspec.GridSpec(1, 1)
+    ax = fig.add_subplot(gs1[0], projection='3d')
+
+    #plot final frame human
+    last_frame_plot_info = plot_info[-1]
+    predicted_bones = last_frame_plot_info["est"]
+    bones_GT = last_frame_plot_info["GT"]
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+
+    for i, bone in enumerate(left_bone_connections):
+        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+    for i, bone in enumerate(right_bone_connections):
+        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+
+    X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
+    Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
+    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+
+    #plot drone
+    drone_x, drone_y, drone_z = [],[],[]
+    for frame_ind in range (0, len(plot_info)):
+        frame_plot_info = plot_info[frame_ind]
+        drone = frame_plot_info["drone"].squeeze()
+        drone_x.append(drone[0])
+        drone_y.append(drone[1])
+        drone_z.append(-drone[2])
+
+        X = np.concatenate([X, [drone[0]]])
+        Y = np.concatenate([Y, [drone[1]]])
+        Z = np.concatenate([Z, [-drone[2]]])
+
+    plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
 
     ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
 
@@ -741,7 +809,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     hip_index = joint_names.index('spine1')
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5,5))
     ax = fig.add_subplot(111, projection='3d')
 
     #plot final frame human
@@ -829,7 +897,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     future_human_pos =  future_human_pose[0:2, hip_index]
     gt_human_pos = gt_human_pose[0:2, hip_index]
     
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(5,5))
     plt.axis(v=['scaled'])
 
     #plot the people
@@ -847,7 +915,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     #plot current drone state
     current_drone_pos = C_drone[0:2]
     _,_,yaw = rotation_matrix_to_euler(R_drone)
-    plot3, = plt.plot([float(current_drone_pos[0] - (cos(yaw)*0.5)/2), float(current_drone_pos[0] + (cos(yaw)*0.5)/2)], [float(current_drone_pos[1] - (sin(yaw)*0.5)/2), float(current_drone_pos[1] + (sin(yaw)*0.5)/2)], c='xkcd:green', label="current drone pos")
+    plot3, = plt.plot([float(current_drone_pos[0] - (cos(yaw)*0.5)/2), float(current_drone_pos[0] + (cos(yaw)*0.5)/2)], [float(current_drone_pos[1] - (sin(yaw)*0.5)/2), float(current_drone_pos[1] + (sin(yaw)*0.5)/2)], c='xkcd:black', label="current drone pos")
 
     plt.legend(handles=[plot1, plot2, plot3, plot4, plot5])
     #plt.show()
@@ -861,7 +929,13 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     else: 
         name = '/'+custom_name
 
-    fig, axes = plt.subplots(nrows=3, ncols=3)
+    if (len(hessians) == 9):
+        nrows, ncols = 3, 3
+    elif (len(hessians) == 6):
+        nrows, ncols = 3, 2
+    else:
+        nrows, ncols = 3, 1
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
 
     list_min = []
     list_max = []
@@ -899,7 +973,14 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
 
     superimposed_plot_loc = plot_loc + "/potential_projections_" + str(linecount) + '.png'
 
-    fig, axes = plt.subplots(nrows=3, ncols=3)
+    if (len(pose2d_list) == 9):
+        nrows, ncols = 3, 3
+    elif (len(pose2d_list) == 6):
+        nrows, ncols = 3, 2
+    else:
+        nrows, ncols = 3, 1
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+
     im = plt.imread(photo_loc)
     im = np.array(im[:,:,0:3])
     for ind, pose in enumerate(pose2d_list):
@@ -929,7 +1010,7 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
     future_human_pos =  future_human_pose[:, hip_index]
     gt_human_pos = gt_human_pose[:, hip_index]
     
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5,5))
     ax = fig.add_subplot(111, projection='3d')
 
     #plot the people

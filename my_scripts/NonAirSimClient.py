@@ -51,6 +51,9 @@ class NonAirSimClient(object):
         response = prepareDataForResponse(self.groundtruth, self.DRONE_INITIAL_POS, frame_num)
 
         return response
+    
+    def simPause(self, state):
+        return 0
 
     def reset(self):
         return 0
