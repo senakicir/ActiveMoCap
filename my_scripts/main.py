@@ -221,7 +221,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         if (airsim_client.linecount % 1 == 0 and not pose_client.quiet):
             #plot_global_motion(pose_client, plot_loc_, global_plot_ind)
             plot_drone_traj(pose_client, plot_loc_, global_plot_ind)
-            plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
+            #plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
             global_plot_ind +=1
 
         #SAVE ALL VALUES OF THIS SIMULATION

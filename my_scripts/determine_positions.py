@@ -190,28 +190,24 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
 
             #find candidate drone positions
             potential_states_fetcher = Potential_States_Fetcher(C_drone, optimized_3d_pose, pose_client.future_pose, pose_client.model)
-            potential_states = potential_states_fetcher.get_potential_positions_shifting_z()
+            potential_states = potential_states_fetcher.get_potential_positions_spherical()
 
             if not pose_client.isCalibratingEnergy:
                 #find hessian for each drone position
-                
-                potential_covs_normal, _ = potential_states_fetcher.find_hessians_for_potential_states(objective_future, pose_client, P_world)
+                potential_states_fetcher.find_hessians_for_potential_states(objective_future, pose_client, P_world)
                 goal_state = potential_states_fetcher.find_best_potential_state()
                 pose_client.goal_state = goal_state
+                pose_client.goal_indices.append(potential_states_fetcher.goal_state_ind)
 
                 if not pose_client.quiet:
                     #plot potential states and current state, projections of each state, cov's of each state
-                    #plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
+                    plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
+                    #plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, None, pose_client.model, plot_loc, airsim_client.linecount, ellipses=False)
                     #plot_potential_projections(potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
-                    #plot_potential_hessians(potential_hessians, airsim_client.linecount, plot_loc, custom_name = "potential_covs_")
 
-                    #plot_potential_hessians(potential_covs_mini, airsim_client.linecount, plot_loc, custom_name = "potential_covs_mini_")
-                    plot_potential_hessians(potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
-                    #plot_potential_hessians(potential_hessians_mini, airsim_client.linecount, plot_loc, custom_name = "potential_hess_mini_")
+                    #plot_potential_hessians(potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
                     #plot_potential_hessians(potential_hessians_normal, airsim_client.linecount, plot_loc, custom_name = "potential_hess_normal_")
-                    #plot_potential_hessians(potential_covs_hip, airsim_client.linecount, plot_loc, custom_name = "potential_covs_hip_")
-                    #plot_potential_hessians(potential_hessians_hip, airsim_client.linecount, plot_loc, custom_name = "potential_hess_hip_")
-                    plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, potential_covs_normal, pose_client.model, plot_loc, airsim_client.linecount)
+                    plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states_fetcher, pose_client.model, plot_loc, airsim_client.linecount)
 
     #if the frame is the first frame, the energy is found through backprojection
     else:

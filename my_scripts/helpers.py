@@ -11,11 +11,10 @@ from torch.autograd import Variable
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 from matplotlib import cm, colors
 import time, os
 import cv2
-from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin
+from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos
 
 
 energy_mode = {1:True, 0:False}
@@ -474,8 +473,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
         red_label = label_names[1]
 
     fig = plt.figure(figsize=(5,5))
-    gs1 = gridspec.GridSpec(1, 1)
-    ax = fig.add_subplot(gs1[0], projection='3d')
+    ax = fig.add_subplot(111, projection='3d')
 
     X = bones_GT[0,:]
     if orientation == "z_up":
@@ -552,8 +550,7 @@ def plot_global_motion(pose_client, plot_loc, ind):
     fig = plt.figure(figsize=(5,5))
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
-    gs1 = gridspec.GridSpec(1, 1)
-    ax = fig.add_subplot(gs1[0], projection='3d')
+    ax = fig.add_subplot(111, projection='3d')
     for frame_ind in range (0, len(plot_info), 3):
         frame_plot_info = plot_info[frame_ind]
         predicted_bones = frame_plot_info["est"]
@@ -611,11 +608,10 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         plot_info = pose_client.flight_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
 
-    fig = plt.figure(figsize=(5,5))
+    fig = plt.figure(figsize=(15,6.5))
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
-    gs1 = gridspec.GridSpec(1, 1)
-    ax = fig.add_subplot(gs1[0], projection='3d')
+    ax = fig.add_subplot(121, projection='3d')
 
     #plot final frame human
     last_frame_plot_info = plot_info[-1]
@@ -667,6 +663,13 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+    plt.title("Drone Trajectory")
+
+    ax = fig.add_subplot(122)
+    ax.plot(drone_z, c='xkcd:black', marker='^')
+    plt.title("Drone Trajectory, z coordinate")
+    ax.set_xlabel("frame")
+    ax.set_ylabel("z")
 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close()
@@ -922,7 +925,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     file_name = plot_loc + "/potential_states_" + str(ind) + ".png"
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
-    
+
 def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     if custom_name == None:
         name = '/potential_covs_'
@@ -1002,7 +1005,7 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
     plt.close()
 
 
-def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose, potential_states, hessians, model, plot_loc, ind):
+def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose, potential_states_fetcher, model, plot_loc, ind, ellipses = True):
     _, joint_names, _, _ = model_settings(model)
     hip_index = joint_names.index('spine1')
 
@@ -1012,7 +1015,9 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
     
     fig = plt.figure(figsize=(5,5))
     ax = fig.add_subplot(111, projection='3d')
-
+    covs = potential_states_fetcher.potential_covs_normal
+    potential_states = potential_states_fetcher.potential_states
+    
     #plot the people
     plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='^', label="current human pos")
     plot2, = ax.plot([future_human_pos[0]], [future_human_pos[1]], [-future_human_pos[2]], c='xkcd:royal blue', marker='^', label="future human pos")
@@ -1024,17 +1029,25 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
     Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
 
     #plot ellipses
+    centers = []
     for state_ind, potential_state in enumerate(potential_states):
         state_pos =  potential_state["position"]
         center = np.copy(state_pos)
         center[2] = -center[2]
-        x,y,z = matrix_to_ellipse(hessians[state_ind], center, 5)
-        ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+        centers.append(center)
+        if ellipses:
+            x,y,z = matrix_to_ellipse(covs[state_ind], center, 5)
+            ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+        else:
+            ax.plot([center[0]], [center[1]], [center[2]], marker='^', color='b')
         ax.text(center[0], center[1], center[2], str(state_ind))
 
         X = np.concatenate([X, np.array([center[0]])])
         Y = np.concatenate([Y, np.array([center[1]])])
         Z = np.concatenate([Z, np.array([center[2]])])
+    curr_center = centers[potential_states_fetcher.current_state_ind]
+    goal_center = centers[potential_states_fetcher.goal_state_ind]
+    ax.plot([curr_center[0],goal_center[0]], [curr_center[1],goal_center[1]], [curr_center[2],goal_center[2]], color='xkcd:dark orange')
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     mid_x = (X.max()+X.min()) * 0.5
