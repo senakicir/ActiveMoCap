@@ -146,7 +146,9 @@ class pose3d_calibration(torch.nn.Module):
         self.pltpts = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
-    
+        R_cam_np = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
+        self.R_cam = Variable(torch.from_numpy(R_cam_np).float(), requires_grad = False)   
+
     def forward(self):        
         output = {}
         for loss_key in self.loss_dict:
@@ -165,8 +167,7 @@ class pose3d_calibration(torch.nn.Module):
             R_drone_torch = torch.from_numpy(R_drone_).float()
             C_drone_torch = torch.from_numpy(C_drone_).float()
             bone_2d_torch = torch.from_numpy(bone_2d_).float()
-            
-            projected_2d, _ = take_bone_projection_pytorch(self.pose3d, R_drone_torch, C_drone_torch)
+            projected_2d, _ = take_bone_projection_pytorch(self.pose3d, R_drone_torch, C_drone_torch, self.R_cam)
             output["proj"] += mse_loss(projected_2d, bone_2d_torch)
             #current_residuals = find_residuals(projected_2d, bone_2d_torch)* self.energy_weights["proj"]
             #residuals = torch.cat((residuals, current_residuals))
@@ -188,7 +189,7 @@ class pose3d_flight(torch.nn.Module):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
         self.window_size = pose_client.FLIGHT_WINDOW_SIZE
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_flight), requires_grad=True)
-        self.bone_lengths = Variable(pose_client.boneLengths, requires_grad = False)
+        self.bone_lengths = Variable((pose_client.boneLengths), requires_grad = False)
         self.loss_dict = pose_client.loss_dict_flight
         self.data_list = pose_client.requiredEstimationData
         self.lift_list = pose_client.liftPoseList
@@ -197,6 +198,8 @@ class pose3d_flight(torch.nn.Module):
         self.pltpts = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
+        R_cam_np = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
+        self.R_cam = Variable(torch.from_numpy(R_cam_np).float(), requires_grad = False)
 
     def forward(self):
         output = {}
@@ -212,7 +215,7 @@ class pose3d_flight(torch.nn.Module):
                 R_drone_torch = torch.from_numpy(R_drone_).float()
                 C_drone_torch = torch.from_numpy(C_drone_).float()
                 bone_2d_torch = torch.from_numpy(bone_2d_).float()
-                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, R_drone_torch, C_drone_torch)
+                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, R_drone_torch, C_drone_torch, self.R_cam)
                 output["proj"] += mse_loss(projected_2d, bone_2d_torch)
 
                 #lift
@@ -252,12 +255,12 @@ class pose3d_flight(torch.nn.Module):
 
 class pose3d_future(torch.nn.Module):
 
-    def __init__(self, pose_client, R_drone, C_drone):
+    def __init__(self, pose_client, R_drone, C_drone, R_cam):
         super(pose3d_future, self).__init__()
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
         self.window_size = pose_client.FLIGHT_WINDOW_SIZE
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_flight), requires_grad=True)
-        self.bone_lengths = Variable(pose_client.boneLengths, requires_grad = False)
+        self.bone_lengths = Variable((pose_client.boneLengths), requires_grad = False)
         self.loss_dict = pose_client.loss_dict_future
         self.data_list = pose_client.requiredEstimationData
         self.lift_list = pose_client.liftPoseList
@@ -265,9 +268,13 @@ class pose3d_future(torch.nn.Module):
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
         self.potential_R_drone = torch.from_numpy(R_drone).float()
         self.potential_C_drone = torch.from_numpy(C_drone).float()
+        self.potential_R_cam = torch.from_numpy(R_cam).float()
         pose3d_est_future_torch = Variable(torch.from_numpy(pose_client.future_pose).float(), requires_grad=False)
-        self.potential_projected_est, _ = take_bone_projection_pytorch(pose3d_est_future_torch, self.potential_R_drone, self.potential_C_drone)
-    
+        self.potential_projected_est, _ = take_bone_projection_pytorch(pose3d_est_future_torch, self.potential_R_drone, self.potential_C_drone, self.potential_R_cam)
+
+        R_cam_np = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
+        self.R_cam = Variable(torch.from_numpy(R_cam_np).float(), requires_grad = False)
+
         self.pltpts = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
@@ -278,7 +285,8 @@ class pose3d_future(torch.nn.Module):
             output[loss_key] = 0
 
         queue_index = 0
-        for bone_2d_, R_drone_, C_drone_ in self.data_list:
+        for queue_index in range(0,len(self.data_list)):
+            bone_2d_, R_drone_, C_drone_ = self.data_list[queue_index]
             pose_3d_curr = self.pose3d[queue_index, :, :].cpu()
 
             if (queue_index != 0): #future pose has no lift term but a special projection
@@ -286,7 +294,7 @@ class pose3d_future(torch.nn.Module):
                 R_drone_torch = torch.from_numpy(R_drone_).float()
                 C_drone_torch = torch.from_numpy(C_drone_).float()
                 bone_2d_torch = torch.from_numpy(bone_2d_).float()
-                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, R_drone_torch, C_drone_torch)
+                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, R_drone_torch, C_drone_torch, self.R_cam)
                 output["proj"] += mse_loss(projected_2d, bone_2d_torch)
 
                 current_residuals = find_residuals(projected_2d, bone_2d_torch)* self.energy_weights["proj"]
@@ -305,7 +313,7 @@ class pose3d_future(torch.nn.Module):
 
             else:
                 #projection for future
-                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, self.potential_R_drone, self.potential_C_drone)
+                projected_2d, _ = take_bone_projection_pytorch(pose_3d_curr, self.potential_R_drone, self.potential_C_drone, self.potential_R_cam)
                 output["proj"] += mse_loss(projected_2d, self.potential_projected_est)
                 residuals = find_residuals(projected_2d, self.potential_projected_est)* self.energy_weights["proj"]
 
@@ -329,7 +337,6 @@ class pose3d_future(torch.nn.Module):
                 current_residuals = find_residuals(pose_vel[0], pose_vel[1]) * self.energy_weights["smooth"]
                 residuals = torch.cat((residuals, current_residuals))
 
-            queue_index += 1
 
         overall_output = 0
         for loss_key in self.loss_dict:

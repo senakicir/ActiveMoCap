@@ -101,9 +101,9 @@ def main(kalman_arguments, parameters, energy_parameters):
         airsim_client.changeAnimation(ANIM_TO_UNREAL[ANIMATION_NUM])
         airsim_client.changeCalibrationMode(True)
         airsim_client.takeoffAsync(timeout_sec = 20)
-        airsim_client.moveToZAsync(-z_pos, 2, timeout_sec = 5, yaw_mode = airsim.YawMode(), lookahead = -1, adaptive_lookahead = 1)
-        time.sleep(5)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
+        #airsim_client.moveToZAsync(-z_pos, 2, timeout_sec = 5, yaw_mode = airsim.YawMode(), lookahead = -1, adaptive_lookahead = 1)
+        time.sleep(20)
     else:
         filename_bones = 'test_sets/'+test_set_name+'/groundtruth.txt'
         filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
@@ -116,7 +116,7 @@ def main(kalman_arguments, parameters, energy_parameters):
 
     gt_hp = []
     est_hp = []
-    global_plot_ind = 0
+   # global_plot_ind = 0
 
     filenames_anim = file_names[ANIMATION_NUM]
     foldernames_anim = folder_names[ANIMATION_NUM]
@@ -218,11 +218,10 @@ def main(kalman_arguments, parameters, energy_parameters):
         airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
 
         time.sleep(DELTA_T) 
-        if (airsim_client.linecount % 1 == 0 and not pose_client.quiet):
+        plot_drone_traj(pose_client, plot_loc_, airsim_client.linecount)
+        #if (airsim_client.linecount % 1 == 0 and not pose_client.quiet):
             #plot_global_motion(pose_client, plot_loc_, global_plot_ind)
-            plot_drone_traj(pose_client, plot_loc_, global_plot_ind)
             #plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
-            global_plot_ind +=1
 
         #SAVE ALL VALUES OF THIS SIMULATION
         f_output_str = str(airsim_client.linecount)+pose_client.f_string + '\n'
@@ -286,7 +285,7 @@ if __name__ == "__main__":
     calculate_hess = True
     active = True
     flight_window_size = 6
-    calibration_length = 15
+    calibration_length = 12
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose

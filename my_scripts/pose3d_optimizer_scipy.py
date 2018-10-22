@@ -23,7 +23,7 @@ def fun_forward(pytorch_objective, x, new_shape):
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
     pytorch_objective.init_pose3d(x_scrambled)
     overall_output = pytorch_objective.forward()
-    return overall_output.data.numpy()
+    return overall_output.cpu().data.numpy()
 
 def fun_jacobian(pytorch_objective, x, new_shape):
     multip_dim = 1
@@ -35,7 +35,7 @@ def fun_jacobian(pytorch_objective, x, new_shape):
     overall_output = pytorch_objective.forward()
     overall_output.backward(create_graph=False)
     gradient_torch = pytorch_objective.pose3d.grad
-    gradient_scrambled = gradient_torch.data.numpy()
+    gradient_scrambled = gradient_torch.cpu().data.numpy()
     gradient = np.reshape(a = gradient_scrambled, newshape =  [multip_dim, ], order = "C")
     return gradient
 
@@ -53,7 +53,7 @@ def fun_jacobian_residuals(pytorch_objective, x, new_shape):
         pytorch_objective.zero_grad()
         one_residual.backward(retain_graph=True)
         gradient_torch = pytorch_objective.pose3d.grad
-        gradient_scrambled = gradient_torch.data.numpy()
+        gradient_scrambled = gradient_torch.cpu().data.numpy()
         gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [multip_dim, ], order = "C")
     #print("torch grad", gradient)
     #import pdb; pdb.set_trace()
@@ -75,7 +75,7 @@ def fun_hessian(pytorch_objective, x, result_shape):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)
         hessian_torch[:, ind] = temp[0].view(-1)
 
-    hessian = hessian_torch.data.numpy()
+    hessian = hessian_torch.cpu().data.numpy()
     return hessian
 
 class pose3d_calibration_scipy():
@@ -215,11 +215,13 @@ class pose3d_future():
         yaw = potential_state["orientation"]
         self.potential_R_drone = euler_to_rotation_matrix(0, 0, yaw)
         C_drone =  potential_state["position"]
+        potential_pitch = potential_state["pitch"]
+        self.potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
         self.potential_C_drone = C_drone[:, np.newaxis]
-        self.potential_projected_est, _ = take_bone_projection(pose_client.future_pose, self.potential_R_drone, self.potential_C_drone)
+        self.potential_projected_est, _ = take_bone_projection(pose_client.future_pose, self.potential_R_drone, self.potential_C_drone, self.potential_R_cam)
 
         #torch for jacobian
-        self.pytorch_objective = pytorch_optimizer.pose3d_future(pose_client, self.potential_R_drone, self.potential_C_drone)
+        self.pytorch_objective = pytorch_optimizer.pose3d_future(pose_client, self.potential_R_drone, self.potential_C_drone, self.potential_R_cam)
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)

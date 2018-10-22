@@ -52,11 +52,13 @@ def find_2d_pose_gt(unreal_positions, bone_pos_3d_GT, input_image, cropping_tool
         R_drone_unreal = Variable(euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2], returnTensor=True), requires_grad = False) #pitch roll yaw
         C_drone_unreal = Variable(torch.FloatTensor([[unreal_positions[DRONE_POS_IND, 0]],[unreal_positions[DRONE_POS_IND, 1]],[unreal_positions[DRONE_POS_IND, 2]]]), requires_grad = False)
         bone_pos_GT = Variable(torch.from_numpy(bone_pos_3d_GT).float(), requires_grad = True)
-        bone_2d_var, heatmaps = take_bone_projection_pytorch(bone_pos_GT, R_drone_unreal, C_drone_unreal)
+        R_cam_np = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
+        R_cam = Variable(torch.from_numpy(R_cam_np).float(), requires_grad = False)
+        bone_2d_var, heatmaps = take_bone_projection_pytorch(bone_pos_GT, R_drone_unreal.cpu(), C_drone_unreal.cpu(), R_cam.cpu())
         bone_2d = bone_2d_var.detach()
         if (return_heatmaps):
             bone_2d = cropping_tool.crop_pose(bone_2d)
-            heatmaps = create_heatmap(bone_2d.data.numpy(), input_image.shape[1], input_image.shape[0])
+            heatmaps = create_heatmap(bone_2d.data.cpu().numpy(), input_image.shape[1], input_image.shape[0])
         else:
             heatmaps = 0
     else:
@@ -203,9 +205,9 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
                     #plot potential states and current state, projections of each state, cov's of each state
                     plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
                     #plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, None, pose_client.model, plot_loc, airsim_client.linecount, ellipses=False)
-                    #plot_potential_projections(potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
+                    plot_potential_projections(potential_states_fetcher.potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
 
-                    #plot_potential_hessians(potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
+                    plot_potential_hessians(potential_states_fetcher.potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
                     #plot_potential_hessians(potential_hessians_normal, airsim_client.linecount, plot_loc, custom_name = "potential_hess_normal_")
                     plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states_fetcher, pose_client.model, plot_loc, airsim_client.linecount)
 
@@ -223,24 +225,24 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     root_future = pose_client.future_pose[:,joint_names.index('spine1')]
     M_future_pose = np.dot(pose_client.future_pose - root_future[:, np.newaxis], pose_client.M)+root_future[:, np.newaxis]
 
-    check,  _ = take_bone_projection(optimized_3d_pose, R_drone, C_drone)
+    #check,  _ = take_bone_projection(optimized_3d_pose, R_drone, C_drone)
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - optimized_3d_pose, axis=0))
     pose_client.error_3d.append(error_3d)
     if (plot_loc != 0 and not pose_client.quiet): 
-        superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
+        #superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
         plot_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d)
         #save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
         if (not pose_client.isCalibratingEnergy):
-            plot_human(optimized_3d_pose, M_future_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
+            #plot_human(optimized_3d_pose, M_future_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
             pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, joint_names, is_torch=False)
             bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch=False)
             optimized_3d_pose_normalized, _ = normalize_pose(optimized_3d_pose, joint_names, is_torch=False)
             plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
-            plot_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
+            #plot_human(pose3d_lift_normalized, optimized_3d_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
             #plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
 
     positions = form_positions_dict(angle, drone_pos_vec, optimized_3d_pose[:,joint_names.index('spine1')])

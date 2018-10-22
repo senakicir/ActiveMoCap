@@ -3,6 +3,7 @@ from math import radians, cos, sin, pi, degrees, acos
 import numpy as np
 from helpers import range_angle, model_settings, shape_cov
 import time as time 
+from project_bones import take_potential_projection
 
 #constants
 BETA = 0.35
@@ -119,6 +120,7 @@ class Potential_States_Fetcher(object):
         self.potential_covs_normal = []
         self.current_state_ind = 0
         self.goal_state_ind =0
+        self.potential_pose2d_list = []
 
     def get_potential_positions_shifting_rad(self):
         neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))
@@ -191,42 +193,46 @@ class Potential_States_Fetcher(object):
         neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))
         _, neutral_yaw = find_current_polar_info(neutral_drone_pos, self.future_human_pos[:, self.hip_index])
         projected_distance_vect = neutral_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(projected_distance_vect[0:2,])
+        cur_radius = np.linalg.norm(projected_distance_vect)
         
         new_rad = SAFE_RADIUS
-        UPPER_LIM = -4.5
+        UPPER_LIM = -5
         LOWER_LIM = 0.5
         
         current_z = neutral_drone_pos[2]
-        current_theta = acos(current_z/cur_radius)
+        print("current_z: ", current_z, "current_radius: ", cur_radius)
 
+        current_theta = acos((current_z- self.future_human_pos[2, self.hip_index])/cur_radius)
 
         new_theta_list = [current_theta+radians(-20), current_theta, current_theta+radians(20)]
+        #new_phi_list = [neutral_yaw+radians(-30), neutral_yaw+radians(-20), neutral_yaw, neutral_yaw+radians(20), neutral_yaw+radians(30)]
         new_phi_list = [neutral_yaw+radians(-20), neutral_yaw, neutral_yaw+radians(20)]
         self.current_state_ind = 4
 
         if current_z > LOWER_LIM: #ABOUT TO CRASH
             new_theta_list = [current_theta+radians(20)]
             self.current_state_ind = 1
-        elif current_z - 1 > LOWER_LIM:
+        elif current_z + 1 > LOWER_LIM:
             new_theta_list = [current_theta, current_theta+radians(20)]
             self.current_state_ind = 1
             
         if current_z < UPPER_LIM:
             new_theta_list = [current_theta+radians(-20)]
             self.current_state_ind = 1
-        elif current_z + 1  < UPPER_LIM:
+        elif current_z - 1  < UPPER_LIM:
             new_theta_list = [current_theta+radians(-20), current_theta]
             self.current_state_ind = 4
 
-        print("current_z: ", current_z)
         for new_theta in new_theta_list:
             for new_phi in new_phi_list:
                 x = new_rad*cos(new_phi)*sin(new_theta) + self.future_human_pos[0, self.hip_index]
                 y = new_rad*sin(new_phi)*sin(new_theta) + self.future_human_pos[1, self.hip_index]
-                z = new_rad*cos(new_theta)
+                z = new_rad*cos(new_theta)+ self.future_human_pos[2, self.hip_index]
                 drone_pos = np.array([x, y, z])
-                self.potential_states.append({"position":np.copy(drone_pos), "orientation": new_phi+pi})
+                new_pitch = pi/2 -new_theta
+                self.potential_states.append({"position":np.copy(drone_pos), "orientation": new_phi+pi, "pitch": new_pitch})
+                difference = np.linalg.norm(self.current_drone_pos - drone_pos)
+                print("new z: ", z, "difference: ", difference)
         return self.potential_states
 
     def get_potential_positions_cartesian(self):
@@ -268,17 +274,18 @@ class Potential_States_Fetcher(object):
 
             #potential_covs_mini.append(shape_cov_mini(inv_hess1, pose_client.model, 0))
             self.potential_covs_normal.append(shape_cov(inv_hess2, pose_client.model, 0))
+            #self.potential_covs_normal.append(inv_hess2)
             #potential_covs_hip.append(shape_cov_hip(inv_hess3, pose_client.model, 0))
 
             #take projection 
-            #potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
+            self.potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
         return self.potential_covs_normal, self.potential_hessians_normal
 
 
     def find_best_potential_state(self):
         uncertainty_list = []
         for cov in self.potential_covs_normal:
-            uncertainty_list.append(cov[0,0]+cov[1,1]+cov[2,2])
+            uncertainty_list.append(np.trace(cov))
 
         best_ind = uncertainty_list.index(min(uncertainty_list))
         self.goal_state_ind = best_ind

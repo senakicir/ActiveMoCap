@@ -472,7 +472,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
         blue_label = label_names[0]
         red_label = label_names[1]
 
-    fig = plt.figure(figsize=(5,5))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
     X = bones_GT[0,:]
@@ -547,7 +547,7 @@ def plot_global_motion(pose_client, plot_loc, ind):
         plot_info = pose_client.flight_res_list
         file_name = plot_loc + '/global_plot_flight_'+ str(ind) + '.png'
 
-    fig = plt.figure(figsize=(5,5))
+    fig = plt.figure()
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     ax = fig.add_subplot(111, projection='3d')
@@ -608,7 +608,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         plot_info = pose_client.flight_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
 
-    fig = plt.figure(figsize=(15,6.5))
+    fig = plt.figure()
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     ax = fig.add_subplot(121, projection='3d')
@@ -812,7 +812,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     hip_index = joint_names.index('spine1')
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
-    fig = plt.figure(figsize=(5,5))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
 
     #plot final frame human
@@ -900,7 +900,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     future_human_pos =  future_human_pose[0:2, hip_index]
     gt_human_pos = gt_human_pose[0:2, hip_index]
     
-    fig, ax = plt.subplots(figsize=(5,5))
+    fig, ax = plt.subplots()
     plt.axis(v=['scaled'])
 
     #plot the people
@@ -957,10 +957,13 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
         ax.set_title(str(ind))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
+        eigenvals, _ = np.linalg.eig(hess)
         uncertainty1 = float("{0:.4f}".format(np.linalg.det(hess)))
-        uncertainty2 = float("{0:.4f}".format(max([hess[0,0],hess[1,1],hess[2,2]])))
+        uncertainty2 = float("{0:.4f}".format(np.max(eigenvals)))
+        uncertainty3 = float("{0:.4f}".format(np.sum(eigenvals)))
         ax.text(0.05,0.05,str(uncertainty1))
         ax.text(0.05,0.5,str(uncertainty2))   
+        ax.text(0.05,1.05,str(uncertainty3))   
 
     fig.subplots_adjust(right=0.8, hspace = 0.5)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
@@ -1013,7 +1016,7 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
     future_human_pos =  future_human_pose[:, hip_index]
     gt_human_pos = gt_human_pose[:, hip_index]
     
-    fig = plt.figure(figsize=(5,5))
+    fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     covs = potential_states_fetcher.potential_covs_normal
     potential_states = potential_states_fetcher.potential_states
@@ -1036,7 +1039,7 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
         center[2] = -center[2]
         centers.append(center)
         if ellipses:
-            x,y,z = matrix_to_ellipse(covs[state_ind], center, 5)
+            x,y,z = matrix_to_ellipse(covs[state_ind], center, 3)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
         else:
             ax.plot([center[0]], [center[1]], [center[2]], marker='^', color='b')
