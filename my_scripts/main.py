@@ -136,7 +136,9 @@ def main(kalman_arguments, parameters, energy_parameters):
     else:
         photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
+    airsim_client.simPause(True)
     initial_positions, _  = determine_all_positions(airsim_client, pose_client, plot_loc=plot_loc_, photo_loc=photo_loc_)
+    airsim_client.simPause(False)
 
     current_state = State(initial_positions)
     current_state.radius = 14
@@ -183,17 +185,12 @@ def main(kalman_arguments, parameters, energy_parameters):
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
+        airsim_client.simPause(True)
         positions, unreal_positions = determine_all_positions(airsim_client, pose_client, plot_loc = plot_loc_, photo_loc = photo_loc_)
+        airsim_client.simPause(False)
+
 
         current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
-
-        gt_hp.append(unreal_positions[HUMAN_POS_IND, :])
-        est_hp.append(current_state.human_pos)
-        errors_pos.append(np.linalg.norm(unreal_positions[HUMAN_POS_IND, :]-current_state.human_pos))
-        if (airsim_client.linecount > 0):
-            gt_hv.append((gt_hp[-1]-gt_hp[-2])/DELTA_T)
-            est_hv.append(current_state.human_vel)
-            errors_vel.append(np.linalg.norm( (gt_hp[-1]-gt_hp[-2])/DELTA_T - current_state.human_vel))
 
         #finds desired position and yaw angle
         if (USE_TRACKBAR):
@@ -216,18 +213,28 @@ def main(kalman_arguments, parameters, energy_parameters):
         else:
             damping_speed = 0.5
         airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
-
         time.sleep(DELTA_T) 
+
+        airsim_client.simPause(True)
         plot_drone_traj(pose_client, plot_loc_, airsim_client.linecount)
         #if (airsim_client.linecount % 1 == 0 and not pose_client.quiet):
             #plot_global_motion(pose_client, plot_loc_, global_plot_ind)
             #plot_covariance_as_ellipse(pose_client, plot_loc_, global_plot_ind)
 
         #SAVE ALL VALUES OF THIS SIMULATION
+        gt_hp.append(unreal_positions[HUMAN_POS_IND, :])
+        est_hp.append(current_state.human_pos)
+        errors_pos.append(np.linalg.norm(unreal_positions[HUMAN_POS_IND, :]-current_state.human_pos))
+        if (airsim_client.linecount > 0):
+            gt_hv.append((gt_hp[-1]-gt_hp[-2])/DELTA_T)
+            est_hv.append(current_state.human_vel)
+            errors_vel.append(np.linalg.norm( (gt_hp[-1]-gt_hp[-2])/DELTA_T - current_state.human_vel))
+
         f_output_str = str(airsim_client.linecount)+pose_client.f_string + '\n'
         f_output.write(f_output_str)
         f_groundtruth_str =  str(airsim_client.linecount) + '\t' +f_groundtruth_str + '\n'
         f_groundtruth.write(f_groundtruth_str)
+        airsim_client.simPause(False)
 
         airsim_client.linecount += 1
         print('linecount', airsim_client.linecount)
@@ -292,7 +299,7 @@ if __name__ == "__main__":
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
    
-    animations = ["02_01"]
+    animations = ["02_01"]#["64_06"]
     test_set = {}
     for animation_num in animations:
         test_set[animation_num] = TEST_SETS[animation_num]

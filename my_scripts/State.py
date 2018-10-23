@@ -197,7 +197,7 @@ class Potential_States_Fetcher(object):
         
         new_rad = SAFE_RADIUS
         UPPER_LIM = -5
-        LOWER_LIM = 0.5
+        LOWER_LIM = -2.5
         
         current_z = neutral_drone_pos[2]
         print("current_z: ", current_z, "current_radius: ", cur_radius)
@@ -285,7 +285,7 @@ class Potential_States_Fetcher(object):
     def find_best_potential_state(self):
         uncertainty_list = []
         for cov in self.potential_covs_normal:
-            uncertainty_list.append(np.trace(cov))
+            uncertainty_list.append(np.linalg.det(cov))
 
         best_ind = uncertainty_list.index(min(uncertainty_list))
         self.goal_state_ind = best_ind
