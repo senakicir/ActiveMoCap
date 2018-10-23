@@ -5,6 +5,7 @@ import numpy as np
 from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, px, py, FOCAL_LENGTH, SIZE_X, SIZE_Y 
 
 neat_tensor = Variable(torch.FloatTensor([[0, 0, 0, 1]]), requires_grad=False) #this tensor is neat!
+ones_tensor = Variable(torch.ones([1, 15]), requires_grad=False)*1.0
 DEFAULT_TORSO_SIZE = 0.42 #0.86710678118
 
 #R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
@@ -14,6 +15,8 @@ C_cam_torch = Variable(torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], 
 
 FLIP_X_Y = np.array([[0,1,0],[-1,0,0],[0,0,1]])
 FLIP_X_Y_torch = Variable(torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]]), requires_grad = False)
+UNREAL_MAPPING_FUNC = Variable(torch.FloatTensor([[0,1,0,0],[-1,0,0,0],[0,0,1,0]]), requires_grad = False)
+
 
 FLIP_X_Y_inv = np.linalg.inv(FLIP_X_Y)
 FLIP_X_Y_inv_torch = torch.inverse(FLIP_X_Y_torch)
@@ -97,8 +100,6 @@ def take_bone_backprojection_pytorch(bone_pred, R_drone, C_drone, joint_names):
 
 def world_to_camera(R_drone, C_drone, P_world, R_cam, is_torch = True):
     if is_torch == True:
-        num_of_joints = P_world.data.shape[1]
-        ones_tensor = Variable(torch.ones([1, num_of_joints]), requires_grad=False)*1.0
         P_drone = torch.mm(torch.inverse(torch.cat((torch.cat((R_drone, C_drone), 1), neat_tensor), 0) ), torch.cat((P_world, ones_tensor), 0) )
         P_camera = torch.mm(torch.inverse(torch.cat((torch.cat((R_cam, C_cam_torch), 1), neat_tensor), 0) ), P_drone)
         P_camera = P_camera[0:3,:]
@@ -152,3 +153,6 @@ def take_potential_projection(potential_state, future_pose):
     R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, camera_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
     proj, _ =  take_bone_projection(future_pose, R_drone, C_drone, R_cam)
     return proj
+
+class Projection_Object(object):
+    def __init__(self, data_list):

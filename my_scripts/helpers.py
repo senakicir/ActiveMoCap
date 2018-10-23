@@ -84,6 +84,14 @@ def split_bone_connections(bone_connections):
         right_bone_connections = [[1, 2], [2, 3], [3, 4], [14, 8], [8, 9], [9, 10]]
         middle_bone_connections = [[0, 1], [14, 1]]
     return left_bone_connections, right_bone_connections, middle_bone_connections
+
+def split_bone_connections_np(bone_connections):
+    if (bone_connections == bones_mpi):
+        left_bone_connections = np.array([[1, 5], [5, 6], [6, 7],[14, 11], [11, 12], [12, 13]])
+        right_bone_connections = np.array([[1, 2], [2, 3], [3, 4], [14, 8], [8, 9], [9, 10]])
+        middle_bone_connections = np.array([[0, 1], [14, 1]])
+    return left_bone_connections, right_bone_connections, middle_bone_connections
+
 additional_directions = [[4, 10], [7,13], [3,9], [6, 12], [14,3], [14, 6]]
 lift_bone_directions = bones_mpi + additional_directions
 
