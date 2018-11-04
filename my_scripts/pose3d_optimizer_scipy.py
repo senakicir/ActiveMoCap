@@ -6,7 +6,6 @@ from scipy.optimize._numdiff import approx_derivative, group_columns
 
 def find_residuals(input_1, input_2):
     return (np.square((input_1 - input_2))).ravel()
-    
 
 def fun_forward(pytorch_objective, x, new_shape):
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
@@ -44,8 +43,6 @@ def fun_jacobian_residuals(pytorch_objective, x, new_shape):
         gradient_torch = pytorch_objective.pose3d.grad
         gradient_scrambled = gradient_torch.cpu().data.numpy()
         gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [multip_dim, ], order = "C")
-    #print("torch grad", gradient)
-    #import pdb; pdb.set_trace()
     return gradient
 
 def fun_hessian(pytorch_objective, x, result_shape):
@@ -53,12 +50,14 @@ def fun_hessian(pytorch_objective, x, result_shape):
     for i in result_shape:
         hess_size *= i
 
+    #first derivative
     pytorch_objective.zero_grad()
     pytorch_objective.init_pose3d(x)
     overall_output = pytorch_objective.forward()
     gradient_torch = grad(overall_output, pytorch_objective.pose3d, create_graph=True)
-
     gradient_torch_flat = gradient_torch[0].view(-1)
+    
+    #second derivative
     hessian_torch = torch.zeros(hess_size, hess_size)
     for ind, ele in enumerate(gradient_torch_flat):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)

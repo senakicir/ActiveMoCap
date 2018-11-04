@@ -16,7 +16,7 @@ DRONE_ORIENTATION_IND = 1
 INCREMENT_DEGREE_AMOUNT = radians(-20)
 INCREMENT_RADIUS = 3
 
-z_pos = -0.5
+z_pos = -1
 DELTA_T = 0.2
 N = 4.0
 TIME_HORIZON = N*DELTA_T
@@ -198,29 +198,30 @@ class Potential_States_Fetcher(object):
         new_rad = SAFE_RADIUS
         UPPER_LIM = -7
         LOWER_LIM = -1
+        DELTA_ANGLE = 20
         
         current_z = neutral_drone_pos[2]
         #print("current_z: ", current_z, "current_radius: ", cur_radius)
 
         current_theta = acos((current_z- self.future_human_pos[2, self.hip_index])/cur_radius)
 
-        new_theta_list = [current_theta+radians(-20), current_theta, current_theta+radians(20)]
-        #new_phi_list = [neutral_yaw+radians(-30), neutral_yaw+radians(-20), neutral_yaw, neutral_yaw+radians(20), neutral_yaw+radians(30)]
-        new_phi_list = [neutral_yaw+radians(-20), neutral_yaw, neutral_yaw+radians(20)]
+        new_theta_list = [current_theta+radians(-DELTA_ANGLE), current_theta, current_theta+radians(DELTA_ANGLE)]
+        #new_phi_list = [neutral_yaw+radians(-2*DELTA_ANGLE), neutral_yaw+radians(-DELTA_ANGLE), neutral_yaw, neutral_yaw+radians(DELTA_ANGLE), neutral_yaw+radians(2*DELTA_ANGLE)]
+        new_phi_list = [neutral_yaw+radians(-DELTA_ANGLE), neutral_yaw, neutral_yaw+radians(DELTA_ANGLE)]
         self.current_state_ind = 4
 
         if current_z > LOWER_LIM: #ABOUT TO CRASH
-            new_theta_list = [current_theta+radians(20)]
+            new_theta_list = [current_theta+radians(DELTA_ANGLE)]
             self.current_state_ind = 1
         elif current_z + 1 > LOWER_LIM:
-            new_theta_list = [current_theta, current_theta+radians(20)]
+            new_theta_list = [current_theta, current_theta+radians(DELTA_ANGLE)]
             self.current_state_ind = 1
             
         if current_z < UPPER_LIM:
-            new_theta_list = [current_theta+radians(-20)]
+            new_theta_list = [current_theta+radians(-DELTA_ANGLE)]
             self.current_state_ind = 1
         elif current_z - 1  < UPPER_LIM:
-            new_theta_list = [current_theta+radians(-20), current_theta]
+            new_theta_list = [current_theta+radians(-DELTA_ANGLE), current_theta]
             self.current_state_ind = 4
 
         for new_theta in new_theta_list:
@@ -279,37 +280,19 @@ class Potential_States_Fetcher(object):
         for potential_state_ind, potential_state in enumerate(self.potential_states):
             objective.reset(pose_client, potential_state)
 
-            #start_find_hess1 = time.time()
-            #hess1 = objective.mini_hessian(P_world)
-            #end_find_hess1 = time.time()
             start_find_hess2 = time.time()
             hess2 = objective.hessian(P_world)
             end_find_hess2 = time.time()
-            #start_find_hess3 = time.time()
-            #hess3 = objective.mini_hessian_hip(P_world)
-            #end_find_hess3 = time.time()
-            #print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess1-start_find_hess1, end_find_hess2-start_find_hess2, end_find_hess3-start_find_hess3)
+            
             print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess2-start_find_hess2)
 
-            # hess2_reshaped = shape_cov_test2(hess2, pose_client.model)
-
-            #potential_hessians_mini.append(hess1)
             self.potential_hessians_normal.append(hess2)
-            #potential_hessians_hip.append(hess3)
-
-            #inv_hess1 = np.linalg.inv(hess1)
             inv_hess2 = np.linalg.inv(hess2)
-            #inv_hess3 = np.linalg.inv(hess3)
-
-            #potential_covs_mini.append(shape_cov_mini(inv_hess1, pose_client.model, 0))
             self.potential_covs_normal.append(shape_cov(inv_hess2, pose_client.model, 0))
-            #self.potential_covs_normal.append(inv_hess2)
-            #potential_covs_hip.append(shape_cov_hip(inv_hess3, pose_client.model, 0))
 
             #take projection 
             self.potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
         return self.potential_covs_normal, self.potential_hessians_normal
-
 
     def find_best_potential_state(self):
         uncertainty_list = []

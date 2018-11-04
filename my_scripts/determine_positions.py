@@ -11,7 +11,7 @@ import cv2 as cv
 from torch.autograd import Variable
 import time
 from scipy.optimize import least_squares
-
+import pdb
 import util as demo_util
 
 #import openpose as openpose_module
@@ -19,7 +19,8 @@ import util as demo_util
 
 objective_flight = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
-objective_future = pose3d_future_parallel_wrapper()
+#objective_future = pose3d_future_parallel_wrapper()
+objective_future = pose3d_future()
 
 CURRENT_POSE_INDEX = 1
 FUTURE_POSE_INDEX = 0
@@ -160,8 +161,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
         func_eval_time = time.time() - start_time
         print("least squares eval time", func_eval_time)
-        P_world_scrambled = optimized_res.x
-        P_world = np.reshape(a = P_world_scrambled, newshape = result_shape, order = "C")
+        P_world = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
 
         if (pose_client.isCalibratingEnergy):
             optimized_3d_pose = P_world
@@ -176,7 +176,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
             pose_client.update3dPos(P_world, is_calib = pose_client.isCalibratingEnergy)
 
         if (pose_client.calc_hess):
-            
             #start_find_hess = time.time()
             #hess = objective.mini_hessian(P_world)
             #hess = objective.hessian(P_world)
@@ -214,7 +213,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         loss_dict = CALIBRATION_LOSSES
         func_eval_time = 0
         pose_client.future_pose = optimized_3d_pose
-        
     pose_client.error_2d.append(final_loss[0])
 
     root_est = optimized_3d_pose[:,joint_names.index('spine1')]
@@ -448,7 +446,6 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
             save_image(cropped_image, airsim_client.linecount, plot_loc, custom_name="cropped_img_")
             save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
             #save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
-
 
     elif (pose_client.modes["mode_2d"] == 0):
         bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, False, False, unreal_positions, bone_pos_3d_GT, photo_loc, 0)

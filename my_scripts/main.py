@@ -10,7 +10,7 @@ import pprint
 gt_hv = []
 est_hv = []
 USE_AIRSIM = False
-LENGTH_OF_SIMULATION = 1000
+LENGTH_OF_SIMULATION = 200
 photo_time = 0
 
 def get_client_unreal_values(client, X):
@@ -280,20 +280,20 @@ if __name__ == "__main__":
     use_trackbar = False
     
     use_airsim = True
-    active = False
-    calculate_hess = False
+    active = True
+    calculate_hess = True
 
     param_read_M = False
     param_find_M = False
-    is_quiet = True
+    is_quiet = False
     
     flight_window_size = 6
-    calibration_length = 12
+    calibration_length = 15
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":0, "mode_2d":0, "mode_lift":0} 
+    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
    
     animations = ["02_01"]#["64_06"]
     test_set = {}

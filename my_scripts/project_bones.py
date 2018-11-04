@@ -5,25 +5,24 @@ import numpy as np
 from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, px, py, FOCAL_LENGTH, SIZE_X, SIZE_Y 
 import pdb
 
-neat_tensor = Variable(torch.FloatTensor([[0, 0, 0, 1]]), requires_grad=False) #this tensor is neat!
-ones_tensor = Variable(torch.ones([1, 15]), requires_grad=False)*1.0
+neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
+ones_tensor = torch.ones([1, 15])*1.0
 DEFAULT_TORSO_SIZE = 0.42 #0.86710678118
 
 #R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
 C_cam = np.array([[CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z]]).T
 #R_cam_torch = Variable(torch.from_numpy(R_cam).float(), requires_grad = False)
-C_cam_torch = Variable(torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]]), requires_grad = False)
+C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]])
 
 FLIP_X_Y = np.array([[0,1,0],[-1,0,0],[0,0,1]])
-FLIP_X_Y_torch = Variable(torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]]), requires_grad = False)
-UNREAL_MAPPING_FUNC = Variable(torch.FloatTensor([[0,1,0,0],[-1,0,0,0],[0,0,1,0]]), requires_grad = False)
+FLIP_X_Y_torch = torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]])
 
 
 FLIP_X_Y_inv = np.linalg.inv(FLIP_X_Y)
 FLIP_X_Y_inv_torch = torch.inverse(FLIP_X_Y_torch)
 
 K = np.array([[FOCAL_LENGTH,0,px],[0,FOCAL_LENGTH,py],[0,0,1]])
-K_torch = Variable(torch.FloatTensor([[FOCAL_LENGTH,0,px],[0,FOCAL_LENGTH,py],[0,0,1]]), requires_grad = False)
+K_torch = (torch.FloatTensor([[FOCAL_LENGTH,0,px],[0,FOCAL_LENGTH,py],[0,0,1]]))
 K_inv = np.linalg.inv(K)
 K_inv_torch = torch.inverse(K_torch)
 
@@ -55,7 +54,7 @@ def take_bone_projection_pytorch(P_world, R_drone, C_drone, R_cam):
     z = x[2,:]
     
     num_of_joints = P_world.data.shape[1]
-    result = Variable(torch.zeros([2, num_of_joints]), requires_grad = False)
+    result = torch.zeros([2, num_of_joints])
     result[0,:] = x[0,:]/z
     result[1,:] = x[1,:]/z
     
@@ -182,7 +181,7 @@ class Projection_Client(object):
         self.num_of_joints = num_of_joints
         self.window_size = len(data_list)+1
         self.drone_transformation = torch.zeros(self.window_size , 4, 4)
-        self.pose_2d_tensor = torch.zeros(self.window_size , 2, num_of_joints)
+        self.pose_2d_tensor = torch.zeros(self.window_size, 2, num_of_joints)
 
         self.pose_2d_tensor[0, :, :] = potential_projected_est
         self.drone_transformation[0, :, :]= torch.inverse(torch.cat((torch.cat((R_drone, C_drone), dim=1), neat_tensor), dim=0))

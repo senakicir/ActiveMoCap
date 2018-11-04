@@ -1040,7 +1040,7 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
         center[2] = -center[2]
         centers.append(center)
         if ellipses:
-            x,y,z = matrix_to_ellipse(covs[state_ind], center, 3)
+            x,y,z = matrix_to_ellipse(covs[state_ind], center, 6)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
         else:
             ax.plot([center[0]], [center[1]], [center[2]], marker='^', color='b')
