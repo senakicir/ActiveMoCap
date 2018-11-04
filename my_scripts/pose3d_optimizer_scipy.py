@@ -1,23 +1,12 @@
 from helpers import * 
-from project_bones import take_bone_projection
+from project_bones import take_bone_projection, Projection_Client, take_bone_projection_pytorch
 from torch.autograd import Variable, grad
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
 
-
-def mse_loss(input_1, input_2):
-    N = np.prod(input_1.shape)
-    return np.sum(np.square((input_1 - input_2))) / N
-
 def find_residuals(input_1, input_2):
     return (np.square((input_1 - input_2))).ravel()
     
-def cauchy_loss(input_1, input_2):
-    N = np.prod(input_1.shape)
-    b = 1000
-    sigma = input_1 - input_2
-    C = (b*b)*np.log(1+np.square(sigma)/(b*b))
-    return np.sum(C)/N
 
 def fun_forward(pytorch_objective, x, new_shape):
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
@@ -85,9 +74,7 @@ class pose3d_calibration_scipy():
     def reset(self, pose_client):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
         self.data_list = pose_client.requiredEstimationData_calibration
-        self.energy_weights = pose_client.weights_calib
         self.pltpts = {}
-        self.loss_dict = pose_client.loss_dict_calib
         self.M = pose_client.M
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration(pose_client)
         self.result_shape = pose_client.result_shape_calib
@@ -124,6 +111,7 @@ class pose3d_calibration_scipy():
         jacobian =  gradient[:, np.newaxis]
         hessian = np.dot(jacobian, jacobian.T)
         return hessian
+
 
 class pose3d_flight_scipy():
 
@@ -281,4 +269,99 @@ class pose3d_future():
         jacobian = gradient[np.newaxis,:]
         return np.dot(jacobian.T, jacobian)
 
-    
+class pose3d_calibration_parallel_wrapper():
+    def __init__(self):
+        self.pytorch_objective = 0
+
+    def reset(self, pose_client):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        
+        data_list = pose_client.requiredEstimationData_calibration
+
+        projection_client = Projection_Client()
+        projection_client.reset(data_list, self.NUM_OF_JOINTS)
+        self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
+
+        self.pltpts = {}
+        self.result_shape = pose_client.result_shape_calib
+
+    def forward(self, x):
+        overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
+        self.pltpts = self.pytorch_objective.pltpts
+        return overall_output
+
+    def jacobian(self,x):
+        gradient = fun_jacobian(self.pytorch_objective, x, self.result_shape)
+        return gradient
+
+    def hessian(self, x):
+        hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
+        return hessian
+
+class pose3d_online_parallel_wrapper():
+
+    def reset(self, pose_client):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+
+        data_list = pose_client.requiredEstimationData
+        projection_client = Projection_Client()
+        projection_client.reset(data_list, self.NUM_OF_JOINTS)
+        
+        self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client)
+
+        self.pltpts = {}
+        self.result_shape = pose_client.result_shape_flight
+
+    def forward(self, x):
+        overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
+        self.pltpts = self.pytorch_objective.pltpts
+        return overall_output
+                
+    def jacobian(self,x):
+        gradient = fun_jacobian(self.pytorch_objective, x, self.result_shape)
+        return gradient
+
+    def hessian(self, x):
+        hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
+        return hessian
+
+class pose3d_future_parallel_wrapper():
+
+    def reset(self, pose_client, potential_state):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        data_list = pose_client.requiredEstimationData
+        projection_client = Projection_Client()
+        
+        self.pltpts = {}
+        self.loss_dict = pose_client.loss_dict_future
+        self.result_shape = pose_client.result_shape_flight
+
+        #future state 
+        yaw = potential_state["orientation"]
+        C_drone =  potential_state["position"]
+        potential_pitch = potential_state["pitch"]
+        future_pose = torch.from_numpy(pose_client.future_pose).float()
+
+        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
+        potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
+        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
+        potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
+
+        projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
+
+        #torch for jacobian
+        self.pytorch_objective = pytorch_optimizer.pose3d_future_parallel(pose_client, projection_client)
+
+    def forward(self, x):
+        overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
+        self.pltpts = self.pytorch_objective.pltpts
+        return overall_output
+        
+    def jacobian(self,x):
+        gradient = fun_jacobian(self.pytorch_objective, x, self.result_shape)
+        return gradient
+
+    def hessian(self, x):
+        hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
+        return hessian
+        

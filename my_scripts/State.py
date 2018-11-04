@@ -196,11 +196,11 @@ class Potential_States_Fetcher(object):
         cur_radius = np.linalg.norm(projected_distance_vect)
         
         new_rad = SAFE_RADIUS
-        UPPER_LIM = -5
-        LOWER_LIM = -2.5
+        UPPER_LIM = -7
+        LOWER_LIM = -1
         
         current_z = neutral_drone_pos[2]
-        print("current_z: ", current_z, "current_radius: ", cur_radius)
+        #print("current_z: ", current_z, "current_radius: ", cur_radius)
 
         current_theta = acos((current_z- self.future_human_pos[2, self.hip_index])/cur_radius)
 
@@ -222,6 +222,35 @@ class Potential_States_Fetcher(object):
         elif current_z - 1  < UPPER_LIM:
             new_theta_list = [current_theta+radians(-20), current_theta]
             self.current_state_ind = 4
+
+        for new_theta in new_theta_list:
+            for new_phi in new_phi_list:
+                x = new_rad*cos(new_phi)*sin(new_theta) + self.future_human_pos[0, self.hip_index]
+                y = new_rad*sin(new_phi)*sin(new_theta) + self.future_human_pos[1, self.hip_index]
+                z = new_rad*cos(new_theta)+ self.future_human_pos[2, self.hip_index]
+                drone_pos = np.array([x, y, z])
+                new_pitch = pi/2 -new_theta
+                self.potential_states.append({"position":np.copy(drone_pos), "orientation": new_phi+pi, "pitch": new_pitch})
+                difference = np.linalg.norm(self.current_drone_pos - drone_pos)
+                #print("new z: ", z, "difference: ", difference)
+        return self.potential_states
+
+    def get_potential_positions_spherical_no_lim(self):
+        neutral_drone_pos = np.copy(self.current_drone_pos + (self.future_human_pos[:, self.hip_index] - self.current_human_pos[:, self.hip_index]))
+        _, neutral_yaw = find_current_polar_info(neutral_drone_pos, self.future_human_pos[:, self.hip_index])
+        projected_distance_vect = neutral_drone_pos - self.future_human_pos[:, self.hip_index]
+        cur_radius = np.linalg.norm(projected_distance_vect)
+        
+        new_rad = SAFE_RADIUS
+
+        current_z = neutral_drone_pos[2]
+        print("current_z: ", current_z, "current_radius: ", cur_radius)
+
+        current_theta = acos((current_z- self.future_human_pos[2, self.hip_index])/cur_radius)
+
+        new_theta_list = [current_theta+radians(-20), current_theta, current_theta+radians(20)]
+        new_phi_list = [neutral_yaw+radians(-20), neutral_yaw, neutral_yaw+radians(20)]
+        self.current_state_ind = 4
 
         for new_theta in new_theta_list:
             for new_phi in new_phi_list:

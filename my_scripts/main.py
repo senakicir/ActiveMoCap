@@ -10,7 +10,7 @@ import pprint
 gt_hv = []
 est_hv = []
 USE_AIRSIM = False
-LENGTH_OF_SIMULATION = 100
+LENGTH_OF_SIMULATION = 1000
 photo_time = 0
 
 def get_client_unreal_values(client, X):
@@ -31,15 +31,11 @@ def get_client_unreal_values(client, X):
 
 def take_photo(airsim_client, image_folder_loc):
     if USE_AIRSIM:
-        ##timedebug
-        s1 = time.time()
         response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
+
+        airsim_client.simPause(True)
         response = response[0]
         X = response.bones  
-        global photo_time
-        photo_time = time.time() - s1
-        print("Get image from airsim takes" , photo_time)
-
         gt_numbers = vector3r_arr_to_dict(X)
         unreal_positions = get_client_unreal_values(airsim_client, gt_numbers)
         gt_str = ""
@@ -100,10 +96,9 @@ def main(kalman_arguments, parameters, energy_parameters):
         airsim_client.initInitialDronePos()
         airsim_client.changeAnimation(ANIM_TO_UNREAL[ANIMATION_NUM])
         airsim_client.changeCalibrationMode(True)
-        airsim_client.takeoffAsync(timeout_sec = 20)
+        airsim_client.takeoffAsync(timeout_sec = 20).join()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
         #airsim_client.moveToZAsync(-z_pos, 2, timeout_sec = 5, yaw_mode = airsim.YawMode(), lookahead = -1, adaptive_lookahead = 1)
-        time.sleep(20)
     else:
         filename_bones = 'test_sets/'+test_set_name+'/groundtruth.txt'
         filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
@@ -166,14 +161,14 @@ def main(kalman_arguments, parameters, energy_parameters):
     #    cv2.setTrackbarPos('Calibration mode','Calibration for 3d pose', 1)
 
     while (not end_test):
-
         if USE_AIRSIM:
             k = cv2.waitKey(1) & 0xFF
             if k == 27:
                 break
 
         _, f_groundtruth_str = take_photo(airsim_client, foldernames_anim["images"])
-
+        airsim_client.simPause(True)
+        
         if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
             #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
             airsim_client.changeCalibrationMode(False)
@@ -185,10 +180,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
-        airsim_client.simPause(True)
         positions, unreal_positions = determine_all_positions(airsim_client, pose_client, plot_loc = plot_loc_, photo_loc = photo_loc_)
-        airsim_client.simPause(False)
-
 
         current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
 
@@ -212,10 +204,11 @@ def main(kalman_arguments, parameters, energy_parameters):
             damping_speed = 0.025*airsim_client.linecount
         else:
             damping_speed = 0.5
-        airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
-        time.sleep(DELTA_T) 
-
+        
+        airsim_client.simPause(False)
+        airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
         airsim_client.simPause(True)
+
         plot_drone_traj(pose_client, plot_loc_, airsim_client.linecount)
         #if (airsim_client.linecount % 1 == 0 and not pose_client.quiet):
             #plot_global_motion(pose_client, plot_loc_, global_plot_ind)
@@ -234,7 +227,6 @@ def main(kalman_arguments, parameters, energy_parameters):
         f_output.write(f_output_str)
         f_groundtruth_str =  str(airsim_client.linecount) + '\t' +f_groundtruth_str + '\n'
         f_groundtruth.write(f_groundtruth_str)
-        airsim_client.simPause(False)
 
         airsim_client.linecount += 1
         print('linecount', airsim_client.linecount)
@@ -244,6 +236,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         else:
             if (airsim_client.linecount == LENGTH_OF_SIMULATION):
                 end_test = True
+        airsim_client.simPause(False)
 
     #calculate errors
     error_arr_pos = np.asarray(errors_pos)
@@ -285,19 +278,22 @@ if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" :1, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1e-3}
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
+    
     use_airsim = True
+    active = False
+    calculate_hess = False
+
     param_read_M = False
     param_find_M = False
-    is_quiet = False
-    calculate_hess = True
-    active = True
+    is_quiet = True
+    
     flight_window_size = 6
     calibration_length = 12
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
+    modes = {"mode_3d":0, "mode_2d":0, "mode_lift":0} 
    
     animations = ["02_01"]#["64_06"]
     test_set = {}
