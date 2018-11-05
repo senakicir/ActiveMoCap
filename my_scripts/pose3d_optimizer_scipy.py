@@ -112,21 +112,21 @@ class pose3d_calibration_scipy():
         return hessian
 
 
-class pose3d_flight_scipy():
+class pose3d_online_scipy():
 
     def reset(self, pose_client):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
         self.data_list = pose_client.requiredEstimationData
         self.lift_list = pose_client.liftPoseList
-        self.energy_weights = pose_client.weights_flight
+        self.energy_weights = pose_client.weights_online
         self.pltpts = {}
-        self.loss_dict = pose_client.loss_dict_flight
-        self.window_size = pose_client.FLIGHT_WINDOW_SIZE
+        self.loss_dict = pose_client.loss_dict_online
+        self.window_size = pose_client.online_WINDOW_SIZE
         self.bone_lengths = pose_client.boneLengths
-        self.pytorch_objective = pytorch_optimizer.pose3d_flight(pose_client)
+        self.pytorch_objective = pytorch_optimizer.pose3d_online(pose_client)
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
         self.M = pose_client.M
-        self.result_shape = pose_client.result_shape_flight
+        self.result_shape = pose_client.result_shape_online
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
@@ -193,10 +193,10 @@ class pose3d_future():
         self.energy_weights = pose_client.weights_future
         self.pltpts = {}
         self.loss_dict = pose_client.loss_dict_future
-        self.window_size = pose_client.FLIGHT_WINDOW_SIZE
+        self.window_size = pose_client.online_WINDOW_SIZE
         self.bone_lengths = pose_client.boneLengths
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
-        self.result_shape = pose_client.result_shape_flight
+        self.result_shape = pose_client.result_shape_online
 
         #future state 
         yaw = potential_state["orientation"]
@@ -309,7 +309,7 @@ class pose3d_online_parallel_wrapper():
         self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client)
 
         self.pltpts = {}
-        self.result_shape = pose_client.result_shape_flight
+        self.result_shape = pose_client.result_shape_online
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
@@ -333,7 +333,7 @@ class pose3d_future_parallel_wrapper():
         
         self.pltpts = {}
         self.loss_dict = pose_client.loss_dict_future
-        self.result_shape = pose_client.result_shape_flight
+        self.result_shape = pose_client.result_shape_online
 
         #future state 
         yaw = potential_state["orientation"]

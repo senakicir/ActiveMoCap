@@ -84,7 +84,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     test_set_name = parameters["TEST_SET_NAME"]
     file_names = parameters["FILE_NAMES"]
     folder_names = parameters["FOLDER_NAMES"]
-    IS_ACTIVE = parameters["ACTIVE"]
+    trajectory = parameters["TRAJECTORY"]
 
     #connect to the AirSim simulator
     if USE_AIRSIM:
@@ -101,7 +101,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         #airsim_client.moveToZAsync(-z_pos, 2, timeout_sec = 5, yaw_mode = airsim.YawMode(), lookahead = -1, adaptive_lookahead = 1)
     else:
         filename_bones = 'test_sets/'+test_set_name+'/groundtruth.txt'
-        filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
+        filename_output = 'test_sets/'+test_set_name+'/a_online.txt'
         airsim_client = NonAirSimClient(filename_bones, filename_output)
 
     pose_client = PoseEstimationClient(energy_parameters)
@@ -185,15 +185,18 @@ def main(kalman_arguments, parameters, energy_parameters):
         current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
 
         #finds desired position and yaw angle
-        if (USE_TRACKBAR):
-            [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
-        elif (IS_ACTIVE):
-            if(pose_client.isCalibratingEnergy):
-                [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
-            else:
-                [desired_pos, desired_yaw_deg] = current_state.get_goal_pos_and_yaw_active(pose_client)
-        else:
+        #if (USE_TRACKBAR):
+          #  [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
+
+        if(pose_client.isCalibratingEnergy):
             [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
+        else
+            if trajectory == 0:
+                [desired_pos, desired_yaw_deg] = current_state.get_goal_pos_and_yaw_active(pose_client)
+            elif trajectory == 1:
+                [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
+            elif trajectory == 2:
+                [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
         
         #find desired drone speed
         desired_vel = (desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
@@ -206,7 +209,10 @@ def main(kalman_arguments, parameters, energy_parameters):
             damping_speed = 0.5
         
         airsim_client.simPause(False)
-        airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+        if USE_AIRSIM:
+            airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+        else:
+            airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         airsim_client.simPause(True)
 
         plot_drone_traj(pose_client, plot_loc_, airsim_client.linecount)
@@ -258,7 +264,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     if (pose_client.modes["mode_3d"] == 3):
         simple_plot(pose_client.error_2d, estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
     simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
-    simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="flight_error_3d", x_label="Frames", y_label="Error")
+    simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="online_error_3d", x_label="Frames", y_label="Error")
     
     if (pose_client.calc_hess and not pose_client.quiet):
         plot_covariances(pose_client, plot_loc_, "future_current_cov_")
@@ -279,15 +285,16 @@ if __name__ == "__main__":
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
     
-    use_airsim = True
-    active = True
+    use_airsim = False
+    #trajectory = 0-active, 1-rotation baseline, 2-constant angle
+    trajectory = 1
     calculate_hess = True
 
     param_read_M = False
     param_find_M = False
     is_quiet = False
     
-    flight_window_size = 6
+    online_window_size = 6
     calibration_length = 15
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
@@ -302,12 +309,12 @@ if __name__ == "__main__":
 
     file_names, folder_names, f_notes_name, _ = reset_all_folders(animations)
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "ACTIVE": active}
+    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "TRAJECTORY": trajectory}
     
     weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
     weights = normalize_weights(weights_)
 
-    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess,"FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
+    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess,"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
     fill_notes(f_notes_name, parameters, energy_parameters)   
 
     if (use_airsim):

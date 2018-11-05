@@ -17,7 +17,7 @@ class PoseEstimationClient(object):
         _, _, num_of_joints, _ = model_settings(self.model)
 
         self.boneLengths = torch.zeros([num_of_joints-1,1])
-        self.FLIGHT_WINDOW_SIZE = param["FLIGHT_WINDOW_SIZE"]
+        self.ONLINE_WINDOW_SIZE = param["ONLINE_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
 
         self.plot_info = []
@@ -27,11 +27,13 @@ class PoseEstimationClient(object):
         self.poseList_3d_calibration = []
         self.liftPoseList = []
 
+        self.middle_pose_GT_list = []
+
         self.requiredEstimationData = []
         self.requiredEstimationData_calibration = []
 
         self.calib_res_list = []
-        self.flight_res_list = []
+        self.online_res_list = []
         self.f_string = ""
         self.processing_time = []
 
@@ -57,20 +59,19 @@ class PoseEstimationClient(object):
         self.future_measurement_cov = np.eye(3)
 
         self.calib_cov_list = []
-        self.flight_cov_list = []
+        self.online_cov_list = []
         
         self.quiet = param["QUIET"]
 
         self.result_shape_calib = [3, num_of_joints]
-        #self.result_shape_future = [3, num_of_joints]
-        self.result_shape_flight = [self.FLIGHT_WINDOW_SIZE+1, 3, num_of_joints]
+        self.result_shape_online = [self.ONLINE_WINDOW_SIZE+1, 3, num_of_joints]
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
-        self.weights_flight = param["WEIGHTS"]
+        self.weights_online = param["WEIGHTS"]
         self.weights_future = param["WEIGHTS"]
 
         self.loss_dict_calib = CALIBRATION_LOSSES
-        self.loss_dict_flight = LOSSES
+        self.loss_dict_online = LOSSES
         self.loss_dict_future = FUTURE_LOSSES
 
         self.goal_state = 0
@@ -78,7 +79,7 @@ class PoseEstimationClient(object):
 
     def reset(self, plot_loc):
         if self.param_find_M:
-            M = find_M(self.flight_res_list, self.model)
+            M = find_M(self.online_res_list, self.model)
             #plot_matrix(M, plot_loc, 0, "M", "M")
        
         self.plot_info = []
@@ -91,7 +92,7 @@ class PoseEstimationClient(object):
         self.requiredEstimationData_calibration = []
         
         self.calib_cov_list = []
-        self.flight_cov_list = []
+        self.online_cov_list = []
 
         self.isCalibratingEnergy = True
         return 0        
@@ -102,7 +103,7 @@ class PoseEstimationClient(object):
         if self.isCalibratingEnergy:
             self.calib_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
         else:
-            self.flight_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
+            self.online_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
 
     def updateMeasurementCov(self, cov, curr_pose_ind, future_pose_ind):
         if  self.isCalibratingEnergy:
@@ -114,7 +115,7 @@ class PoseEstimationClient(object):
         else:
             future_inv_hess = shape_cov(cov, self.model, future_pose_ind)
             self.future_measurement_cov = future_inv_hess
-            self.flight_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
+            self.online_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
     def updateMeasurementCov_mini(self, cov, curr_pose_ind, future_pose_ind):
         if self.isCalibratingEnergy:
@@ -126,7 +127,7 @@ class PoseEstimationClient(object):
         else:
             future_inv_hess = shape_cov_mini(cov, self.model, future_pose_ind)
             self.future_measurement_cov = future_inv_hess
-            self.flight_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
+            self.online_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
     def changeCalibrationMode(self, calibMode):
         self.isCalibratingEnergy = calibMode
@@ -139,15 +140,15 @@ class PoseEstimationClient(object):
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, pose3d_, pose3d_lift = None):
         self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone])
-        if (len(self.requiredEstimationData) > self.FLIGHT_WINDOW_SIZE):
+        if (len(self.requiredEstimationData) > self.online_WINDOW_SIZE):
             self.requiredEstimationData.pop()
 
         self.poseList_3d.insert(0, pose3d_)
-        if (len(self.poseList_3d) > self.FLIGHT_WINDOW_SIZE):
+        if (len(self.poseList_3d) > self.online_WINDOW_SIZE):
             self.poseList_3d.pop()
 
         self.liftPoseList.insert(0, pose3d_lift)
-        if (len(self.liftPoseList) > self.FLIGHT_WINDOW_SIZE):
+        if (len(self.liftPoseList) > self.online_WINDOW_SIZE):
             self.liftPoseList.pop()
 
     def update3dPos(self, pose3d_, is_calib = False):
@@ -167,3 +168,8 @@ class PoseEstimationClient(object):
         else:
             for ind in range(0,len(self.poseList_3d)):
                 self.poseList_3d[ind] = pose3d_[ind, :, :].copy()
+
+    def update_middle_pose_GT(self, middle_pose):
+        self.middle_pose_GT_list.insert(0, middle_pose)
+        if (len(middle_pose_GT_list) > MIDDLE_POSE_INDEX):
+            self.middle_pose_GT_list.pop()

@@ -72,7 +72,7 @@ def pose_test(parameters, energy_parameters):
 
         client.addNewFrame(bone_2d, R_drone, C_drone, pose3d_, pose3d_silly)
 
-    objective = pose3d_flight(client.boneLengths, client.WINDOW_SIZE, client.model)
+    objective = pose3d_online(client.boneLengths, client.WINDOW_SIZE, client.model)
     optimizer = torch.optim.SGD(objective.parameters(), lr = client.lr, momentum=client.mu)
     
     #plot "before" pictures

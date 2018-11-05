@@ -57,6 +57,10 @@ CAMERA_PITCH_OFFSET = 0
 CAMERA_YAW_OFFSET = 0
 FRAME_START_OPTIMIZING = 5
 
+CURRENT_POSE_INDEX = 1
+FUTURE_POSE_INDEX = 0
+MIDDLE_POSE_INDEX = 3
+
 def find_bone_map():
     bones_map_to_mpi = []
     for ind, value in enumerate(joint_names_mpi):
@@ -216,7 +220,7 @@ def reset_all_folders(animation_list, base = ""):
         for a_folder_name in folder_names[animation].values():
             if not os.path.exists(a_folder_name):
                 os.makedirs(a_folder_name)
-        file_names[animation] = {"f_output": sub_folder_name +  '/a_flight.txt', "f_groundtruth": sub_folder_name +  '/groundtruth.txt'}
+        file_names[animation] = {"f_output": sub_folder_name +  '/a_online.txt', "f_groundtruth": sub_folder_name +  '/groundtruth.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
@@ -325,21 +329,21 @@ def plot_covariances(pose_client, plot_loc, custom_name):
     vmin_calib = min(calib_list_min)
     vmax_calib = max(calib_list_max)
 
-    flight_list_min = []
-    flight_list_max = []
-    for ele in pose_client.flight_cov_list:
+    online_list_min = []
+    online_list_max = []
+    for ele in pose_client.online_cov_list:
         curr = ele["curr"]
         future = ele["future"]
-        flight_list_min.append(curr.min())
-        flight_list_max.append(curr.max())
-        flight_list_min.append(future.min())
-        flight_list_max.append(future.max())
-    vmin_flight = min(flight_list_min)
-    vmax_flight = max(flight_list_max)
+        online_list_min.append(curr.min())
+        online_list_max.append(curr.max())
+        online_list_min.append(future.min())
+        online_list_max.append(future.max())
+    vmin_online = min(online_list_min)
+    vmax_online = max(online_list_max)
 
     cmap = cm.viridis
     norm_calib = colors.Normalize(vmin=vmin_calib, vmax=vmax_calib)
-    norm_flight = colors.Normalize(vmin=vmin_flight, vmax=vmax_flight)
+    norm_online = colors.Normalize(vmin=vmin_online, vmax=vmax_online)
 
     for ind, matrix1 in enumerate(pose_client.calib_cov_list):
         fig = plt.figure()
@@ -355,17 +359,17 @@ def plot_covariances(pose_client, plot_loc, custom_name):
         plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
 
-    for ind, ele in enumerate(pose_client.flight_cov_list):
+    for ind, ele in enumerate(pose_client.online_cov_list):
         curr = ele["curr"]
         future = ele["future"]
         fig, _ = plt.subplots(1,2)
 
         ax1 = plt.subplot(1,2,1)
-        _ = ax1.imshow(curr, cmap=cmap, norm=norm_flight)
+        _ = ax1.imshow(curr, cmap=cmap, norm=norm_online)
         plt.title("Current frame")    
 
         ax2 = plt.subplot(1,2,2)
-        im2 = ax2.imshow(future, cmap=cmap, norm=norm_flight)
+        im2 = ax2.imshow(future, cmap=cmap, norm=norm_online)
         plt.title("Future frame")  
 
         fig.suptitle('Covariance matrix')
@@ -545,8 +549,8 @@ def plot_global_motion(pose_client, plot_loc, ind):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/global_plot_calib_'+ str(ind) + '.png'
     else:
-        plot_info = pose_client.flight_res_list
-        file_name = plot_loc + '/global_plot_flight_'+ str(ind) + '.png'
+        plot_info = pose_client.online_res_list
+        file_name = plot_loc + '/global_plot_online_'+ str(ind) + '.png'
 
     fig = plt.figure()
     bone_connections, _, _, _ = model_settings(pose_client.model)
@@ -606,7 +610,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
     else:
-        plot_info = pose_client.flight_res_list
+        plot_info = pose_client.online_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
 
     fig = plt.figure()
@@ -806,8 +810,8 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/ellipse_calib_'+ str(ind) + '.png'
     else:
-        plot_info = pose_client.flight_res_list
-        file_name = plot_loc + '/ellipse_flight_'+ str(ind) + '.png'
+        plot_info = pose_client.online_res_list
+        file_name = plot_loc + '/ellipse_online_'+ str(ind) + '.png'
 
     bone_connections, joint_names, _, _ = model_settings(pose_client.model)
     hip_index = joint_names.index('spine1')

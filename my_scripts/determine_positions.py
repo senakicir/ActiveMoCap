@@ -19,11 +19,16 @@ import util as demo_util
 
 objective_flight = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
-#objective_future = pose3d_future_parallel_wrapper()
-objective_future = pose3d_future()
+objective_future = pose3d_future_parallel_wrapper()
+#objective_future = pose3d_future()
 
 CURRENT_POSE_INDEX = 1
 FUTURE_POSE_INDEX = 0
+MIDDLE_POSE_INDEX = 3
+
+def adjust_with_M(M, pose, joint_names):
+    root_pose = pose[:,joint_names.index('spine1')]
+    return np.dot(pose - root_pose[:, np.newaxis], M)+root_pose[:, np.newaxis]
 
 def determine_all_positions(airsim_client, pose_client,  plot_loc = 0, photo_loc = 0):
     if (pose_client.modes["mode_3d"] == 0):
@@ -173,24 +178,14 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         else:
             optimized_3d_pose =  P_world[CURRENT_POSE_INDEX, :,:] #current pose
             pose_client.future_pose =  P_world[FUTURE_POSE_INDEX, :,:] #future pose
+            temp_middle_pose_ = P_world[MIDDLE_POSE_INDEX, :,:] #middle_pose
             pose_client.update3dPos(P_world, is_calib = pose_client.isCalibratingEnergy)
 
-        if (pose_client.calc_hess):
-            #start_find_hess = time.time()
-            #hess = objective.mini_hessian(P_world)
-            #hess = objective.hessian(P_world)
-            #hess = objective.approx_hessian(P_world)
-            #end_find_hess = time.time()
-            #inv_hess = np.linalg.inv(hess)
-            #pose_client.updateMeasurementCov(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
-            #pose_client.updateMeasurementCov_mini(inv_hess, CURRENT_POSE_INDEX, FUTURE_POSE_INDEX)
-            #print("Time for finding hessian:", end_find_hess-start_find_hess)
+            if (pose_client.calc_hess):
+                #find candidate drone positions
+                potential_states_fetcher = Potential_States_Fetcher(C_drone, optimized_3d_pose, pose_client.future_pose, pose_client.model)
+                potential_states = potential_states_fetcher.get_potential_positions_spherical()
 
-            #find candidate drone positions
-            potential_states_fetcher = Potential_States_Fetcher(C_drone, optimized_3d_pose, pose_client.future_pose, pose_client.model)
-            potential_states = potential_states_fetcher.get_potential_positions_spherical()
-
-            if not pose_client.isCalibratingEnergy:
                 #find hessian for each drone position
                 potential_states_fetcher.find_hessians_for_potential_states(objective_future, pose_client, P_world)
                 goal_state = potential_states_fetcher.find_best_potential_state()
@@ -202,23 +197,20 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
                     plot_potential_states(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
                     #plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, None, pose_client.model, plot_loc, airsim_client.linecount, ellipses=False)
                     plot_potential_projections(potential_states_fetcher.potential_pose2d_list, airsim_client.linecount, plot_loc, photo_loc, pose_client.model)
-
                     plot_potential_hessians(potential_states_fetcher.potential_covs_normal, airsim_client.linecount, plot_loc, custom_name = "potential_covs_normal_")
-                    #plot_potential_hessians(potential_hessians_normal, airsim_client.linecount, plot_loc, custom_name = "potential_hess_normal_")
                     plot_potential_ellipses(optimized_3d_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states_fetcher, pose_client.model, plot_loc, airsim_client.linecount)
 
-    #if the frame is the first frame, the energy is found through backprojection
+    #if the frame is the first frame, the pose is found through backprojection
     else:
         optimized_3d_pose = pre_pose_3d
+        pose_client.future_pose = optimized_3d_pose
         loss_dict = CALIBRATION_LOSSES
         func_eval_time = 0
-        pose_client.future_pose = optimized_3d_pose
     pose_client.error_2d.append(final_loss[0])
 
-    root_est = optimized_3d_pose[:,joint_names.index('spine1')]
-    optimized_3d_pose = np.dot(optimized_3d_pose - root_est[:, np.newaxis], pose_client.M)+root_est[:, np.newaxis]
-    #root_future = pose_client.future_pose[:,joint_names.index('spine1')]
-    #M_future_pose = np.dot(pose_client.future_pose - root_future[:, np.newaxis], pose_client.M)+root_future[:, np.newaxis]
+    optimized_3d_pose = adjust_with_M(pose_client.M, optimized_3d_pose, joint_names)
+    future_pose = adjust_with_M(pose_client.M, pose_client.future_pose, joint_names)
+    middle_pose = adjust_with_M(pose_client.M, temp_middle_pose_, joint_names)
 
     R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
     check,  _ = take_bone_projection(optimized_3d_pose, R_drone, C_drone, R_cam)
@@ -233,7 +225,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
         if (not pose_client.isCalibratingEnergy):
-            #plot_human(optimized_3d_pose, M_future_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
+            plot_human(optimized_3d_pose, future_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
             pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, joint_names, is_torch=False)
             bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, joint_names, is_torch=False)
             #optimized_3d_pose_normalized, _ = normalize_pose(optimized_3d_pose, joint_names, is_torch=False)
