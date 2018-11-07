@@ -121,7 +121,7 @@ class pose3d_online_scipy():
         self.energy_weights = pose_client.weights_online
         self.pltpts = {}
         self.loss_dict = pose_client.loss_dict_online
-        self.window_size = pose_client.online_WINDOW_SIZE
+        self.window_size = pose_client.ONLINE_WINDOW_SIZE
         self.bone_lengths = pose_client.boneLengths
         self.pytorch_objective = pytorch_optimizer.pose3d_online(pose_client)
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
@@ -193,7 +193,7 @@ class pose3d_future():
         self.energy_weights = pose_client.weights_future
         self.pltpts = {}
         self.loss_dict = pose_client.loss_dict_future
-        self.window_size = pose_client.online_WINDOW_SIZE
+        self.window_size = pose_client.ONLINE_WINDOW_SIZE
         self.bone_lengths = pose_client.boneLengths
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
         self.result_shape = pose_client.result_shape_online

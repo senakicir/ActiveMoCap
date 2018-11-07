@@ -6,11 +6,12 @@ from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
 import pprint
+import os
 
 gt_hv = []
 est_hv = []
 USE_AIRSIM = False
-LENGTH_OF_SIMULATION = 200
+LENGTH_OF_SIMULATION = 100
 photo_time = 0
 
 def get_client_unreal_values(client, X):
@@ -81,6 +82,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     global USE_AIRSIM
     USE_AIRSIM = parameters["USE_AIRSIM"]
     ANIMATION_NUM = parameters["ANIMATION_NUM"]
+    experiment_name = parameters["EXPERIMENT_NAME"]
     test_set_name = parameters["TEST_SET_NAME"]
     file_names = parameters["FILE_NAMES"]
     folder_names = parameters["FOLDER_NAMES"]
@@ -101,7 +103,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         #airsim_client.moveToZAsync(-z_pos, 2, timeout_sec = 5, yaw_mode = airsim.YawMode(), lookahead = -1, adaptive_lookahead = 1)
     else:
         filename_bones = 'test_sets/'+test_set_name+'/groundtruth.txt'
-        filename_output = 'test_sets/'+test_set_name+'/a_online.txt'
+        filename_output = 'test_sets/'+test_set_name+'/a_flight.txt'
         airsim_client = NonAirSimClient(filename_bones, filename_output)
 
     pose_client = PoseEstimationClient(energy_parameters)
@@ -113,8 +115,8 @@ def main(kalman_arguments, parameters, energy_parameters):
     est_hp = []
    # global_plot_ind = 0
 
-    filenames_anim = file_names[ANIMATION_NUM]
-    foldernames_anim = folder_names[ANIMATION_NUM]
+    filenames_anim = file_names[experiment_name]
+    foldernames_anim = folder_names[experiment_name]
     f_output = open(filenames_anim["f_output"], 'w')
     f_groundtruth = open(filenames_anim["f_groundtruth"], 'w')
 
@@ -187,30 +189,60 @@ def main(kalman_arguments, parameters, energy_parameters):
         #finds desired position and yaw angle
         #if (USE_TRACKBAR):
           #  [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
+        if (airsim_client.linecount < 5):
+            calib_speed = TOP_SPEED*(airsim_client.linecount+1)/4
+        else:
+            calib_speed = TOP_SPEED
 
         if(pose_client.isCalibratingEnergy):
             [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
-        else
-            if trajectory == 0:
-                [desired_pos, desired_yaw_deg] = current_state.get_goal_pos_and_yaw_active(pose_client)
-            elif trajectory == 1:
-                [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
-            elif trajectory == 2:
-                [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
+            desired_vel = calib_speed*(desired_pos-current_state.drone_pos)/np.linalg.norm((desired_pos-current_state.drone_pos))
+        else:
+            potential_states_fetcher = Potential_States_Fetcher(pose_client, current_state.drone_pos)
+            if trajectory == 3: ##CONSTANT ANGLE
+                do_nothing()
+            #find candidate drone positions
+            else:
+                if (trajectory == 0): #ACTIVE
+                    #find hessian for each drone position
+                    potential_states_fetcher.get_potential_positions_really_spherical_future()
+                    potential_states_fetcher.find_hessians_for_potential_states(objective_future, pose_client, pose_client.P_world)
+                    goal_state = potential_states_fetcher.find_best_potential_state()
+                    desired_vel, new_orientation = potential_states_fetcher.find_goal_vel_and_yaw(goal_state)
+
+                    if not pose_client.quiet:
+                        plot_potential_hessians(potential_states_fetcher.potential_covs_normal, airsim_client.linecount, plot_loc_, custom_name = "potential_covs_normal_")
+                        #plot potential states and current state, projections of each state, cov's of each state
+                        #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
+                        plot_potential_projections(potential_states_fetcher.potential_pose2d_list, airsim_client.linecount, plot_loc_, photo_loc_, pose_client.model)
+                        #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
+                        plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount, ellipses=False)
+                
+                if trajectory == 1: #CONSTANT ROT
+                    #goal_state = potential_states_fetcher.constant_rotation_baseline()
+                    desired_vel, new_orientation = potential_states_fetcher.constant_rotation_baseline_future()
+
+                if (trajectory ==2): #RANDOM
+                    potential_states_fetcher.get_potential_positions_really_spherical()
+                    goal_state = potential_states_fetcher.find_random_next_state()
+            desired_yaw_deg = current_state.get_delta_orient(new_orientation)
         
         #find desired drone speed
-        desired_vel = (desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
-        drone_speed = np.linalg.norm(desired_vel)        
+        #desired_vel = 5#(desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
+        #drone_speed = np.linalg.norm(desired_vel)    
+        #     
 
         #move drone!
-        if (airsim_client.linecount <5):
-            damping_speed = 0.025*airsim_client.linecount
+        if (airsim_client.linecount < 5):
+            damping_speed = 0.001 *airsim_client.linecount
         else:
             damping_speed = 0.5
         
         airsim_client.simPause(False)
         if USE_AIRSIM:
-            airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+            #airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+            print("desired vel", desired_vel[2])
+            airsim_client.moveByVelocityAsync(desired_vel[0], desired_vel[1], desired_vel[2], DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg)).join()
         else:
             airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         airsim_client.simPause(True)
@@ -245,6 +277,7 @@ def main(kalman_arguments, parameters, energy_parameters):
         airsim_client.simPause(False)
 
     #calculate errors
+    airsim_client.simPause(True)
     error_arr_pos = np.asarray(errors_pos)
     errors["error_ave_pos"] = np.mean(error_arr_pos)
     errors["error_std_pos"] = np.std(error_arr_pos)
@@ -253,6 +286,7 @@ def main(kalman_arguments, parameters, energy_parameters):
     errors["error_ave_vel"] = np.mean(error_arr_vel)
     errors["error_std_vel"] = np.std(error_arr_vel)
     errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
+    errors["middle_3d_err"] = sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
 
     gt_hp_arr = np.asarray(gt_hp)
     est_hp_arr = np.asarray(est_hp)
@@ -266,17 +300,16 @@ def main(kalman_arguments, parameters, energy_parameters):
     simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
     simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="online_error_3d", x_label="Frames", y_label="Error")
     
-    if (pose_client.calc_hess and not pose_client.quiet):
-        plot_covariances(pose_client, plot_loc_, "future_current_cov_")
+    #if (pose_client.calc_hess and not pose_client.quiet):
+    #    plot_covariances(pose_client, plot_loc_, "future_current_cov_")
 
     print('End it!')
     f_groundtruth.close()
     f_output.close()
+    airsim_client.simPause(False)
 
     airsim_client.reset()
     pose_client.reset(plot_loc_) #DO NOT FORGET
-
-    airsim_client.changeAnimation(0) #reset animation
 
     return errors
 
@@ -285,10 +318,11 @@ if __name__ == "__main__":
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
     
-    use_airsim = False
-    #trajectory = 0-active, 1-rotation baseline, 2-constant angle
+    use_airsim = True
+    #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle
     trajectory = 1
-    calculate_hess = True
+    #hessian method 0-future, 1- middle, 2-whole
+    hessian_method = 1
 
     param_read_M = False
     param_find_M = False
@@ -302,30 +336,43 @@ if __name__ == "__main__":
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
    
-    animations = ["02_01"]#["64_06"]
-    test_set = {}
-    for animation_num in animations:
-        test_set[animation_num] = TEST_SETS[animation_num]
+    num_of_experiments = 3
+    animations = {"02_01": num_of_experiments}
 
-    file_names, folder_names, f_notes_name, _ = reset_all_folders(animations)
+    #test_set = {}
+    #for animation_num in animations:
+    #    test_set[animation_num] = TEST_SETS[animation_num]
+    #for experiment_name in experiment_names:
+    #    test_set[animation_num] = TEST_SETS[animation_num]
+    file_names, folder_names, f_notes_name, _ = reset_all_folders(animations, "/Users/kicirogl/Documents/temp_main")
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "TRAJECTORY": trajectory}
     
     weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
     weights = normalize_weights(weights_)
 
-    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess,"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
+    energy_parameters = {"HESSIAN_METHOD": hessian_method, "ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
     fill_notes(f_notes_name, parameters, energy_parameters)   
 
+    many_runs_last = []
+    many_runs_middle = []
     if (use_airsim):
-        for animation_num in animations:
-            parameters["ANIMATION_NUM"]=  animation_num
-            parameters["TEST_SET_NAME"]= ""
-            errors = main(kalman_arguments, parameters, energy_parameters)
-            print(errors)
+        for animation in animations:
+            for ind in range(animations[animation]):
+                key = str(animation) + "_" + str(ind)
+                parameters["ANIMATION_NUM"]=  animation
+                parameters["EXPERIMENT_NAME"] = key
+                parameters["TEST_SET_NAME"]= ""
+                errors = main(kalman_arguments, parameters, energy_parameters)
+                many_runs_last.append(errors["ave_3d_err"] )
+                many_runs_middle.append(errors["middle_3d_err"] )
     else:
+        ind = 0
         for animation_num, test_set in test_set.items():
             parameters["ANIMATION_NUM"]=  animation_num
+            parameters["EXPERIMENT_NAME"] = animation_num + "run_" + str(ind)
             parameters["TEST_SET_NAME"]= test_set
             errors = main(kalman_arguments, parameters, energy_parameters)
-            print(errors)
+            ind += 1
+    
+    append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

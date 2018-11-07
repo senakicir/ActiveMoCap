@@ -21,6 +21,7 @@ energy_mode = {1:True, 0:False}
 LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 CALIBRATION_LOSSES = ["proj", "sym"]
 FUTURE_LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
+TOP_SPEED = 3
 
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
@@ -215,12 +216,17 @@ def reset_all_folders(animation_list, base = ""):
     file_names = {}
     folder_names = {}
     for animation in animation_list:
-        sub_folder_name = main_folder_name + "/" + str(TEST_SETS[animation])
-        folder_names[animation] = {"images": sub_folder_name + '/images', "estimates": sub_folder_name + '/estimates', "superimposed_images":  sub_folder_name + '/superimposed_images'}
-        for a_folder_name in folder_names[animation].values():
-            if not os.path.exists(a_folder_name):
-                os.makedirs(a_folder_name)
-        file_names[animation] = {"f_output": sub_folder_name +  '/a_online.txt', "f_groundtruth": sub_folder_name +  '/groundtruth.txt'}
+        sub_folder_name = main_folder_name + "/" + str(animation)
+        for ind in range(animation_list[animation]):
+            experiment_folder_name = sub_folder_name + "/" + str(ind)
+            if not os.path.exists(experiment_folder_name):
+                os.makedirs(experiment_folder_name)
+            key = str(animation) + "_" + str(ind)
+            folder_names[key] = {"images": experiment_folder_name + '/images', "estimates": experiment_folder_name + '/estimates', "superimposed_images":  experiment_folder_name + '/superimposed_images'}
+            for a_folder_name in folder_names[key].values():
+                if not os.path.exists(a_folder_name):
+                    os.makedirs(a_folder_name)
+            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
@@ -240,7 +246,15 @@ def fill_notes(f_notes_name, parameters, energy_parameters):
         notes_str += str(key) + " : " + str(value)
         notes_str += '\n'
     f_notes.write(notes_str)
-    
+    f_notes.close()
+
+def append_error_notes(f_notes_name, err_1, err_2):
+    f_notes = open(f_notes_name, 'w')
+    notes_str = "\n---\nResults:\n"
+    notes_str += "last frame error: ave:" + str(np.mean(np.array(err_1), axis=0)) + '\tstd:' + str(np.std(np.array(err_1), axis=0)) +"\n"
+    notes_str += "mid frame error: ave:" + str(np.mean(np.array(err_2), axis=0)) + '\tstd:' + str(np.std(np.array(err_2), axis=0)) +"\n"
+    f_notes.write(notes_str)
+    f_notes.close()
 
 def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name):
     #PLOT STUFF HERE AT THE END OF SIMULATION
@@ -464,7 +478,7 @@ def save_image(img, ind, plot_loc, custom_name=None):
     plt.close(fig)
 
 
-def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, error = -5, custom_name = None, orientation = "z_up", label_names =None):   
+def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, error = -5, custom_name = None, orientation = "z_up", label_names =None, additional_text =None):   
     if custom_name == None:
         name = '/plot3d_'
     else: 
@@ -485,10 +499,6 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
         # maintain aspect ratio
         Y = bones_GT[1,:]
         Z = -bones_GT[2,:]
-    elif (orientation == "y_up"):
-        # maintain aspect ratio
-        Y = bones_GT[2,:]
-        Z = -bones_GT[1,:]
         
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.8
     mid_x = (X.max()+X.min()) * 0.5
@@ -498,48 +508,36 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
-    #plot drone
-    #plot1 = ax.scatter(drone[0], drone[1], drone[2], c='r', marker='o')
-
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
-    if (orientation == "z_up"):
-        #plot joints
-        for i, bone in enumerate(left_bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
-        for i, bone in enumerate(right_bone_connections):
-            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
-        for i, bone in enumerate(middle_bone_connections):
-            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
+    #plot joints
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
 
-        for i, bone in enumerate(left_bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
-        for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
-        for i, bone in enumerate(middle_bone_connections):
-            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+    for i, bone in enumerate(left_bone_connections):
+        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
+    for i, bone in enumerate(right_bone_connections):
+        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
 
-        ax.legend(handles=[plot1, plot1_r, plot2, plot2_r])
-        
-        ax.set_xlabel('X')
-        ax.set_ylabel('Y')
-        ax.set_zlabel('Z')
+    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r])
+    
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
 
-    elif (orientation == "y_up"):
-        #plot joints
-        for i, bone in enumerate(bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[2,bone], -bones_GT[1,bone], c='b', marker='^', label=blue_label)
-        for i, bone in enumerate(bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[2,bone], -predicted_bones[1,bone], c='r', marker='^', label=red_label)
-        ax.legend(handles=[plot1, plot2])
-
-        ax.set_xlabel('X')
-        ax.set_zlabel('Y')
-        ax.set_ylabel('Z')
 
     if (error != -5):
-        plt.title("error: %.4f" %error)
+        ax.text2D(0, 0.3, "error: %.4f" %error, transform=ax.transAxes)
+        if (additional_text != None):
+            ax.text2D(0, 0.35, "running ave error: %.4f" %additional_text, transform=ax.transAxes)
 
+    plt.title("3D Human Pose")
     plot_3d_pos_loc = location + name + str(ind) + '.png'
     plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
@@ -937,9 +935,9 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     else: 
         name = '/'+custom_name
 
-    if (len(hessians) == 9):
+    if (len(hessians) > 6):
         nrows, ncols = 3, 3
-    elif (len(hessians) == 6):
+    elif (len(hessians) > 3):
         nrows, ncols = 3, 2
     else:
         nrows, ncols = 3, 1
@@ -984,9 +982,9 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
 
     superimposed_plot_loc = plot_loc + "/potential_projections_" + str(linecount) + '.png'
 
-    if (len(pose2d_list) == 9):
+    if (len(pose2d_list) > 6):
         nrows, ncols = 3, 3
-    elif (len(pose2d_list) == 6):
+    elif (len(pose2d_list) > 3):
         nrows, ncols = 3, 2
     else:
         nrows, ncols = 3, 1
@@ -1023,7 +1021,6 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
     
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    covs = potential_states_fetcher.potential_covs_normal
     potential_states = potential_states_fetcher.potential_states
     
     #plot the people
@@ -1044,6 +1041,7 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
         center[2] = -center[2]
         centers.append(center)
         if ellipses:
+            covs = potential_states_fetcher.potential_covs_normal
             x,y,z = matrix_to_ellipse(covs[state_ind], center, 6)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
         else:

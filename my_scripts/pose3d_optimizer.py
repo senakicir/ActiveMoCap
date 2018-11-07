@@ -342,8 +342,6 @@ class pose3d_future(torch.nn.Module):
             #current_residuals = find_residuals(pose_vel[0], pose_vel[1]) * self.energy_weights["smooth"]
             #residuals = torch.cat((residuals, current_residuals))
 
-        print("normal", output["proj"], output["smooth"] , output["bone"] , output["lift"] )
-
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
@@ -502,7 +500,7 @@ class pose3d_future_parallel(torch.nn.Module):
         pose_est_directions = current_bone_vector/norm_bone_vector
         output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 
-        print("parallel", output["proj"], output["smooth"] , output["bone"] , output["lift"] )
+        #print("parallel", output["proj"], output["smooth"] , output["bone"] , output["lift"] )
         overall_output = output["proj"] *self.energy_weights["proj"] + output["bone"] *self.energy_weights["bone"] + output["smooth"] *self.energy_weights["smooth"] + output["lift"] *self.energy_weights["lift"]
 
         return overall_output
