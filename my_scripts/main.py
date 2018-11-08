@@ -11,7 +11,7 @@ import os
 gt_hv = []
 est_hv = []
 USE_AIRSIM = False
-LENGTH_OF_SIMULATION = 100
+LENGTH_OF_SIMULATION = 130
 photo_time = 0
 
 def get_client_unreal_values(client, X):
@@ -175,7 +175,7 @@ def main(kalman_arguments, parameters, energy_parameters):
             #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
             airsim_client.changeCalibrationMode(False)
             pose_client.changeCalibrationMode(False)
-            global_plot_ind =0
+            #global_plot_ind =0
 
         if (USE_AIRSIM):
             photo_loc_ = foldernames_anim["images"] + '/img_' + str(airsim_client.linecount) + '.png'
@@ -196,53 +196,56 @@ def main(kalman_arguments, parameters, energy_parameters):
 
         if(pose_client.isCalibratingEnergy):
             [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_angle_fixed_rotation()
-            desired_vel = calib_speed*(desired_pos-current_state.drone_pos)/np.linalg.norm((desired_pos-current_state.drone_pos))
         else:
             potential_states_fetcher = Potential_States_Fetcher(pose_client, current_state.drone_pos)
-            if trajectory == 3: ##CONSTANT ANGLE
-                do_nothing()
-            #find candidate drone positions
-            else:
-                if (trajectory == 0): #ACTIVE
-                    #find hessian for each drone position
-                    potential_states_fetcher.get_potential_positions_really_spherical_future()
-                    potential_states_fetcher.find_hessians_for_potential_states(objective_future, pose_client, pose_client.P_world)
-                    goal_state = potential_states_fetcher.find_best_potential_state()
-                    desired_vel, new_orientation = potential_states_fetcher.find_goal_vel_and_yaw(goal_state)
+            if (trajectory == 0): #ACTIVE
+                #find hessian for each drone position
+                potential_states_fetcher.get_potential_positions_really_spherical_future()
+                potential_states_fetcher.find_hessians_for_potential_states(objective_future, pose_client, pose_client.P_world)
+                goal_state = potential_states_fetcher.find_best_potential_state()
 
-                    if not pose_client.quiet:
-                        plot_potential_hessians(potential_states_fetcher.potential_covs_normal, airsim_client.linecount, plot_loc_, custom_name = "potential_covs_normal_")
-                        #plot potential states and current state, projections of each state, cov's of each state
-                        #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
-                        plot_potential_projections(potential_states_fetcher.potential_pose2d_list, airsim_client.linecount, plot_loc_, photo_loc_, pose_client.model)
-                        #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
-                        plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount, ellipses=False)
-                
-                if trajectory == 1: #CONSTANT ROT
-                    #goal_state = potential_states_fetcher.constant_rotation_baseline()
-                    desired_vel, new_orientation = potential_states_fetcher.constant_rotation_baseline_future()
+                if not pose_client.quiet:
+                    plot_potential_hessians(potential_states_fetcher.potential_covs_normal, airsim_client.linecount, plot_loc_, custom_name = "potential_covs_normal_")
+                    #plot potential states and current state, projections of each state, cov's of each state
+                    #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
+                    plot_potential_projections(potential_states_fetcher.potential_pose2d_list, airsim_client.linecount, plot_loc_, photo_loc_, pose_client.model)
+                    #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
+                    plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount, ellipses=False)
+            
+            if trajectory == 1: #CONSTANT ROT
+                #goal_state = potential_states_fetcher.constant_rotation_baseline()
+                goal_state = potential_states_fetcher.constant_rotation_baseline_future()
 
-                if (trajectory ==2): #RANDOM
-                    potential_states_fetcher.get_potential_positions_really_spherical()
-                    goal_state = potential_states_fetcher.find_random_next_state()
-            desired_yaw_deg = current_state.get_delta_orient(new_orientation)
+            if (trajectory ==2): #RANDOM
+                potential_states_fetcher.get_potential_positions_really_spherical_future()
+                goal_state = potential_states_fetcher.find_random_next_state()
+
+            if (trajectory == 3):
+                goal_state = potential_states_fetcher.constant_angle_baseline_future()
+            #desired_yaw_deg = current_state.get_delta_orient(new_orientation)
+            desired_pos, desired_yaw_deg = current_state.get_goal_pos_and_yaw_chosen(goal_state)
         
         #find desired drone speed
         #desired_vel = 5#(desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
         #drone_speed = np.linalg.norm(desired_vel)    
-        #     
-
-        #move drone!
+        drone_speed = 5
         if (airsim_client.linecount < 5):
-            damping_speed = 0.001 *airsim_client.linecount
+            damping_speed = 0.5 *airsim_client.linecount/5
         else:
             damping_speed = 0.5
         
         airsim_client.simPause(False)
         if USE_AIRSIM:
-            #airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
-            print("desired vel", desired_vel[2])
-            airsim_client.moveByVelocityAsync(desired_vel[0], desired_vel[1], desired_vel[2], DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg)).join()
+            start_move = time.time()
+            airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+            end_move = time.time()
+            time_passed = end_move - start_move
+            print("time passed", time_passed)
+            if (DELTA_T > time_passed):
+                airsim_client.hoverAsync()
+                time.sleep(DELTA_T-time_passed)
+                print("I was sleeping :(")
+            #airsim_client.moveByVelocityAsync(desired_vel[0], desired_vel[1], desired_vel[2], DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg)).join()
         else:
             airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed*damping_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0)
         airsim_client.simPause(True)
@@ -318,9 +321,10 @@ if __name__ == "__main__":
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
     
-    use_airsim = True
+    use_airsim = False
+    base_folder = "" # "/Users/kicirogl/Documents/temp_main"
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle
-    trajectory = 1
+    trajectory = 0
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 1
 
@@ -336,7 +340,7 @@ if __name__ == "__main__":
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0} 
    
-    num_of_experiments = 3
+    num_of_experiments = 1
     animations = {"02_01": num_of_experiments}
 
     #test_set = {}
@@ -344,7 +348,7 @@ if __name__ == "__main__":
     #    test_set[animation_num] = TEST_SETS[animation_num]
     #for experiment_name in experiment_names:
     #    test_set[animation_num] = TEST_SETS[animation_num]
-    file_names, folder_names, f_notes_name, _ = reset_all_folders(animations, "/Users/kicirogl/Documents/temp_main")
+    file_names, folder_names, f_notes_name, _ = reset_all_folders(animations, base_folder)
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "TRAJECTORY": trajectory}
     
@@ -368,11 +372,10 @@ if __name__ == "__main__":
                 many_runs_middle.append(errors["middle_3d_err"] )
     else:
         ind = 0
-        for animation_num, test_set in test_set.items():
-            parameters["ANIMATION_NUM"]=  animation_num
-            parameters["EXPERIMENT_NAME"] = animation_num + "run_" + str(ind)
-            parameters["TEST_SET_NAME"]= test_set
+        for animation in animations:
+            parameters["ANIMATION_NUM"]=  animation
+            parameters["EXPERIMENT_NAME"] = animation + "_" + str(ind)
+            parameters["TEST_SET_NAME"]= TEST_SETS[animation]
             errors = main(kalman_arguments, parameters, energy_parameters)
-            ind += 1
     
     append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

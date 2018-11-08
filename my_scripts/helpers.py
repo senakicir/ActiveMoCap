@@ -10,6 +10,8 @@ from pandas import read_csv
 from torch.autograd import Variable
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 import time, os
@@ -249,7 +251,7 @@ def fill_notes(f_notes_name, parameters, energy_parameters):
     f_notes.close()
 
 def append_error_notes(f_notes_name, err_1, err_2):
-    f_notes = open(f_notes_name, 'w')
+    f_notes = open(f_notes_name, 'a')
     notes_str = "\n---\nResults:\n"
     notes_str += "last frame error: ave:" + str(np.mean(np.array(err_1), axis=0)) + '\tstd:' + str(np.std(np.array(err_1), axis=0)) +"\n"
     notes_str += "mid frame error: ave:" + str(np.mean(np.array(err_2), axis=0)) + '\tstd:' + str(np.std(np.array(err_2), axis=0)) +"\n"
@@ -614,7 +616,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     fig = plt.figure()
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
-    ax = fig.add_subplot(121, projection='3d')
+    ax = fig.add_subplot(141, projection='3d')
 
     #plot final frame human
     last_frame_plot_info = plot_info[-1]
@@ -668,11 +670,23 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     ax.set_zlabel('Z')
     plt.title("Drone Trajectory")
 
-    ax = fig.add_subplot(122)
+    ax = fig.add_subplot(142)
     ax.plot(drone_z, c='xkcd:black', marker='^')
     plt.title("Drone Trajectory, z coordinate")
     ax.set_xlabel("frame")
     ax.set_ylabel("z")
+
+    ax = fig.add_subplot(143)
+    ax.plot(drone_x, c='xkcd:black', marker='^')
+    plt.title("Drone Trajectory, x coordinate")
+    ax.set_xlabel("frame")
+    ax.set_ylabel("x")
+
+    ax = fig.add_subplot(144)
+    ax.plot(drone_y, c='xkcd:black', marker='^')
+    plt.title("Drone Trajectory, y coordinate")
+    ax.set_xlabel("frame")
+    ax.set_ylabel("y")
 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close()
@@ -889,7 +903,7 @@ def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
     if (returnTensor == True):
         return torch.FloatTensor([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
                     [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
-                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
+                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]]).cuda()
     return np.array([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
                     [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
                     [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
@@ -1051,9 +1065,9 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
         X = np.concatenate([X, np.array([center[0]])])
         Y = np.concatenate([Y, np.array([center[1]])])
         Z = np.concatenate([Z, np.array([center[2]])])
-    curr_center = centers[potential_states_fetcher.current_state_ind]
+    #curr_center = centers[potential_states_fetcher.current_state_ind]
     goal_center = centers[potential_states_fetcher.goal_state_ind]
-    ax.plot([curr_center[0],goal_center[0]], [curr_center[1],goal_center[1]], [curr_center[2],goal_center[2]], color='xkcd:dark orange')
+    ax.plot([goal_center[0]], [goal_center[1]], [goal_center[2]], marker='^', color='xkcd:dark orange')
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     mid_x = (X.max()+X.min()) * 0.5

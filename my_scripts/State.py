@@ -23,7 +23,7 @@ DELTA_T = 0.2
 N = 4.0
 TIME_HORIZON = N*DELTA_T
 SAFE_RADIUS = 14
-TRAVEL = 0.1
+TRAVEL = 0.5
 TRAVEL2 = 4
 UPPER_LIM = -6
 LOWER_LIM = -1.5
@@ -97,15 +97,9 @@ class State(object):
 
     def get_goal_pos_and_yaw_chosen(self, goal_state):
         goal_pos = goal_state["position"]
-        #goal_yaw = goal_state["orientation"]
-        #desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2],  goal_yaw)
-
-        goal_vel = 5*(goal_pos-self.drone_pos)/np.linalg.norm((goal_pos-self.drone_pos))
-        new_pos = self.drone_pos + goal_vel*DELTA_T
-        _, new_phi = find_current_polar_info(new_pos, self.human_pos)
-        new_orientation = new_phi+pi
-        desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2],  new_orientation)
-        return goal_vel , desired_yaw_deg       
+        goal_yaw = goal_state["orientation"]
+        desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2],  goal_yaw)
+        return goal_pos , desired_yaw_deg       
 
     def get_desired_pos_and_yaw_trackbar(self):
         #calculate new polar coordinates according to circular motion (the circular offset required to rotate around human)
@@ -131,6 +125,7 @@ class Potential_States_Fetcher(object):
         self.future_human_pos = pose_client.future_pose
         self.current_human_pos = pose_client.current_pose
         self.potential_states = []
+        self.potential_states_go = []
         self.potential_hessians_normal = []
         self.potential_covs_normal = []
         self.current_state_ind = 0
@@ -143,6 +138,7 @@ class Potential_States_Fetcher(object):
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
         travel = TRAVEL
+        travel_go = TRAVEL2
 
         current_drone_pos = np.copy(self.current_drone_pos)
 
@@ -155,9 +151,12 @@ class Potential_States_Fetcher(object):
         unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
 
         up_vec = np.cross(unit_horizontal, new_drone_vec) #starts from 0?
-        up_vec_norm = up_vec*travel/np.linalg.norm(up_vec)
         side_vec = np.cross(unit_z, new_drone_vec) 
+        up_vec_norm = up_vec*travel/np.linalg.norm(up_vec)
         side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
+
+        up_vec_norm_go = up_vec*travel_go/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec*travel_go/np.linalg.norm(side_vec)
 
         weights = [-1,0,1]
         ind = 0
@@ -197,6 +196,7 @@ class Potential_States_Fetcher(object):
         LOWER_LIM = -1
         unit_z = np.array([0,0,-1])
         travel = TRAVEL
+        travel_go = TRAVEL2
 
         current_drone_pos = np.copy(self.current_drone_pos)
 
@@ -208,10 +208,12 @@ class Potential_States_Fetcher(object):
         horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
         unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
 
-        up_vec = np.cross(unit_horizontal, new_drone_vec) #starts from 0?
+        up_vec = np.cross(unit_horizontal, new_drone_vec)
         side_vec = np.cross(unit_z, new_drone_vec) 
         up_vec_norm = up_vec*travel/np.linalg.norm(up_vec)
         side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
+        up_vec_norm_go = up_vec*travel_go/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec*travel_go/np.linalg.norm(side_vec)
 
         weights_up = [-1,0,1]
         weights_side = [-1,0,1]
@@ -234,17 +236,29 @@ class Potential_States_Fetcher(object):
                 else:
                     if (w1*w2 == 0):
                         pos = new_drone_vec + self.future_human_pos[:, self.hip_index] + up_vec_norm*w1 + side_vec_norm*w2
+                        pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + up_vec_norm_go*w1 + side_vec_norm_go*w2
                     else:
                         pos = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm*w1 + side_vec_norm*w2)/sqrt(2)
+                        pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + (up_vec_norm_go*w1 + side_vec_norm_go*w2)/sqrt(2)
+
                     potential_drone_vec = pos-self.future_human_pos[:, self.hip_index]
                     norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
                     norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
+
+                    potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
+                    norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
+                    norm_pos_go = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
                 
-                new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-                new_pitch = pi/2 -new_theta
-                _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-                print("new z", norm_pos[2])
-                self.potential_states.append({"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch})
+                if (w1 != 0 and w2 != 0):
+                    new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
+                    new_pitch = pi/2 -new_theta
+                    _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
+                    self.potential_states.append({"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch})
+
+                    new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
+                    new_pitch_go = pi/2 -new_theta_go
+                    _, new_phi_go = find_current_polar_info(norm_pos_go, self.future_human_pos[:, self.hip_index])
+                    self.potential_states_go.append({"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go})
                 ind += 1
         return self.potential_states
 
@@ -283,7 +297,7 @@ class Potential_States_Fetcher(object):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
-        travel = TRAVEL
+        travel = TRAVEL2
 
         current_drone_pos = np.copy(self.current_drone_pos)
 
@@ -300,19 +314,49 @@ class Potential_States_Fetcher(object):
         norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
         norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
    
-        norm_pos[2] = self.current_human_pos[2, self.hip_index]-z_pos
+        norm_pos[2] = -1.8#self.current_human_pos[2, self.hip_index]-z_pos
 
-        #new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        #new_pitch = pi/2 -new_theta
-        #_, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-        #goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
+        new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
+        new_pitch = pi/2 -new_theta
+        _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
+        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
 
-        goal_vel = TOP_SPEED*(norm_pos-self.current_drone_pos)/np.linalg.norm((norm_pos-self.current_drone_pos))
-        new_pos = self.current_drone_pos + goal_vel*DELTA_T
-        _, new_phi = find_current_polar_info(new_pos, self.future_human_pos[:, self.hip_index])
-        new_orientation = new_phi+pi
+        #goal_vel = TOP_SPEED*(norm_pos-self.current_drone_pos)/np.linalg.norm((norm_pos-self.current_drone_pos))
+        #new_pos = self.current_drone_pos + goal_vel*DELTA_T
+        #_, new_phi = find_current_polar_info(new_pos, self.future_human_pos[:, self.hip_index])
+        #new_orientation = new_phi+pi
 
-        return goal_vel, new_orientation
+        return goal_state
+
+    def constant_angle_baseline_future(self):
+
+        new_radius = SAFE_RADIUS
+
+        current_drone_pos = np.copy(self.current_drone_pos)
+
+        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
+        cur_radius = np.linalg.norm(drone_vec)
+
+        new_drone_vec = new_radius*(drone_vec/cur_radius)
+       
+        pos = new_drone_vec + self.future_human_pos[:, self.hip_index] 
+        potential_drone_vec = pos - self.future_human_pos[:, self.hip_index]
+        norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
+        norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
+   
+        norm_pos[2] = -1.8#self.current_human_pos[2, self.hip_index]-z_pos
+
+        new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
+        new_pitch = pi/2 -new_theta
+        _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
+        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
+
+        #goal_vel = TOP_SPEED*(norm_pos-self.current_drone_pos)/np.linalg.norm((norm_pos-self.current_drone_pos))
+        #new_pos = self.current_drone_pos + goal_vel*DELTA_T
+        #_, new_phi = find_current_polar_info(new_pos, self.future_human_pos[:, self.hip_index])
+        #new_orientation = new_phi+pi
+
+        return goal_state
     
     def find_hessians_for_potential_states(self, objective, pose_client, P_world):
         for potential_state_ind, potential_state in enumerate(self.potential_states):
@@ -347,10 +391,10 @@ class Potential_States_Fetcher(object):
             else:
                 uncertainty_list.append(np.linalg.det(cov))
 
-        best_ind = uncertainty_list.index(min(uncertainty_list))
+        best_ind = uncertainty_list.index(max(uncertainty_list))
         self.goal_state_ind = best_ind
         print("uncertainty list:", uncertainty_list, "best ind", best_ind)
-        goal_state = self.potential_states[best_ind]
+        goal_state = self.potential_states_go[best_ind]
         return goal_state
 
     def find_goal_vel_and_yaw(self, goal_state):
@@ -367,4 +411,4 @@ class Potential_States_Fetcher(object):
         random_ind = randint(0, len(self.potential_states)-1)
         self.goal_state_ind = random_ind
         print("random ind", random_ind)
-        return self.potential_states[random_ind]
+        return self.potential_states_go[random_ind]

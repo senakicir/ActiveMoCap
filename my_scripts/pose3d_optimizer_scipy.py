@@ -3,6 +3,7 @@ from project_bones import take_bone_projection, Projection_Client, take_bone_pro
 from torch.autograd import Variable, grad
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
+import pdb
 
 def find_residuals(input_1, input_2):
     return (np.square((input_1 - input_2))).ravel()
@@ -58,7 +59,7 @@ def fun_hessian(pytorch_objective, x, result_shape):
     gradient_torch_flat = gradient_torch[0].view(-1)
     
     #second derivative
-    hessian_torch = torch.zeros(hess_size, hess_size)
+    hessian_torch = torch.zeros(hess_size, hess_size).cuda()
     for ind, ele in enumerate(gradient_torch_flat):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)
         hessian_torch[:, ind] = temp[0].view(-1)
@@ -339,11 +340,11 @@ class pose3d_future_parallel_wrapper():
         yaw = potential_state["orientation"]
         C_drone =  potential_state["position"]
         potential_pitch = potential_state["pitch"]
-        future_pose = torch.from_numpy(pose_client.future_pose).float()
+        future_pose = torch.from_numpy(pose_client.future_pose).float().cuda()
 
         potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
         potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
-        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
+        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float().cuda()
         potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
 
         projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)

@@ -49,11 +49,12 @@ def determine_2d_positions(mode_2d, cropping_tool,  return_heatmaps=True, is_tor
 
 def find_2d_pose_gt(unreal_positions, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps=True, is_torch = True):
     if (is_torch):
-        R_drone_unreal = Variable(euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2], returnTensor=True), requires_grad = False) #pitch roll yaw
-        C_drone_unreal = Variable(torch.FloatTensor([[unreal_positions[DRONE_POS_IND, 0]],[unreal_positions[DRONE_POS_IND, 1]],[unreal_positions[DRONE_POS_IND, 2]]]), requires_grad = False)
-        bone_pos_GT = Variable(torch.from_numpy(bone_pos_3d_GT).float(), requires_grad = True)
+        R_drone_unreal = euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2], returnTensor=True).cuda()
+        C_drone_unreal = torch.FloatTensor([[unreal_positions[DRONE_POS_IND, 0]],[unreal_positions[DRONE_POS_IND, 1]],[unreal_positions[DRONE_POS_IND, 2]]]).cuda()
+        bone_pos_GT = torch.from_numpy(bone_pos_3d_GT).float().cuda()
         R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
-        bone_2d_var, heatmaps = take_bone_projection_pytorch(bone_pos_GT, R_drone_unreal.cpu(), C_drone_unreal.cpu(), R_cam.cpu())
+        bone_2d_var, heatmaps = take_bone_projection_pytorch(bone_pos_GT, R_drone_unreal, C_drone_unreal, R_cam)
+        
         bone_2d = bone_2d_var.detach()
         if (return_heatmaps):
             bone_2d = cropping_tool.crop_pose(bone_2d)
