@@ -361,7 +361,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
         left_bone_connections, right_bone_connections, _ = split_bone_connections(self.bone_connections)
         self.left_bone_connections = np.array(left_bone_connections)
         self.right_bone_connections = np.array(right_bone_connections)
-        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_calib).cuda(), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_calib), requires_grad=True)
 
         self.energy_weights = pose_client.weights_calib
         self.loss_dict = pose_client.loss_dict_calib
@@ -376,8 +376,8 @@ class pose3d_calibration_parallel(torch.nn.Module):
         left_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, self.left_bone_connections[:,0]] - self.pose3d[:, self.left_bone_connections[:,1]], 2), dim=0))
         right_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, self.right_bone_connections[:,0]] - self.pose3d[:, self.right_bone_connections[:,1]], 2), dim=0))
         bonelosses = torch.pow((left_length_of_bone - right_length_of_bone),2)
-        output["sym"] = torch.sum(bonelosses)/bonelosses.data.nelement()
- 
+        output["sym"] = torch.sum(bonelosses)/6
+
         rep_pose3d = self.pose3d.repeat(self.projection_client.window_size, 1, 1)
         projected_2d = self.projection_client.take_projection(rep_pose3d)
         output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
@@ -401,13 +401,13 @@ class pose3d_online_parallel(torch.nn.Module):
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
-        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_online).cuda(), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_online), requires_grad=True)
 
-        bone_lengths = torch.FloatTensor(pose_client.boneLengths).cuda()
+        bone_lengths = torch.FloatTensor(pose_client.boneLengths)
         self.bone_lengths = torch.t(bone_lengths).repeat(self.window_size+1,1)
         self.loss_dict = pose_client.loss_dict_online
         
-        self.pose3d_lift_directions = torch.FloatTensor(pose_client.liftPoseList).cuda()
+        self.pose3d_lift_directions = torch.FloatTensor(pose_client.liftPoseList)
 
         self.energy_weights = pose_client.weights_online
         self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
@@ -456,13 +456,13 @@ class pose3d_future_parallel(torch.nn.Module):
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
-        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_online).cuda(), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_online), requires_grad=True)
 
-        bone_lengths = torch.FloatTensor(pose_client.boneLengths).cuda()
+        bone_lengths = torch.FloatTensor(pose_client.boneLengths)
         self.bone_lengths = torch.t(bone_lengths).repeat(self.window_size+1,1)
         self.loss_dict = pose_client.loss_dict_online
         
-        self.pose3d_lift_directions = torch.FloatTensor(pose_client.liftPoseList).cuda()
+        self.pose3d_lift_directions = torch.FloatTensor(pose_client.liftPoseList)
 
         self.energy_weights = pose_client.weights_online
         self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))

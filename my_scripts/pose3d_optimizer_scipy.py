@@ -12,7 +12,7 @@ def fun_forward(pytorch_objective, x, new_shape):
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
     pytorch_objective.init_pose3d(x_scrambled)
     overall_output = pytorch_objective.forward()
-    return overall_output.cpu().data.numpy()
+    return overall_output.cpu().detach().numpy()
 
 def fun_jacobian(pytorch_objective, x, new_shape):
     multip_dim = 1
@@ -24,7 +24,7 @@ def fun_jacobian(pytorch_objective, x, new_shape):
     overall_output = pytorch_objective.forward()
     overall_output.backward(create_graph=False)
     gradient_torch = pytorch_objective.pose3d.grad
-    gradient_scrambled = gradient_torch.cpu().data.numpy()
+    gradient_scrambled = gradient_torch.cpu().numpy()
     gradient = np.reshape(a = gradient_scrambled, newshape =  [multip_dim, ], order = "C")
     return gradient
 
@@ -42,7 +42,7 @@ def fun_jacobian_residuals(pytorch_objective, x, new_shape):
         pytorch_objective.zero_grad()
         one_residual.backward(retain_graph=True)
         gradient_torch = pytorch_objective.pose3d.grad
-        gradient_scrambled = gradient_torch.cpu().data.numpy()
+        gradient_scrambled = gradient_torch.cpu().numpy()
         gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [multip_dim, ], order = "C")
     return gradient
 
@@ -59,12 +59,12 @@ def fun_hessian(pytorch_objective, x, result_shape):
     gradient_torch_flat = gradient_torch[0].view(-1)
     
     #second derivative
-    hessian_torch = torch.zeros(hess_size, hess_size).cuda()
+    hessian_torch = torch.zeros(hess_size, hess_size)
     for ind, ele in enumerate(gradient_torch_flat):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)
         hessian_torch[:, ind] = temp[0].view(-1)
 
-    hessian = hessian_torch.cpu().data.numpy()
+    hessian = hessian_torch.detach().numpy()
     return hessian
 
 class pose3d_calibration_scipy():
@@ -156,7 +156,7 @@ class pose3d_online_scipy():
                 temp_l = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
                 temp = temp_l[0]
                 hessian_torch[:, j*3+i] = temp[:, :, hip_index].view(-1)
-        hessian = hessian_torch.data.numpy()
+        hessian = hessian_torch.numpy()
         return hessian
 
     def mini_hessian(self,x):
@@ -172,7 +172,7 @@ class pose3d_online_scipy():
                 temp_l = grad(ele, self.pytorch_objective.pose3d, create_graph=True)
                 temp = temp_l[0]
                 hessian_torch[:, j+i*self.NUM_OF_JOINTS] = temp[0, :, :].view(-1)
-        hessian = hessian_torch.data.numpy()
+        hessian = hessian_torch.numpy()
         return hessian
 
 
@@ -241,7 +241,7 @@ class pose3d_future():
                 #hessian_torch[:, j*3+i] = temp[:, :, hip_index].view(-1)
                 hessian_torch[:,index] = temp[:, :, hip_index].view(-1)
                 index += 1
-        hessian = hessian_torch.data.numpy()
+        hessian = hessian_torch.numpy()
         return hessian
 
     def mini_hessian(self,x):
@@ -260,7 +260,7 @@ class pose3d_future():
                 #hessian_torch[:, j+i*self.NUM_OF_JOINTS] = temp[0, :, :].view(-1)
                 hessian_torch[:, index] = temp[0, :, :].view(-1)
                 index += 1
-        hessian = hessian_torch.data.numpy()
+        hessian = hessian_torch.numpy()
         return hessian
 
     def approx_hessian(self,x):
@@ -340,11 +340,11 @@ class pose3d_future_parallel_wrapper():
         yaw = potential_state["orientation"]
         C_drone =  potential_state["position"]
         potential_pitch = potential_state["pitch"]
-        future_pose = torch.from_numpy(pose_client.future_pose).float().cuda()
+        future_pose = torch.from_numpy(pose_client.future_pose).float()
 
         potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
         potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
-        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float().cuda()
+        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
         potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
 
         projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
