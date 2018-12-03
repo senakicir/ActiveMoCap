@@ -1,4 +1,4 @@
-import torch
+import torch as torch
 from torch.autograd import Variable
 from math import pi, cos, sin, degrees
 import numpy as np
@@ -62,7 +62,7 @@ def take_bone_projection_pytorch(P_world, R_drone, C_drone, R_cam):
 
     return result, heatmaps
 
-def take_bone_backprojection(bone_pred, R_drone, C_drone, joint_names):
+def take_bone_backprojection(bone_pred, R_drone, C_drone, R_cam, joint_names):
     TORSO_SIZE_ = DEFAULT_TORSO_SIZE
     img_torso_size = np.linalg.norm(bone_pred[:, joint_names.index('neck')] - bone_pred[:, joint_names.index('spine1')])
     if (img_torso_size == 0):
@@ -75,7 +75,7 @@ def take_bone_backprojection(bone_pred, R_drone, C_drone, joint_names):
     bone_pos_3d[2,:] = z_val
     
     bone_pos_3d = K_inv.dot(bone_pos_3d)
-    P_world = camera_to_world (R_drone, C_drone, bone_pos_3d, is_torch= False)
+    P_world = camera_to_world (R_drone, C_drone, R_cam, bone_pos_3d, is_torch= False)
     
     return P_world
 
@@ -112,23 +112,18 @@ def world_to_camera(R_drone, C_drone, P_world, R_cam, is_torch = True):
 
     return P_camera    
 
-def camera_to_world(R_drone, C_drone, P_camera, is_torch = True):
+def camera_to_world(R_drone, C_drone, R_cam, P_camera, is_torch = True):
     if is_torch == True:
-        R_cam_np = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
-        R_cam = Variable(torch.from_numpy(R_cam_np).float(), requires_grad = False)
-
         num_of_joints = P_camera.data.shape[1]
 
         ones_tensor = Variable(torch.ones([1, num_of_joints]), requires_grad=False)*1.0
         P_camera = torch.mm(FLIP_X_Y_inv_torch, P_camera)
         P_camera = torch.cat((P_camera, ones_tensor),0)
-        P_drone = torch.mm(torch.cat((R_cam_torch, C_cam_torch),1), P_camera)
+        P_drone = torch.mm(torch.cat((R_cam, C_cam_torch),1), P_camera)
         P_world_ = torch.mm(torch.cat((R_drone, C_drone), 1) ,torch.cat((P_drone, ones_tensor),0))
         P_world = P_world_.clone()
 
     else:
-        R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
-
         num_of_joints = P_camera.shape[1]
 
         P_camera = FLIP_X_Y_inv.dot(P_camera)
@@ -159,45 +154,45 @@ class Projection_Client(object):
         self.num_of_joints = num_of_joints
         self.window_size = len(data_list)
         self.drone_transformation = torch.zeros(self.window_size , 4, 4)
+        self.camera_transformation = torch.zeros(self.window_size , 4, 4)
 
         queue_index = 0
         self.pose_2d_tensor = torch.zeros(self.window_size , 2, num_of_joints)
-        for bone_2d_, R_drone_, C_drone_ in data_list:
+        for bone_2d_, R_drone_, C_drone_, R_cam_ in data_list:
             R_drone_torch = torch.from_numpy(R_drone_).float()
             C_drone_torch = torch.from_numpy(C_drone_).float()
             self.pose_2d_tensor[queue_index, :, :] = torch.from_numpy(bone_2d_).float()
+            R_cam_torch = torch.from_numpy(R_cam_).float()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
+            self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )
+
             queue_index += 1
 
-        R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
-        temp = torch.inverse(torch.cat((torch.cat((R_cam, C_cam_torch), dim=1), neat_tensor), dim=0) )
-        self.camera_transformation = temp.repeat(self.window_size , 1, 1)
         self.ones_tensor = torch.ones(self.window_size, 1, self.num_of_joints)
         self.flip_x_y_tensor = (torch.cat((FLIP_X_Y_torch, torch.zeros(3,1)), dim=1)).repeat(self.window_size , 1, 1)
         self.camera_intrinsics = K_torch.repeat(self.window_size , 1,1)
 
 
-    def reset_future(self, data_list, num_of_joints, R_cam, R_drone, C_drone, potential_projected_est):
+    def reset_future(self, data_list, num_of_joints, R_cam_pot, R_drone_pot, C_drone_pot, potential_projected_est):
         self.num_of_joints = num_of_joints
         self.window_size = len(data_list)+1
         self.drone_transformation = torch.zeros(self.window_size , 4, 4)
+        self.camera_transformation = torch.zeros(self.window_size , 4, 4)
         self.pose_2d_tensor = torch.zeros(self.window_size, 2, num_of_joints)
 
         self.pose_2d_tensor[0, :, :] = potential_projected_est
-        self.drone_transformation[0, :, :]= torch.inverse(torch.cat((torch.cat((R_drone, C_drone), dim=1), neat_tensor), dim=0))
+        self.drone_transformation[0, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_pot, C_drone_pot), dim=1), neat_tensor), dim=0))
+        self.camera_transformation[0, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_pot, C_cam_torch), dim=1), neat_tensor), dim=0) )
 
         queue_index = 1
-        for bone_2d_, R_drone_, C_drone_ in data_list:
+        for bone_2d_, R_drone_, C_drone_, R_cam_ in data_list:
             R_drone_torch = torch.from_numpy(R_drone_).float()
             C_drone_torch = torch.from_numpy(C_drone_).float()
             self.pose_2d_tensor[queue_index, :, :] = torch.from_numpy(bone_2d_).float()
+            R_cam_torch = torch.from_numpy(R_cam_).float()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
+            self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )
             queue_index += 1
-
-        R_cam_normal = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
-        self.camera_transformation = (torch.inverse(torch.cat((torch.cat((R_cam_normal, C_cam_torch), dim=1), neat_tensor), dim=0))).repeat(self.window_size-1, 1, 1)
-        temp = torch.inverse(torch.cat((torch.cat((R_cam, C_cam_torch), dim=1), neat_tensor), dim=0)).unsqueeze(0)
-        self.camera_transformation = torch.cat((temp, self.camera_transformation), dim=0)
 
         self.ones_tensor = torch.ones(self.window_size, 1, self.num_of_joints)
         self.flip_x_y_tensor = (torch.cat((FLIP_X_Y_torch, torch.zeros(3,1)), dim=1)).repeat(self.window_size , 1, 1)

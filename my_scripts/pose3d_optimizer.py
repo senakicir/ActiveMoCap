@@ -382,8 +382,11 @@ class pose3d_calibration_parallel(torch.nn.Module):
         projected_2d = self.projection_client.take_projection(rep_pose3d)
         output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
 
-        overall_output = output["sym"] *self.energy_weights["sym"] + output["proj"] *self.energy_weights["proj"]
-        
+        overall_output = 0
+        for loss_key in self.loss_dict:
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
+
         return overall_output
 
     def init_pose3d(self, pose3d_np):
@@ -437,7 +440,10 @@ class pose3d_online_parallel(torch.nn.Module):
         pose_est_directions = current_bone_vector/norm_bone_vector
         output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 
-        overall_output = output["proj"] *self.energy_weights["proj"] + output["bone"] *self.energy_weights["bone"] + output["smooth"] *self.energy_weights["smooth"] + output["lift"] *self.energy_weights["lift"]
+        overall_output = 0
+        for loss_key in self.loss_dict:
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
 
         return overall_output
     
@@ -460,11 +466,11 @@ class pose3d_future_parallel(torch.nn.Module):
 
         bone_lengths = torch.FloatTensor(pose_client.boneLengths)
         self.bone_lengths = torch.t(bone_lengths).repeat(self.window_size+1,1)
-        self.loss_dict = pose_client.loss_dict_online
+        self.loss_dict = pose_client.loss_dict_future
         
         self.pose3d_lift_directions = torch.FloatTensor(pose_client.liftPoseList)
 
-        self.energy_weights = pose_client.weights_online
+        self.energy_weights = pose_client.weights_future
         self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
         self.pltpts = {}
         for loss_key in self.loss_dict:
@@ -493,14 +499,15 @@ class pose3d_future_parallel(torch.nn.Module):
         output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], 3*self.NUM_OF_JOINTS)
 
         #lift term        
-        current_bone_vector = self.pose3d[1:, :, self.lift_bone_directions[:,0]] - self.pose3d[1:, :, self.lift_bone_directions[:,1]]
-        norm_bone_vector = (torch.norm(current_bone_vector, dim=1)).unsqueeze(1).repeat(1,3,1)
-        pose_est_directions = current_bone_vector/norm_bone_vector
-        output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
+       # current_bone_vector = self.pose3d[1:, :, self.lift_bone_directions[:,0]] - self.pose3d[1:, :, self.lift_bone_directions[:,1]]
+       # norm_bone_vector = (torch.norm(current_bone_vector, dim=1, keepdim=True)).repeat(1,3,1) #try without repeat
+       # pose_est_directions = current_bone_vector/(norm_bone_vector+EPSILON)
+       # output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 
-        #print("parallel", output["proj"], output["smooth"] , output["bone"] , output["lift"] )
-        overall_output = output["proj"] *self.energy_weights["proj"] + output["bone"] *self.energy_weights["bone"] + output["smooth"] *self.energy_weights["smooth"] + output["lift"] *self.energy_weights["lift"]
-
+        overall_output = 0
+        for loss_key in self.loss_dict:
+            overall_output += self.energy_weights[loss_key]*output[loss_key]
+            self.pltpts[loss_key].append(output[loss_key])
         return overall_output
     
     def init_pose3d(self, pose3d_np):

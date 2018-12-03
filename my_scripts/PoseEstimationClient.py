@@ -18,8 +18,11 @@ class PoseEstimationClient(object):
 
         self.boneLengths = torch.zeros([num_of_joints-1,1])
         self.ONLINE_WINDOW_SIZE = param["ONLINE_WINDOW_SIZE"]
+        self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
-        self.hessian_method = param["HESSIAN_METHOD"]
+
+        self.numpy_random = np.random.RandomState(param["SEED"])
+        torch.manual_seed(param["SEED"])
 
         self.plot_info = []
         self.error_2d = []
@@ -38,6 +41,7 @@ class PoseEstimationClient(object):
         self.calib_res_list = []
         self.online_res_list = []
         self.f_string = ""
+        self.f_reconst_string = ""
         self.processing_time = []
 
         self.isCalibratingEnergy = True
@@ -74,13 +78,14 @@ class PoseEstimationClient(object):
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
-        self.weights_future = param["WEIGHTS"]
+        self.weights_future = {'proj': 0.33, 'smooth': 0.33, 'bone': 0.33}#param["WEIGHTS"]
 
         self.loss_dict_calib = CALIBRATION_LOSSES
-        self.loss_dict_online = LOSSES
+        self.loss_dict_online = ONLINE_LOSSES
         self.loss_dict_future = FUTURE_LOSSES
 
         self.potential_states_list = []
+        self.cam_pitch = 0 
 
     def reset(self, plot_loc):
         if self.param_find_M:
@@ -125,14 +130,14 @@ class PoseEstimationClient(object):
     def changeCalibrationMode(self, calibMode):
         self.isCalibratingEnergy = calibMode
 
-    def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, pose3d_):
-        self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone])
-        if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_LENGTH-10):
+    def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_):
+        self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE):
             self.requiredEstimationData_calibration.pop()
         self.poseList_3d_calibration = pose3d_
 
-    def addNewFrame(self, pose_2d, R_drone, C_drone, pose3d_, pose3d_lift = None):
-        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone])
+    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, pose3d_lift = None):
+        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
         if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
             self.requiredEstimationData.pop()
 

@@ -20,11 +20,9 @@ from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos
 
 
 energy_mode = {1:True, 0:False}
-LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
+ONLINE_LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
 CALIBRATION_LOSSES = ["proj", "sym"]
-FUTURE_LOSSES = ["proj", "smooth", "bone", "lift"]#, "smoothpose"]
-TOP_SPEED = 3
-
+FUTURE_LOSSES = ["proj", "smooth", "bone"]#, "lift"]#, "smoothpose"]
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
 ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4}
@@ -126,7 +124,7 @@ def model_settings(model, bone_pos_3d_GT = Variable(torch.zeros(3,21))):
 def normalize_weights(weights_):    
     weights = {}
     weights_sum = sum(weights_.values())
-    for loss_key in LOSSES:
+    for loss_key in ONLINE_LOSSES:
         weights[loss_key] = weights_[loss_key]/weights_sum
     return weights
 
@@ -228,13 +226,13 @@ def reset_all_folders(animation_list, base = ""):
             for a_folder_name in folder_names[key].values():
                 if not os.path.exists(a_folder_name):
                     os.makedirs(a_folder_name)
-            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt'}
+            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', "f_reconstruction": experiment_folder_name +  '/reconstruction.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
 
 
-def fill_notes(f_notes_name, parameters, energy_parameters):
+def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
     f_notes = open(f_notes_name, 'w')
     notes_str = "General Parameters:\n"
     for key, value in parameters.items():
@@ -243,10 +241,15 @@ def fill_notes(f_notes_name, parameters, energy_parameters):
             notes_str += '\n'
 
     notes_str += '\nEnergy Parameters:\n'
-
     for key, value in energy_parameters.items():
         notes_str += str(key) + " : " + str(value)
         notes_str += '\n'
+
+    notes_str += '\nActive motion Parameters:\n'
+    for key, value in active_parameters.items():
+        notes_str += str(key) + " : " + str(value)
+        notes_str += '\n'
+
     f_notes.write(notes_str)
     f_notes.close()
 
@@ -493,7 +496,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
         blue_label = label_names[0]
         red_label = label_names[1]
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(4,4))
     ax = fig.add_subplot(111, projection='3d')
 
     X = bones_GT[0,:]
@@ -541,7 +544,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
 
     plt.title("3D Human Pose")
     plot_3d_pos_loc = location + name + str(ind) + '.png'
-    plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
+    plt.savefig(plot_3d_pos_loc)
     plt.close()
 
 def plot_global_motion(pose_client, plot_loc, ind):
@@ -552,7 +555,7 @@ def plot_global_motion(pose_client, plot_loc, ind):
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/global_plot_online_'+ str(ind) + '.png'
 
-    fig = plt.figure()
+    fig = plt.figure(figsize=(4,4))
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     ax = fig.add_subplot(111, projection='3d')
@@ -613,28 +616,14 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
 
-    fig = plt.figure()
+    fig = plt.figure( figsize=(12, 4))
     bone_connections, _, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
-    ax = fig.add_subplot(141, projection='3d')
+    ax = fig.add_subplot(151, projection='3d')
 
-    #plot final frame human
     last_frame_plot_info = plot_info[-1]
     predicted_bones = last_frame_plot_info["est"]
     bones_GT = last_frame_plot_info["GT"]
-    for i, bone in enumerate(left_bone_connections):
-        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
-    for i, bone in enumerate(right_bone_connections):
-        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
-
-    for i, bone in enumerate(left_bone_connections):
-        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
-    for i, bone in enumerate(right_bone_connections):
-        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
 
     X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
     Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
@@ -655,6 +644,21 @@ def plot_drone_traj(pose_client, plot_loc, ind):
 
     plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
 
+    #plot final frame human
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+
+    for i, bone in enumerate(left_bone_connections):
+        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+    for i, bone in enumerate(right_bone_connections):
+        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+
     ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
@@ -670,25 +674,31 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     ax.set_zlabel('Z')
     plt.title("Drone Trajectory")
 
-    ax = fig.add_subplot(142)
+    ax = fig.add_subplot(152)
+    ax.plot(drone_x, drone_y, c='xkcd:black', marker='^')
+    plt.title("top down")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
+
+    ax = fig.add_subplot(153)
     ax.plot(drone_z, c='xkcd:black', marker='^')
-    plt.title("Drone Trajectory, z coordinate")
+    plt.title("z")
     ax.set_xlabel("frame")
     ax.set_ylabel("z")
 
-    ax = fig.add_subplot(143)
+    ax = fig.add_subplot(154)
     ax.plot(drone_x, c='xkcd:black', marker='^')
-    plt.title("Drone Trajectory, x coordinate")
+    plt.title("x")
     ax.set_xlabel("frame")
     ax.set_ylabel("x")
 
-    ax = fig.add_subplot(144)
+    ax = fig.add_subplot(155)
     ax.plot(drone_y, c='xkcd:black', marker='^')
-    plt.title("Drone Trajectory, y coordinate")
+    plt.title("y")
     ax.set_xlabel("frame")
     ax.set_ylabel("y")
 
-    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.savefig(file_name)
     plt.close()
 
 def plot_optimization_losses(pltpts, location, ind, loss_dict):
@@ -782,6 +792,19 @@ def shape_cov(cov, model, frame_index):
     H[:,2] = np.array([cov[offset, num_of_joints*2+offset], cov[num_of_joints+offset, num_of_joints*2+offset], cov[num_of_joints*2+offset, num_of_joints*2+offset],])
     return H
 
+def shape_cov_ave_joints(cov, model):
+    _, _, num_of_joints, _ = model_settings(model)
+    new_cov = np.cov([3,3])
+    for i in range(3):
+        for j in range(3):
+                small_cov = cov[i*num_of_joints:(i+1)*num_of_joints, j*num_of_joints:(j+1)*num_of_joints]
+                new_cov[i, j] = np.mean(small_cov.flatten())
+    return new_cov
+
+def choose_frame_from_cov(cov, frame_index, model):
+    _, _, num_of_joints, _ = model_settings(model)
+    return cov[frame_index*(3*num_of_joints):(frame_index+1)*(3*num_of_joints), frame_index*(3*num_of_joints):(frame_index+1)*(3*num_of_joints)]
+
 def shape_cov_hip(cov, model, frame_index):
     H = np.zeros([3,3])
     offset = frame_index*3
@@ -798,24 +821,6 @@ def shape_cov_mini(cov, model, frame_index):
     H[:,1] = np.array([cov[hip_index, 1+hip_index], cov[1+hip_index, 1+hip_index], cov[2+hip_index, 1+hip_index],])
     H[:,2] = np.array([cov[hip_index, 2+hip_index], cov[1+hip_index, 2+hip_index], cov[2+hip_index, 2+hip_index],])
     return H
-
-def shape_cov_test(cov, model):
-    _, _, num_of_joints, _ = model_settings(model)
-    return cov[0:num_of_joints*3, 0:num_of_joints*3]
-
-def shape_cov_test2(cov, model):
-    _, joint_names, num_of_joints, _ = model_settings(model)
-    hip_index = joint_names.index('spine1')
-
-    ind = []
-    for frame in range(0,7):
-        for i in range(0,3):
-            ind.append(hip_index+frame*3*num_of_joints+i)
-    x,y = np.meshgrid(ind, ind)
-    new_cov = cov[x, y]
-    
-    print(new_cov.shape)
-    return new_cov
 
 def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     if (pose_client.isCalibratingEnergy):
@@ -943,7 +948,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
+def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = None):
     if custom_name == None:
         name = '/potential_covs_'
     else: 
@@ -955,7 +960,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
         nrows, ncols = 3, 2
     else:
         nrows, ncols = 3, 1
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(8,8))
 
     list_min = []
     list_max = []
@@ -969,8 +974,10 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     norm = colors.Normalize(vmin=vmin, vmax=vmax)
     plt.suptitle("Covariance matrices for potential states")
     for ind, hess in enumerate(hessians):
+        #shaped_hess = shape_cov_ave_joints(hess, model)
+        shaped_hess = hess
         ax = axes.flat[ind]
-        im = ax.imshow(hess, cmap=cmap, norm=norm)
+        im = ax.imshow(shaped_hess, cmap=cmap, norm=norm)
         ax.set_title(str(ind))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
@@ -978,9 +985,9 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
         uncertainty1 = float("{0:.4f}".format(np.linalg.det(hess)))
         uncertainty2 = float("{0:.4f}".format(np.max(eigenvals)))
         uncertainty3 = float("{0:.4f}".format(np.sum(eigenvals)))
-        ax.text(0.05,0.05,str(uncertainty1))
-        ax.text(0.05,0.5,str(uncertainty2))   
-        ax.text(0.05,1.05,str(uncertainty3))   
+        ax.text(0.05,5,str(uncertainty1), color="white")
+        ax.text(0.05,10,str(uncertainty2), color="white")   
+        ax.text(0.05,15,str(uncertainty3), color="white")   
 
     fig.subplots_adjust(right=0.8, hspace = 0.5)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
@@ -1025,17 +1032,16 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
     plt.close()
 
 
-def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose, potential_states_fetcher, model, plot_loc, ind, ellipses = True):
-    _, joint_names, _, _ = model_settings(model)
+def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = True):
+    _, joint_names, _, _ = model_settings(potential_states_fetcher.model)
     hip_index = joint_names.index('spine1')
-
-    current_human_pos = current_human_pose[:, hip_index]
-    future_human_pos =  future_human_pose[:, hip_index]
-    gt_human_pos = gt_human_pose[:, hip_index]
+    current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
-    fig = plt.figure()
+    fig = plt.figure(figsize=(4,4))
     ax = fig.add_subplot(111, projection='3d')
-    potential_states = potential_states_fetcher.potential_states
+    potential_states = potential_states_fetcher.potential_states_go
     
     #plot the people
     plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='^', label="current human pos")
@@ -1060,14 +1066,18 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
         else:
             ax.plot([center[0]], [center[1]], [center[2]], marker='^', color='b')
-        ax.text(center[0], center[1], center[2], str(state_ind))
+        color = 'black'
+        if (state_ind == potential_states_fetcher.goal_state_ind):
+            color = 'red'
+        ax.text(center[0], center[1], center[2], str(state_ind), color=color)
+
 
         X = np.concatenate([X, np.array([center[0]])])
         Y = np.concatenate([Y, np.array([center[1]])])
         Z = np.concatenate([Z, np.array([center[2]])])
     #curr_center = centers[potential_states_fetcher.current_state_ind]
-    goal_center = centers[potential_states_fetcher.goal_state_ind]
-    ax.plot([goal_center[0]], [goal_center[1]], [goal_center[2]], marker='^', color='xkcd:dark orange')
+    #goal_center = centers[potential_states_fetcher.goal_state_ind]
+    #ax.plot([goal_center[0]], [goal_center[1]], [goal_center[2]], marker='^', color='xkcd:dark orange')
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     mid_x = (X.max()+X.min()) * 0.5
@@ -1082,7 +1092,6 @@ def plot_potential_ellipses(current_human_pose, future_human_pose, gt_human_pose
     ax.set_zlabel('Z')
 
     ax.legend(handles=[plot1, plot2, plot3])
-    #plt.show()
     file_name = plot_loc + "/potential_ellipses_" + str(ind) + ".png"
-    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.savefig(file_name)
     plt.close(fig)

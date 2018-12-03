@@ -98,8 +98,6 @@ class pose3d_calibration_scipy():
 
     def jacobian_3(self,x):
         gradient = approx_derivative(self.forward, x, rel_step=None, method="2-point", sparsity=None)
-        #print("approx grad", gradient)
-        #import pdb; pdb.set_trace()
         return gradient
 
     def mini_hessian(self,x):
@@ -285,6 +283,30 @@ class pose3d_calibration_parallel_wrapper():
         self.pltpts = {}
         self.result_shape = pose_client.result_shape_calib
 
+    def reset_future(self, pose_client, potential_state):
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        
+        data_list = pose_client.requiredEstimationData_calibration
+
+        projection_client = Projection_Client()
+
+        #future state 
+        yaw = potential_state["orientation"]
+        C_drone =  potential_state["position"]
+        potential_pitch = potential_state["pitch"]
+        future_pose = torch.from_numpy(pose_client.future_pose).float()
+
+        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
+        potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
+        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
+        potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
+
+        projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
+        self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
+
+        self.pltpts = {}
+        self.result_shape = pose_client.result_shape_calib
+
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
         self.pltpts = self.pytorch_objective.pltpts
@@ -327,7 +349,7 @@ class pose3d_online_parallel_wrapper():
 
 class pose3d_future_parallel_wrapper():
 
-    def reset(self, pose_client, potential_state):
+    def reset_future(self, pose_client, potential_state):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()

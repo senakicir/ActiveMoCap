@@ -19,7 +19,7 @@ class NonAirSimClient(object):
         self.num_of_data = self.a_flight.shape[0]
         self.end = False
 
-    def moveToPositionAsync(self, arg1, arg2, arg3, arg4, arg5, arg6, arg7, yaw_or_rate=0 ,lookahead=0, adaptive_lookahead=0):
+    def moveToPositionAsync(self):
         if (self.linecount == self.num_of_data-1):
             self.end = True
 

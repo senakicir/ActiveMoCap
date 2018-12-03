@@ -3,8 +3,8 @@ from math import ceil
 from square_bounding_box import *
 from helpers import SIZE_X, SIZE_Y, numpy_to_tuples
 
-crop_alpha = 0.95
-STABLE_FRAME = 5
+crop_alpha = 0.5
+STABLE_FRAME = 20
 class Crop:
 
     def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y]):

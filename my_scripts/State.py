@@ -1,11 +1,10 @@
 import cv2 as cv2
 from math import radians, cos, sin, pi, degrees, acos, sqrt
 import numpy as np
-from helpers import range_angle, model_settings, shape_cov, MIDDLE_POSE_INDEX, FUTURE_POSE_INDEX, TOP_SPEED
+from helpers import range_angle, model_settings, shape_cov, MIDDLE_POSE_INDEX, FUTURE_POSE_INDEX
 import time as time 
 from project_bones import take_potential_projection
 import pdb 
-from random import randint
 
 #constants
 BETA = 0.35
@@ -22,11 +21,8 @@ z_pos = -1.5
 DELTA_T = 0.2
 N = 4.0
 TIME_HORIZON = N*DELTA_T
-SAFE_RADIUS = 14
-TRAVEL = 0.5
-TRAVEL2 = 4
-UPPER_LIM = -6
-LOWER_LIM = -1.5
+SAFE_RADIUS = 7
+TOP_SPEED = 5
 
 def find_current_polar_info(drone_pos, human_pos):
     polar_pos = drone_pos - human_pos  #subtrack the human_pos in order to find the current polar position vector.
@@ -41,29 +37,30 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 
 class State(object):
-    def __init__(self, positions_):
-        self.positions = positions_
+    def __init__(self):
         #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
         #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
         #self.human_rotation_speed = 0
-        self.human_pos = positions_[HUMAN_POS_IND,:]
+        self.human_pos = np.array([0,0,0])
         self.human_vel = 0
         self.human_speed = 0
         self.drone_pos = np.array([0,0,0])
         self.current_polar_pos = np.array([0,0,0])
         self.current_degree = 0
         self.drone_orientation = np.array([0,0,0])
-        projected_distance_vect = positions_[HUMAN_POS_IND, :]
-        self.radius = np.linalg.norm(projected_distance_vect[0:2,]) #to do
-        self.prev_human_pos = 0
+        self.radius = SAFE_RADIUS#np.linalg.norm(projected_distance_vect[0:2,]) #to do
+        self.prev_human_pos = -42
 
-        drone_polar_pos = - positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
-        self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
+        drone_polar_pos = np.array([0,0,0])#positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
+        #self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
 
     def updateState(self, positions_):
         self.positions = positions_
         self.human_pos  = self.positions[HUMAN_POS_IND,:]
-        self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
+        if np.all(self.prev_human_pos == -42):
+            self.human_vel = np.zeros([3,])
+        else:
+            self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
         self.prev_human_pos = self.human_pos
         self.human_speed = np.linalg.norm(self.human_vel) #the speed of the human (scalar)
         
@@ -86,7 +83,7 @@ class State(object):
         desired_polar_pos = np.array([cos(desired_polar_angle) * self.radius, sin(desired_polar_angle) * self.radius, 0])
         desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel 
         desired_pos[2] = self.human_pos[2]-z_pos
-        desired_yaw = self.current_degree + INCREMENT_DEGREE_AMOUNT/N + pi
+        desired_yaw = self.current_degree + pi#INCREMENT_DEGREE_AMOUNT/N + pi
         desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2], desired_yaw)
 
         return desired_pos, desired_yaw_deg
@@ -95,11 +92,18 @@ class State(object):
         delta_yaw = find_delta_yaw((self.drone_orientation)[2],  target_yaw)
         return delta_yaw
 
-    def get_goal_pos_and_yaw_chosen(self, goal_state):
+    def get_goal_pos_yaw_pitch(self, goal_state):
         goal_pos = goal_state["position"]
         goal_yaw = goal_state["orientation"]
+        cam_pitch = goal_state["pitch"]
         desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2],  goal_yaw)
-        return goal_pos , desired_yaw_deg       
+        return goal_pos , desired_yaw_deg, cam_pitch   
+
+    def get_current_pitch(self):
+        new_radius = np.linalg.norm(self.drone_pos - self.human_pos)
+        new_theta = acos((self.drone_pos[2] - self.human_pos[2])/new_radius)
+        new_pitch = pi/2 - new_theta
+        return new_pitch
 
     def get_desired_pos_and_yaw_trackbar(self):
         #calculate new polar coordinates according to circular motion (the circular offset required to rotate around human)
@@ -115,300 +119,3 @@ class State(object):
         desired_pos = desired_polar_pos + self.human_pos - np.array([0,0,desired_z_pos])
         desired_yaw = desired_polar_angle - pi
         return desired_pos, desired_yaw
-        
-class Potential_States_Fetcher(object):
-    def __init__(self, pose_client, current_drone_pos):
-        _, joint_names, _, _ = model_settings(pose_client.model)
-        self.hip_index = joint_names.index('spine1')
-
-        self.current_drone_pos = np.squeeze(pose_client.current_drone_pos)
-        self.future_human_pos = pose_client.future_pose
-        self.current_human_pos = pose_client.current_pose
-        self.potential_states = []
-        self.potential_states_go = []
-        self.potential_hessians_normal = []
-        self.potential_covs_normal = []
-        self.current_state_ind = 0
-        self.goal_state_ind =0
-        self.potential_pose2d_list = []
-        self.hessian_method = pose_client.hessian_method
-
-    def get_potential_positions_really_spherical(self):
-
-        new_radius = SAFE_RADIUS
-        unit_z = np.array([0,0,-1])
-        travel = TRAVEL
-        travel_go = TRAVEL2
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.current_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
-        unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
-
-        up_vec = np.cross(unit_horizontal, new_drone_vec) #starts from 0?
-        side_vec = np.cross(unit_z, new_drone_vec) 
-        up_vec_norm = up_vec*travel/np.linalg.norm(up_vec)
-        side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
-
-        up_vec_norm_go = up_vec*travel_go/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec*travel_go/np.linalg.norm(side_vec)
-
-        weights = [-1,0,1]
-        ind = 0
-        for w1 in weights:
-            for w2 in weights:
-                do_not_append = False
-                if (w1==0 and w2 ==0):
-                    norm_pos = new_drone_vec + self.current_human_pos[:, self.hip_index]
-                    self.current_state_ind = ind
-                else:
-                    if (w1*w2 == 0):
-                        pos = new_drone_vec + self.current_human_pos[:, self.hip_index] + up_vec_norm*w1 + side_vec_norm*w2
-                    else:
-                        pos = new_drone_vec + self.current_human_pos[:, self.hip_index] +  (up_vec_norm*w1 + side_vec_norm*w2)/sqrt(2)
-                    potential_drone_vec = pos-self.current_human_pos[:, self.hip_index]
-                    norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-                    norm_pos = norm_potential_drone_vec + self.current_human_pos[:, self.hip_index]
-                
-                if norm_pos[2]  > LOWER_LIM:
-                    do_not_append = True
-                if norm_pos[2]  < UPPER_LIM:
-                    do_not_append = True
-                
-                if not do_not_append:
-                    new_theta = acos((norm_pos[2] - self.current_human_pos[2, self.hip_index])/new_radius)
-                    new_pitch = pi/2 -new_theta
-                    _, new_phi = find_current_polar_info(norm_pos, self.current_human_pos[:, self.hip_index])
-                    self.potential_states.append({"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch})
-                ind += 1
-        
-        return self.potential_states
-
-    def get_potential_positions_really_spherical_future(self):
-
-        new_radius = SAFE_RADIUS
-        UPPER_LIM = -7
-        LOWER_LIM = -1
-        unit_z = np.array([0,0,-1])
-        travel = TRAVEL
-        travel_go = TRAVEL2
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
-        unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
-
-        up_vec = np.cross(unit_horizontal, new_drone_vec)
-        side_vec = np.cross(unit_z, new_drone_vec) 
-        up_vec_norm = up_vec*travel/np.linalg.norm(up_vec)
-        side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
-        up_vec_norm_go = up_vec*travel_go/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec*travel_go/np.linalg.norm(side_vec)
-
-        weights_up = [-1,0,1]
-        weights_side = [-1,0,1]
-        if current_drone_pos[2]  > LOWER_LIM: #about to crash
-            weights_up = [-1]
-        elif current_drone_pos[2] + 1 > LOWER_LIM: #about to crash
-            weights_up = [-1, 0]
-
-        if current_drone_pos[2]  < UPPER_LIM:
-            weights_up = [1]
-        elif current_drone_pos[2] -1 < UPPER_LIM:
-            weights_up = [0, 1]
-                      
-        ind = 0
-        for w1 in weights_up:
-            for w2 in weights_side:
-                if (w1==0 and w2 ==0):
-                    self.current_state_ind = ind
-                    norm_pos = new_drone_vec + self.future_human_pos[:, self.hip_index]
-                else:
-                    if (w1*w2 == 0):
-                        pos = new_drone_vec + self.future_human_pos[:, self.hip_index] + up_vec_norm*w1 + side_vec_norm*w2
-                        pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + up_vec_norm_go*w1 + side_vec_norm_go*w2
-                    else:
-                        pos = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm*w1 + side_vec_norm*w2)/sqrt(2)
-                        pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + (up_vec_norm_go*w1 + side_vec_norm_go*w2)/sqrt(2)
-
-                    potential_drone_vec = pos-self.future_human_pos[:, self.hip_index]
-                    norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-                    norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
-
-                    potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
-                    norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-                    norm_pos_go = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-                
-                if (w1 != 0 and w2 != 0):
-                    new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-                    new_pitch = pi/2 -new_theta
-                    _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-                    self.potential_states.append({"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch})
-
-                    new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-                    new_pitch_go = pi/2 -new_theta_go
-                    _, new_phi_go = find_current_polar_info(norm_pos_go, self.future_human_pos[:, self.hip_index])
-                    self.potential_states_go.append({"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go})
-                ind += 1
-        return self.potential_states
-
-    
-    def constant_rotation_baseline(self):
-
-        new_radius = SAFE_RADIUS
-        unit_z = np.array([0,0,-1])
-        travel = TRAVEL
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.current_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        side_vec = np.cross(unit_z, new_drone_vec) 
-        side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
-       
-        pos = drone_vec + self.current_human_pos[:, self.hip_index] + side_vec_norm
-        potential_drone_vec = pos-self.current_human_pos[:, self.hip_index]
-        norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-        norm_pos = norm_potential_drone_vec + self.current_human_pos[:, self.hip_index]
-   
-        norm_pos[2] = self.current_human_pos[2, self.hip_index]-z_pos
-
-        new_theta = acos((norm_pos[2] - self.current_human_pos[2, self.hip_index])/new_radius)
-        new_pitch = pi/2 -new_theta
-        _, new_phi = find_current_polar_info(norm_pos, self.current_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
-
-        return goal_state
-
-    def constant_rotation_baseline_future(self):
-
-        new_radius = SAFE_RADIUS
-        unit_z = np.array([0,0,-1])
-        travel = TRAVEL2
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        side_vec = np.cross(unit_z, new_drone_vec) 
-        side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
-       
-        pos = new_drone_vec + self.future_human_pos[:, self.hip_index] + side_vec_norm
-        potential_drone_vec = pos - self.future_human_pos[:, self.hip_index]
-        norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-        norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
-   
-        norm_pos[2] = -1.8#self.current_human_pos[2, self.hip_index]-z_pos
-
-        new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch = pi/2 -new_theta
-        _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
-
-        #goal_vel = TOP_SPEED*(norm_pos-self.current_drone_pos)/np.linalg.norm((norm_pos-self.current_drone_pos))
-        #new_pos = self.current_drone_pos + goal_vel*DELTA_T
-        #_, new_phi = find_current_polar_info(new_pos, self.future_human_pos[:, self.hip_index])
-        #new_orientation = new_phi+pi
-
-        return goal_state
-
-    def constant_angle_baseline_future(self):
-
-        new_radius = SAFE_RADIUS
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-       
-        pos = new_drone_vec + self.future_human_pos[:, self.hip_index] 
-        potential_drone_vec = pos - self.future_human_pos[:, self.hip_index]
-        norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-        norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
-   
-        norm_pos[2] = -1.8#self.current_human_pos[2, self.hip_index]-z_pos
-
-        new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch = pi/2 -new_theta
-        _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
-
-        #goal_vel = TOP_SPEED*(norm_pos-self.current_drone_pos)/np.linalg.norm((norm_pos-self.current_drone_pos))
-        #new_pos = self.current_drone_pos + goal_vel*DELTA_T
-        #_, new_phi = find_current_polar_info(new_pos, self.future_human_pos[:, self.hip_index])
-        #new_orientation = new_phi+pi
-
-        return goal_state
-    
-    def find_hessians_for_potential_states(self, objective, pose_client, P_world):
-        for potential_state_ind, potential_state in enumerate(self.potential_states):
-            objective.reset(pose_client, potential_state)
-
-            start_find_hess2 = time.time()
-            hess2 = objective.hessian(P_world)
-            end_find_hess2 = time.time()
-            
-            print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess2-start_find_hess2)
-
-            self.potential_hessians_normal.append(hess2)
-            inv_hess2 = np.linalg.inv(hess2)
-
-            if (self.hessian_method == 0):
-                self.potential_covs_normal.append(shape_cov(inv_hess2, pose_client.model, FUTURE_POSE_INDEX))
-            elif (self.hessian_method == 1):
-                self.potential_covs_normal.append(shape_cov(inv_hess2, pose_client.model, MIDDLE_POSE_INDEX))
-            else:
-                self.potential_covs_normal.append(inv_hess2)
-
-            #take projection 
-            self.potential_pose2d_list.append(take_potential_projection(potential_state, pose_client.future_pose)) #sloppy
-        return self.potential_covs_normal, self.potential_hessians_normal
-
-    def find_best_potential_state(self):
-        uncertainty_list = []
-        for cov in self.potential_covs_normal:
-            if self.hessian_method == 2:
-                _, s, rotation = np.linalg.svd(cov)
-                uncertainty_list.append(np.sum(s)) 
-            else:
-                uncertainty_list.append(np.linalg.det(cov))
-
-        best_ind = uncertainty_list.index(max(uncertainty_list))
-        self.goal_state_ind = best_ind
-        print("uncertainty list:", uncertainty_list, "best ind", best_ind)
-        goal_state = self.potential_states_go[best_ind]
-        return goal_state
-
-    def find_goal_vel_and_yaw(self, goal_state):
-        goal_pos = goal_state["position"]
-        goal_yaw = goal_state["orientation"]
-        goal_vel = TOP_SPEED*(goal_pos-self.current_drone_pos)/np.linalg.norm((goal_pos-self.current_drone_pos))
-        new_pos = self.current_drone_pos + goal_vel*DELTA_T
-        _, new_phi = find_current_polar_info(new_pos, self.future_human_pos[:, self.hip_index])
-        new_orientation = new_phi+pi
-        return goal_vel, new_orientation
-
-
-    def find_random_next_state(self):
-        random_ind = randint(0, len(self.potential_states)-1)
-        self.goal_state_ind = random_ind
-        print("random ind", random_ind)
-        return self.potential_states_go[random_ind]
