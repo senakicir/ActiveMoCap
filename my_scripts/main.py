@@ -186,7 +186,8 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
 
         if(pose_client.isCalibratingEnergy):
             if airsim_client.linecount < 20:
-                goal_state = potential_states_fetcher.up_down_baseline()
+                goal_state = potential_states_fetcher.precalibration()
+                drone_speed = TOP_SPEED
 
             else:
                 if (trajectory == 0):
@@ -207,6 +208,7 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
                     goal_state = potential_states_fetcher.left_right_baseline()
                     
             desired_pos, desired_yaw_deg, _ = current_state.get_goal_pos_yaw_pitch(goal_state)
+            drone_speed = TOP_SPEED
 
         else:
             if (trajectory == 0): #ACTIVE
@@ -229,11 +231,11 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
             if (trajectory == 6):
                 goal_state = potential_states_fetcher.left_right_baseline()
             desired_pos, desired_yaw_deg, _ = current_state.get_goal_pos_yaw_pitch(goal_state)
-        
+            drone_speed = TOP_SPEED
+
         #find desired drone speed
         #desired_vel = 5#(desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
         #drone_speed = np.linalg.norm(desired_vel)    
-        drone_speed = TOP_SPEED
         if (airsim_client.linecount < 5):
             drone_speed = drone_speed * airsim_client.linecount/5
 
@@ -321,13 +323,13 @@ if __name__ == "__main__":
     use_airsim = True
     base_folder = "/Users/kicirogl/Documents/temp_main"
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
-    trajectory = 1
+    trajectory = 4
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 2
     minmax = True #True-min, False-max
     SEED_LIST = [41, 5, 2, 12, 1995]
     WOBBLE_FREQ_LIST = [0.5, 1, 2, 5, 20]
-    UPDOWN_LIM_LIST = [[-5, -3]]
+    UPDOWN_LIM_LIST = [[-4, -1]]
     LOOKAHEAD_LIST = [0.3]
 
     param_read_M = False
@@ -348,8 +350,8 @@ if __name__ == "__main__":
     animations = {"02_01": len(SEED_LIST)}
 
     active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax}
-    Z_POS_LIST = [-1, -4, -7, -9, -11, -14]
-    num_of_experiments = len(Z_POS_LIST)
+    Z_POS_LIST = [-3, -4, -5, -6]
+    num_of_experiments = len(WOBBLE_FREQ_LIST)
 
     for experiment_ind in range(num_of_experiments):
 
@@ -363,8 +365,8 @@ if __name__ == "__main__":
 
         energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
-        active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
-        active_parameters["Z_POS"] = Z_POS_LIST[experiment_ind]
+        active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[experiment_ind]
+        active_parameters["Z_POS"] = Z_POS_LIST[0]
         active_parameters["LOOKAHEAD"] = LOOKAHEAD_LIST[0]
 
         fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   

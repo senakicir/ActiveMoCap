@@ -22,7 +22,7 @@ DELTA_T = 0.2
 N = 4.0
 TIME_HORIZON = N*DELTA_T
 SAFE_RADIUS = 7
-TOP_SPEED = 5
+TOP_SPEED = 3
 
 def find_current_polar_info(drone_pos, human_pos):
     polar_pos = drone_pos - human_pos  #subtrack the human_pos in order to find the current polar position vector.

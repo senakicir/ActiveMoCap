@@ -7,7 +7,7 @@ import pdb
 
 neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
 ones_tensor = (torch.ones([1, 15])*1.0)
-DEFAULT_TORSO_SIZE = 0.42 #0.86710678118
+DEFAULT_TORSO_SIZE = 0.176
 
 #R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
 C_cam = np.array([[CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z]]).T

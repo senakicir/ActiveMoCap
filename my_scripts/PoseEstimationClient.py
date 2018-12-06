@@ -130,10 +130,16 @@ class PoseEstimationClient(object):
     def changeCalibrationMode(self, calibMode):
         self.isCalibratingEnergy = calibMode
 
-    def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_):
-        self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-        if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE):
-            self.requiredEstimationData_calibration.pop()
+    def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, linecount):
+        if linecount < 20:
+            self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        elif linecount == 20:
+            while len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE:
+                self.requiredEstimationData_calibration.pop()
+        else:
+            self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+            if (len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE):
+                self.requiredEstimationData_calibration.pop()
         self.poseList_3d_calibration = pose3d_
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, pose3d_lift = None):

@@ -40,7 +40,7 @@ def determine_all_positions(airsim_client, pose_client,  plot_loc = 0, photo_loc
 def determine_2d_positions(mode_2d, cropping_tool, return_heatmaps=True, is_torch = True, unreal_positions = 0, R_cam= 0, bone_pos_3d_GT = 0, input_image = 0,  scales = [1]):
     if (mode_2d == 0):
         bone_2d, heatmaps = find_2d_pose_gt(unreal_positions, R_cam, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps, is_torch)
-        noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*2)
+        noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*3)
         bone_2d += noise
         heatmaps_scales = 0
         poses_scales = 0
@@ -130,7 +130,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
 
     #add information you need to your window
     if (pose_client.isCalibratingEnergy): 
-        pose_client.addNewCalibrationFrame(bone_2d, R_drone, C_drone, R_cam, pre_pose_3d)
+        pose_client.addNewCalibrationFrame(bone_2d, R_drone, C_drone, R_cam, pre_pose_3d, airsim_client.linecount)
     pose_client.addNewFrame(bone_2d, R_drone, C_drone, R_cam, pre_pose_3d, pose3d_lift_directions)
 
     final_loss = np.zeros([1,1])
@@ -287,7 +287,7 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc =
         pose3d_ = take_bone_backprojection_pytorch(bone_2d, R_drone, C_drone, joint_names)
 
     if (pose_client.isCalibratingEnergy): 
-        pose_client.addNewCalibrationFrame(bone_2d, R_drone, C_drone, pose3d_)
+        pose_client.addNewCalibrationFrame(bone_2d, R_drone, C_drone, pose3d_, airsim_client.linecount)
     pose_client.addNewFrame(bone_2d, R_drone, C_drone, pose3d_, pose3d_lift_directions)
 
     pltpts = {}
