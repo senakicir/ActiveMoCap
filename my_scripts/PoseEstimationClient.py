@@ -12,7 +12,6 @@ class PoseEstimationClient(object):
         self.modes = param["MODES"]
         self.method = param["METHOD"]
         self.ftol = param["FTOL"]
-        #pose_client.kalman.init_process_noise(kalman_arguments["KALMAN_PROCESS_NOISE_AMOUNT"])
         self.model = param["MODEL"]
         _, _, num_of_joints, _ = model_settings(self.model)
 
@@ -42,6 +41,7 @@ class PoseEstimationClient(object):
         self.online_res_list = []
         self.f_string = ""
         self.f_reconst_string = ""
+        self.f_openpose_str = ""
         self.processing_time = []
 
         self.isCalibratingEnergy = True

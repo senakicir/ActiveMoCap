@@ -13,7 +13,7 @@ import pdb
 import util as demo_util
 from PoseEstimationClient import *
 
-#import openpose as openpose_module
+import openpose as openpose_module
 #import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
@@ -37,15 +37,20 @@ def determine_all_positions(airsim_client, pose_client,  plot_loc = 0, photo_loc
 
     return positions, unreal_positions
 
-def determine_2d_positions(mode_2d, cropping_tool, return_heatmaps=True, is_torch = True, unreal_positions = 0, R_cam= 0, bone_pos_3d_GT = 0, input_image = 0,  scales = [1]):
+def determine_2d_positions(pose_client, return_heatmaps=True, is_torch = True, unreal_positions = 0, R_cam= 0, bone_pos_3d_GT = 0, input_image = 0,  scales = [1]):
+    mode_2d, cropping_tool = pose_client.modes["mode_2d"], pose_client.cropping_tool
+
+    bone_2d_gt, heatmaps = find_2d_pose_gt(unreal_positions, R_cam, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps, is_torch)
     if (mode_2d == 0):
-        bone_2d, heatmaps = find_2d_pose_gt(unreal_positions, R_cam, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps, is_torch)
+        bone_2d = bone_2d_gt
         noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*3)
         bone_2d += noise
         heatmaps_scales = 0
         poses_scales = 0
     elif (mode_2d == 1):            
         bone_2d, heatmaps, heatmaps_scales, poses_scales = find_2d_pose_openpose(input_image,  scales)
+        error = np.mean(np.linalg.norm(bone_2d_gt-bone_2d, axis=0))
+        pose_client.f_openpose_str += str(error) + '\n'
     return bone_2d, heatmaps, heatmaps_scales, poses_scales
 
 def find_2d_pose_gt(unreal_positions, R_cam, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps=True, is_torch = True):
@@ -104,7 +109,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pose_client.cam_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
 
     #find 2d pose (using openpose or gt)
-    bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, True, True, unreal_positions, R_cam, bone_pos_3d_GT, cropped_image, scales)
+    bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client, True, True, unreal_positions, R_cam, bone_pos_3d_GT, cropped_image, scales)
 
     #find relative 3d pose using liftnet or GT relative pose
     pose3d_lift = determine_relative_3d_pose(pose_client.modes["mode_lift"], bone_2d, cropped_image, heatmap_2d, R_drone, C_drone, R_cam, bone_pos_3d_GT)
@@ -214,7 +219,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - optimized_3d_pose, axis=0))
     middle_pose_error = np.mean(np.linalg.norm(middle_pose_GT - middle_pose, axis=0))
     
-    if airsim_client.linecount > 20:
+    if (not pose_client.isCalibratingEnergy):
         pose_client.error_3d.append(error_3d)
         pose_client.middle_pose_error.append(middle_pose_error)
         ave_error =  sum(pose_client.error_3d)/len(pose_client.error_3d)
@@ -225,8 +230,12 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
 
     if (plot_loc != 0 and not pose_client.quiet): 
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
+        superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
+
+        plot_2d_projection(check, plot_loc, airsim_client.linecount, bone_connections, custom_name="proj_2d")
+
         plot_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, additional_text = ave_error)
-        plot_human(bone_pos_3d_GT, noisy_init_pose, plot_loc, airsim_client.linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
+        #plot_human(bone_pos_3d_GT, noisy_init_pose, plot_loc, airsim_client.linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
 
         #save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)

@@ -226,7 +226,7 @@ def reset_all_folders(animation_list, base = ""):
             for a_folder_name in folder_names[key].values():
                 if not os.path.exists(a_folder_name):
                     os.makedirs(a_folder_name)
-            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', "f_reconstruction": experiment_folder_name +  '/reconstruction.txt'}
+            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', "f_openpose_error": experiment_folder_name +  '/openpose_error.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
@@ -615,6 +615,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     else:
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
+    file_name_2 = plot_loc + '/drone_traj_2'+ str(ind) + '.png'
 
     fig = plt.figure( figsize=(12, 4))
     bone_connections, _, _, _ = model_settings(pose_client.model)
@@ -701,6 +702,66 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     plt.savefig(file_name)
     plt.close()
 
+#####################
+    fig = plt.figure( figsize=(4, 4))
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    ax = fig.add_subplot(111, projection='3d')
+
+    last_frame_plot_info = plot_info[-1]
+    predicted_bones = last_frame_plot_info["est"]
+    bones_GT = last_frame_plot_info["GT"]
+
+    X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
+    Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
+    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+
+    #plot drone
+    drone_x, drone_y, drone_z = [],[],[]
+    for frame_ind in range (0, len(plot_info)):
+        frame_plot_info = plot_info[frame_ind]
+        drone = frame_plot_info["drone"].squeeze()
+        drone_x.append(drone[0])
+        drone_y.append(drone[1])
+        drone_z.append(-drone[2])
+
+        X = np.concatenate([X, [drone[0]]])
+        Y = np.concatenate([Y, [drone[1]]])
+        Z = np.concatenate([Z, [-drone[2]]])
+
+    plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
+
+    #plot final frame human
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+
+    for i, bone in enumerate(left_bone_connections):
+        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+    for i, bone in enumerate(right_bone_connections):
+        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+
+    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    plt.title("Drone Trajectory")
+    plt.savefig(file_name_2)
+    plt.close()
+
 def plot_optimization_losses(pltpts, location, ind, loss_dict):
     plt.figure()
     for loss_ind, loss_key in enumerate(loss_dict):
@@ -710,6 +771,26 @@ def plot_optimization_losses(pltpts, location, ind, loss_dict):
         plt.xlabel("iter")
         plt.title(loss_key)
     plot_3d_pos_loc = location + '/loss_' + str(ind) + '.png'
+    plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_2d_projection(pose, plot_loc, ind, bone_connections, custom_name="proj_2d"):
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.imshow(np.ones([576,1024]))
+
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    for _, bone in enumerate(left_bone_connections):    
+        p1, = ax.plot( pose[0, bone], pose[1,bone], color = "r", linewidth=1, label="Left")   
+    for i, bone in enumerate(right_bone_connections):    
+        p2, = ax.plot( pose[0, bone], pose[1,bone], color = "b", linewidth=1, label="Right")   
+    for i, bone in enumerate(middle_bone_connections):    
+        ax.plot(pose[0, bone], pose[1,bone], color = "b", linewidth=1)   
+    ax.set_title(str(ind))
+    ax.get_xaxis().set_visible(False)
+    ax.get_yaxis().set_visible(False) 
+
+    plot_3d_pos_loc = plot_loc + '/' +custom_name+ "_" + str(ind) + '.png'
     plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
@@ -1062,7 +1143,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = 
         centers.append(center)
         if ellipses:
             covs = potential_states_fetcher.potential_covs_normal
-            x,y,z = matrix_to_ellipse(covs[state_ind], center, 6)
+            x,y,z = matrix_to_ellipse(shape_cov(covs[state_ind], potential_states_fetcher.model, 0), center, 0.1)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
         else:
             ax.plot([center[0]], [center[1]], [center[2]], marker='^', color='b')
@@ -1092,6 +1173,6 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = 
     ax.set_zlabel('Z')
 
     ax.legend(handles=[plot1, plot2, plot3])
-    file_name = plot_loc + "/potential_ellipses_" + str(ind) + ".png"
+    file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
     plt.savefig(file_name)
     plt.close(fig)

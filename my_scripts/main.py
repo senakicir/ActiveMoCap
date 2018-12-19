@@ -4,7 +4,7 @@ from PoseEstimationClient import *
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
-from PotentialStatesFetcher import PotentialStatesFetcher
+from PotentialStatesFetcher import PotentialStatesFetcher, THETA_LIST, PHI_LIST
 from State import State, TOP_SPEED, TIME_HORIZON, DELTA_T
 
 import pprint
@@ -57,6 +57,10 @@ def take_photo(airsim_client, image_folder_loc):
         drone_orient = unreal_positions[DRONE_ORIENTATION_IND]
 
         airsim_client.updateSynchronizedData(unreal_positions, bone_pos, drone_pos, drone_orient)
+
+        #img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8) 
+        #img_rgba = img1d.reshape(response.height, response.width, 4)  
+        #airsim_client.photo = img_rgba[:,:,:,0:3]
         
         loc = image_folder_loc + '/img_' + str(airsim_client.linecount) + '.png'
         airsim.write_file(os.path.normpath(loc), response.image_data_uint8)
@@ -89,6 +93,7 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
     folder_names = parameters["FOLDER_NAMES"]
     trajectory = active_parameters["TRAJECTORY"]
     z_pos = active_parameters["Z_POS"]
+    COMPUTER_VISION_MODE = active_parameters["COMPUTER_VISION_MODE"]
     #connect to the AirSim simulator
     if USE_AIRSIM:
         airsim_client = airsim.MultirotorClient()
@@ -120,6 +125,8 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
     f_output = open(filenames_anim["f_output"], 'w')
     f_groundtruth = open(filenames_anim["f_groundtruth"], 'w')
     f_reconstruction = open(filenames_anim["f_reconstruction"], 'w')
+    f_openpose_error = open(filenames_anim["f_openpose_error"], 'w')
+    
     plot_loc_ = foldernames_anim["superimposed_images"]
 
     #save drone initial position
@@ -157,23 +164,35 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
         #if USE_AIRSIM:
             #k = cv2.waitKey(1) & 0xFF
             #if k == 27:
-            #    break
-
-        _, f_groundtruth_str = take_photo(airsim_client, foldernames_anim["images"])
-        airsim_client.simPause(True)
-        
-        if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
-            #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
-            #airsim_client.changeCalibrationMode(False)
-            pose_client.changeCalibrationMode(False)
-            #global_plot_ind =0
+            #    break        
 
         if (USE_AIRSIM):
             photo_loc_ = foldernames_anim["images"] + '/img_' + str(airsim_client.linecount) + '.png'
         else:
             photo_loc_ = 'test_sets/'+test_set_name+'/images/img_' + str(airsim_client.linecount) + '.png'
 
+        if COMPUTER_VISION_MODE:
+            potential_states_fetcher.reset(pose_client, current_state.drone_pos)
+            goal_state, openpose_str = potential_states_fetcher.test_openpose_mode()
+            pose_client.f_openpose_str = openpose_str
+            sim_pos = goal_state['position']
+            airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), False)
+            _, f_groundtruth_str = take_photo(airsim_client, foldernames_anim["images"])
+            airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state["pitch"], 0, 0))
+        else:
+            _, f_groundtruth_str = take_photo(airsim_client, foldernames_anim["images"])
+            airsim_client.simPause(True)
+        
+            if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
+                #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
+                airsim_client.changeCalibrationMode(False)
+                pose_client.changeCalibrationMode(False)
+                #global_plot_ind =0
+
         positions, unreal_positions = determine_all_positions(airsim_client, pose_client, plot_loc = plot_loc_, photo_loc = photo_loc_)
+
+        if COMPUTER_VISION_MODE: 
+            f_openpose_error.write(pose_client.f_openpose_str)
 
         current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
         cam_pitch = current_state.get_current_pitch()
@@ -182,13 +201,13 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
         #finds desired position and yaw angle
         #if (USE_TRACKBAR):
           #  [desired_pos, desired_yaw_deg] = current_state.get_desired_pos_and_yaw_trackbar()
+
         potential_states_fetcher.reset(pose_client, current_state.drone_pos)
 
-        if(pose_client.isCalibratingEnergy):
+        if not COMPUTER_VISION_MODE: 
             if airsim_client.linecount < 20:
                 goal_state = potential_states_fetcher.precalibration()
                 drone_speed = TOP_SPEED
-
             else:
                 if (trajectory == 0):
                     potential_states_fetcher.get_potential_positions_really_spherical_future()
@@ -206,51 +225,28 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
                     goal_state = potential_states_fetcher.up_down_baseline()
                 if (trajectory == 6):
                     goal_state = potential_states_fetcher.left_right_baseline()
-                    
+                drone_speed = TOP_SPEED
+
             desired_pos, desired_yaw_deg, _ = current_state.get_goal_pos_yaw_pitch(goal_state)
-            drone_speed = TOP_SPEED
 
-        else:
-            if (trajectory == 0): #ACTIVE
-                #find hessian for each drone position
-                potential_states_fetcher.get_potential_positions_really_spherical_future()
-                potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
-                goal_state = potential_states_fetcher.find_best_potential_state()
-                potential_states_fetcher.plot_everything(airsim_client.linecount, plot_loc_, photo_loc_)
-            if trajectory == 1: #CONSTANT ROT
-                goal_state = potential_states_fetcher.constant_rotation_baseline_future()
-            if (trajectory ==2): #RANDOM
-                potential_states_fetcher.get_potential_positions_really_spherical_future()
-                goal_state = potential_states_fetcher.find_random_next_state()
-            if (trajectory == 3):
-                goal_state = potential_states_fetcher.constant_angle_baseline_future()
-            if (trajectory == 4):
-                goal_state = potential_states_fetcher.wobbly_baseline()
-            if (trajectory == 5):
-                goal_state = potential_states_fetcher.up_down_baseline()
-            if (trajectory == 6):
-                goal_state = potential_states_fetcher.left_right_baseline()
-            desired_pos, desired_yaw_deg, _ = current_state.get_goal_pos_yaw_pitch(goal_state)
-            drone_speed = TOP_SPEED
+            #find desired drone speed
+            #desired_vel = 5#(desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
+            #drone_speed = np.linalg.norm(desired_vel)    
+            if (airsim_client.linecount < 5):
+                drone_speed = drone_speed * airsim_client.linecount/5
 
-        #find desired drone speed
-        #desired_vel = 5#(desired_pos - current_state.drone_pos)/TIME_HORIZON #how much the drone will have to move for this iteration
-        #drone_speed = np.linalg.norm(desired_vel)    
-        if (airsim_client.linecount < 5):
-            drone_speed = drone_speed * airsim_client.linecount/5
-
-        airsim_client.simPause(False)
-        if USE_AIRSIM:
-            start_move = time.time()
-            airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
-            end_move = time.time()
-            time_passed = end_move - start_move
-            print("time passed", time_passed)
-            if (DELTA_T > time_passed):
-                time.sleep(DELTA_T-time_passed)
-                print("I was sleeping :(")
-        else:
-            airsim_client.moveToPositionAsync() #placeholderfunc
+            airsim_client.simPause(False)
+            if USE_AIRSIM:
+                start_move = time.time()
+                airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+                end_move = time.time()
+                time_passed = end_move - start_move
+                print("time passed", time_passed)
+                if (DELTA_T > time_passed):
+                    time.sleep(DELTA_T-time_passed)
+                    print("I was sleeping :(")
+            else:
+                airsim_client.moveToPositionAsync() #placeholderfunc
         airsim_client.simPause(True)
         pose_client.cam_pitch = cam_pitch
         plot_drone_traj(pose_client, plot_loc_, airsim_client.linecount)
@@ -282,6 +278,9 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
         else:
             if (airsim_client.linecount == LENGTH_OF_SIMULATION):
                 end_test = True
+        if COMPUTER_VISION_MODE:
+            if  (airsim_client.linecount == len(THETA_LIST)*len(PHI_LIST)):
+                end_test = True
         airsim_client.simPause(False)
 
     #calculate errors
@@ -308,6 +307,7 @@ def main(kalman_arguments, parameters, energy_parameters, active_parameters):
     f_groundtruth.close()
     f_output.close()
     f_reconstruction.close()
+    f_openpose_error.close()
     airsim_client.simPause(False)
 
     airsim_client.reset()
@@ -323,21 +323,22 @@ if __name__ == "__main__":
     use_airsim = True
     base_folder = "/Users/kicirogl/Documents/temp_main"
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
-    trajectory = 4
+    trajectory = 1
+    computer_vision_mode = True
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 2
     minmax = True #True-min, False-max
-    SEED_LIST = [41, 5, 2, 12, 1995]
+    SEED_LIST = [41]#, 5, 2, 12, 1995]
     WOBBLE_FREQ_LIST = [0.5, 1, 2, 5, 20]
-    UPDOWN_LIM_LIST = [[-4, -1]]
+    UPDOWN_LIM_LIST = [[-3, -1]]
     LOOKAHEAD_LIST = [0.3]
 
-    param_read_M = False
+    param_read_M = True
     param_find_M = False
     is_quiet = False
     
-    online_window_size = 6
-    calibration_length = 300#15
+    online_window_size = 10
+    calibration_length = 35
     calibration_window_size = 10
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim}
@@ -345,13 +346,13 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0}
+    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
    
     animations = {"02_01": len(SEED_LIST)}
 
-    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax}
-    Z_POS_LIST = [-3, -4, -5, -6]
-    num_of_experiments = len(WOBBLE_FREQ_LIST)
+    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "COMPUTER_VISION_MODE": computer_vision_mode}
+    Z_POS_LIST = [-2.5]#, -4, -5, -6]
+    num_of_experiments = 1#len(WOBBLE_FREQ_LIST)
 
     for experiment_ind in range(num_of_experiments):
 
@@ -365,7 +366,7 @@ if __name__ == "__main__":
 
         energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
-        active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[experiment_ind]
+        active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
         active_parameters["Z_POS"] = Z_POS_LIST[0]
         active_parameters["LOOKAHEAD"] = LOOKAHEAD_LIST[0]
 
