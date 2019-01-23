@@ -8,11 +8,11 @@ from square_bounding_box import *
 from kalman_filters import *
 
 class PoseEstimationClient(object):
-    def __init__(self, param):
+    def __init__(self, param, cropping_tool):
         self.modes = param["MODES"]
         self.method = param["METHOD"]
+        self.model  = param["MODEL"]
         self.ftol = param["FTOL"]
-        self.model = param["MODEL"]
         _, _, num_of_joints, _ = model_settings(self.model)
 
         self.boneLengths = torch.zeros([num_of_joints-1,1])
@@ -42,11 +42,12 @@ class PoseEstimationClient(object):
         self.f_string = ""
         self.f_reconst_string = ""
         self.f_openpose_str = ""
+        self.f_groundtruth_str = ""
         self.processing_time = []
 
         self.isCalibratingEnergy = True
 
-        self.cropping_tool = Crop()
+        self.cropping_tool = cropping_tool
         self.param_read_M = param["PARAM_READ_M"]
         if self.param_read_M:
             self.param_find_M = False

@@ -96,6 +96,34 @@ def determine_relative_3d_pose(mode_lift, bone_2d, cropped_image, heatmap_2d, R_
         pose3d_relative = camera_to_world(R_drone, C_drone, R_cam, pose3d_lift.cpu().data.numpy(), is_torch = False)
     return pose3d_relative
 
+def determine_openpose_error(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
+    unreal_positions, bone_pos_3d_GT, _, _ = airsim_client.getSynchronizedData()
+    bone_connections, joint_names, num_of_joints, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
+
+    input_image = cv.imread(photo_loc)
+    cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+    save_image(cropped_image, airsim_client.linecount, plot_loc)
+
+    R_drone = euler_to_rotation_matrix(unreal_positions[DRONE_ORIENTATION_IND, 0], unreal_positions[DRONE_ORIENTATION_IND, 1], unreal_positions[DRONE_ORIENTATION_IND, 2])
+    C_drone = unreal_positions[DRONE_POS_IND, :]
+    C_drone = C_drone[:, np.newaxis]
+    R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, pose_client.cam_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
+
+    #find 2d pose (using openpose or gt)
+    bone_2d, _, _, _ = determine_2d_positions(pose_client, True, True, unreal_positions, R_cam, bone_pos_3d_GT, cropped_image, scales)
+    bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
+
+    pose_client.future_pose = bone_pos_3d_GT
+    pose_client.current_pose = bone_pos_3d_GT
+    pose_client.current_drone_pos = C_drone
+    pose_client.current_pose_GT = bone_pos_3d_GT
+
+    plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": ""}
+    pose_client.append_res(plot_end)
+    pose_client.f_reconst_string = "" 
+
+    superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
+
 
 def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
     unreal_positions, bone_pos_3d_GT, drone_pos_vec, angle = airsim_client.getSynchronizedData()
