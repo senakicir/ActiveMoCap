@@ -8,7 +8,7 @@ STABLE_FRAME = 20
 
 class Crop:
 
-    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y]):
+    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y], openpose_test = True):
         self.old_bbox = bbox_init
         self.bbox = bbox_init
         self.image_bounds = [0,0]
@@ -16,6 +16,13 @@ class Crop:
         self.bounding_box_calculator = BoundingBox(3)
         self.bounding_box_margin = 3
         self.unstable = True
+
+        if openpose_test:
+            self.unstable = False
+            global crop_alpha
+            crop_alpha = 1
+            self.bbox = [SIZE_X//2-200,SIZE_Y//2-200,400,400]
+            self.bounding_box_margin = 3
 
     def crop(self, image, linecount):
         if linecount >= STABLE_FRAME:
@@ -66,9 +73,7 @@ class Crop:
         crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,
                                                                             img_min_x:img_max_x,
                                                                             :]
-        #if (self.bounding_box_margin < 3):                                         
-         #   self.scales = [0.75, 1, 1.25, 1.5]
-        #else:
+
         self.scales = [0.75, 1, 1.25, 1.5,]
 
         return crop_frame, self.scales

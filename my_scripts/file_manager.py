@@ -21,9 +21,10 @@ class FileManager(object):
 
         self.plot_loc = self.foldernames_anim["superimposed_images"]
         self.take_photo_loc =  self.foldernames_anim["images"]
+        self.estimate_folder_name = self.foldernames_anim["estimates"]
 
     def get_nonairsim_client_names(self):
-        return 'test_sets/'+self.test_set_name+'/groundtruth.txt', 'test_sets/'+test_set_name+'/a_flight.txt'
+        return 'test_sets/'+self.test_set_name+'/groundtruth.txt', 'test_sets/'+self.test_set_name+'/a_flight.txt'
 
     def save_simulation_values(self, airsim_client, pose_client):
         f_output_str = str(airsim_client.linecount)+pose_client.f_string + '\n'

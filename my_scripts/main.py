@@ -1,4 +1,4 @@
-from run import run_simulation, run_openpose_test
+from run import run_simulation_trial
 from helpers import reset_all_folders, normalize_weights, fill_notes, TEST_SETS, append_error_notes
 
 if __name__ == "__main__":
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
+    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0}
    
     animations = {"02_01": len(SEED_LIST)}
 
@@ -68,19 +68,16 @@ if __name__ == "__main__":
                     parameters["EXPERIMENT_NAME"] = key
                     parameters["TEST_SET_NAME"]= ""
                     energy_parameters["SEED"] = SEED_LIST[ind]
-                    if computer_vision_mode:
-                        run_openpose_test(parameters, energy_parameters, active_parameters)
-                    else:
-                        errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
-                        many_runs_last.append(errors["ave_3d_err"] )
-                        many_runs_middle.append(errors["middle_3d_err"] )
+                    errors = run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters)
+                    many_runs_last.append(errors["ave_3d_err"] )
+                    many_runs_middle.append(errors["middle_3d_err"] )
         else:
             ind = 0
             for animation in animations:
                 parameters["ANIMATION_NUM"]=  animation
                 parameters["EXPERIMENT_NAME"] = animation + "_" + str(ind)
                 parameters["TEST_SET_NAME"]= TEST_SETS[animation]
-                errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
+                errors = run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters)
         
         if not computer_vision_mode:
             append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

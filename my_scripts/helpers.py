@@ -231,25 +231,6 @@ def reset_all_folders(animation_list, base = ""):
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
 
-def open_files(filenames, experiment_number):
-    filenames_anim = filenames[experiment_number]
-    f_output = open(filenames_anim["f_output"], 'w')
-    f_groundtruth = open(filenames_anim["f_groundtruth"], 'w')
-    f_reconstruction = open(filenames_anim["f_reconstruction"], 'w')
-    f_openpose_error = open(filenames_anim["f_openpose_error"], 'w')
-    return f_output, f_groundtruth, f_reconstruction, f_openpose_error
-
-def save_simulation_values(f_output, f_reconstruction, f_groundtruth, airsim_client, pose_client):
-    f_output_str = str(airsim_client.linecount)+pose_client.f_string + '\n'
-    f_output.write(f_output_str)
-
-    f_reconstruction_str = str(airsim_client.linecount)+ '\t' + pose_client.f_reconst_string + '\n'
-    f_reconstruction.write(f_reconstruction_str)
-
-    f_groundtruth_str =  str(airsim_client.linecount) + '\t' + pose_client.f_groundtruth_str + '\n'
-    f_groundtruth.write(f_groundtruth_str)
-
-
 def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
     f_notes = open(f_notes_name, 'w')
     notes_str = "General Parameters:\n"
@@ -633,7 +614,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     else:
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
-    file_name_2 = plot_loc + '/drone_traj_2'+ str(ind) + '.png'
+    file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.png'
 
     fig = plt.figure( figsize=(12, 4))
     bone_connections, _, _, _ = model_settings(pose_client.model)

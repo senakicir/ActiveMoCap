@@ -13,7 +13,7 @@ import pdb
 import util as demo_util
 from PoseEstimationClient import *
 
-import openpose as openpose_module
+#import openpose as openpose_module
 #import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
@@ -122,7 +122,7 @@ def determine_openpose_error(airsim_client, pose_client, plot_loc = 0, photo_loc
     pose_client.append_res(plot_end)
     pose_client.f_reconst_string = "" 
 
-    superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
+    #superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
 
 
 def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
@@ -260,7 +260,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
         superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
 
-        plot_2d_projection(check, plot_loc, airsim_client.linecount, bone_connections, custom_name="proj_2d")
+        #plot_2d_projection(check, plot_loc, airsim_client.linecount, bone_connections, custom_name="proj_2d")
 
         plot_human(bone_pos_3d_GT, optimized_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, additional_text = ave_error)
         #plot_human(bone_pos_3d_GT, noisy_init_pose, plot_loc, airsim_client.linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
@@ -475,7 +475,7 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
         cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
                
         #find 2d pose (using openpose or gt)
-        bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, True, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
+        bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client, True, True, unreal_positions, bone_pos_3d_GT, cropped_image, scales)
 
         #uncrop 2d pose 
         bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
@@ -487,7 +487,7 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
             #save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
     elif (pose_client.modes["mode_2d"] == 0):
-        bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client.modes["mode_2d"], pose_client.cropping_tool, False, False, unreal_positions, bone_pos_3d_GT, photo_loc, 0)
+        bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client, False, False, unreal_positions, bone_pos_3d_GT, photo_loc, 0)
         if not pose_client.quiet:
             superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_", scale = -1)
 
