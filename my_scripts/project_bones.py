@@ -135,7 +135,7 @@ def camera_to_world(R_drone, C_drone, R_cam, P_camera, is_torch = True):
     return P_world    
 
 
-def transform_cov_matrix(R_drone, cov_):
+def transform_cov_matrix(R_drone, R_cam, cov_):
     transformed_cov = (R_drone@R_cam)@cov_@(R_drone@R_cam).T
     return transformed_cov
 

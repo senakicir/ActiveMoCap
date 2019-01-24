@@ -13,9 +13,9 @@ class PoseEstimationClient(object):
         self.method = param["METHOD"]
         self.model  = param["MODEL"]
         self.ftol = param["FTOL"]
-        _, _, num_of_joints, _ = model_settings(self.model)
+        _, _, self.num_of_joints, _ = model_settings(self.model)
 
-        self.boneLengths = torch.zeros([num_of_joints-1,1])
+        self.boneLengths = torch.zeros([self.num_of_joints-1,1])
         self.ONLINE_WINDOW_SIZE = param["ONLINE_WINDOW_SIZE"]
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
@@ -41,9 +41,10 @@ class PoseEstimationClient(object):
         self.online_res_list = []
         self.f_string = ""
         self.f_reconst_string = ""
-        self.f_openpose_str = ""
         self.f_groundtruth_str = ""
         self.processing_time = []
+
+        self.openpose_error = 0
 
         self.isCalibratingEnergy = True
 
@@ -54,16 +55,16 @@ class PoseEstimationClient(object):
         else:
             self.param_find_M = param["PARAM_FIND_M"]
 
-        self.current_pose = np.zeros([3, num_of_joints])
-        self.future_pose = np.zeros([3, num_of_joints])
+        self.current_pose = np.zeros([3, self.num_of_joints])
+        self.future_pose = np.zeros([3, self.num_of_joints])
         self.current_drone_pos = np.zeros([3,1])
-        self.current_pose_GT =  np.zeros([3, num_of_joints])
+        self.current_pose_GT =  np.zeros([3, self.num_of_joints])
         self.P_world =  0
 
         if self.param_read_M:
             self.M = read_M(self.model, "M_rel")
         else:
-            self.M = np.eye(num_of_joints)
+            self.M = np.eye(self.num_of_joints)
 
         #self.kalman = ExtendedKalman()#Kalman()
         self.measurement_cov = np.eye(3)
@@ -74,8 +75,8 @@ class PoseEstimationClient(object):
         
         self.quiet = param["QUIET"]
 
-        self.result_shape_calib = [3, num_of_joints]
-        self.result_shape_online = [self.ONLINE_WINDOW_SIZE+1, 3, num_of_joints]
+        self.result_shape_calib = [3, self.num_of_joints]
+        self.result_shape_online = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
