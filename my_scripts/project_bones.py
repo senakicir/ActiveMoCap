@@ -140,7 +140,7 @@ def transform_cov_matrix(R_drone, R_cam, cov_):
     return transformed_cov
 
 def take_potential_projection(potential_state, future_pose):
-    C_drone = potential_state["position"]
+    C_drone = potential_state["position"].copy()
     C_drone = C_drone[:, np.newaxis]
     yaw = potential_state["orientation"]
     R_drone = euler_to_rotation_matrix(0,0,yaw)

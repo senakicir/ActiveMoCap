@@ -13,8 +13,8 @@ import pdb
 import util as demo_util
 from PoseEstimationClient import *
 
-#import openpose as openpose_module
-#import liftnet as liftnet_module
+import openpose as openpose_module
+import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -42,8 +42,8 @@ def determine_2d_positions(pose_client, return_heatmaps=True, is_torch = True, u
 
     bone_2d_gt, heatmaps = find_2d_pose_gt(unreal_positions, R_cam, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps, is_torch)
     if (mode_2d == 0):
-        bone_2d = bone_2d_gt
-        noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*1)
+        bone_2d = bone_2d_gt.clone()
+        noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*2)
         bone_2d += noise
         heatmaps_scales = 0
         poses_scales = 0
@@ -95,6 +95,12 @@ def determine_relative_3d_pose(mode_lift, bone_2d, cropped_image, heatmap_2d, R_
         pose3d_lift = rearrange_bones_to_mpi(pose3d_lift, True)
         pose3d_relative = camera_to_world(R_drone, C_drone, R_cam, pose3d_lift.cpu().data.numpy(), is_torch = False)
     return pose3d_relative
+
+def determine_human_GT(airsim_client, pose_client):
+    _, bone_pos_3d_GT, _, _ = airsim_client.getSynchronizedData()
+    _, _, _, bone_pos_3d_GT = model_settings(pose_client.model, bone_pos_3d_GT)
+    pose_client.current_pose_GT = bone_pos_3d_GT
+
 
 def determine_openpose_error(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
     unreal_positions, bone_pos_3d_GT, _, _ = airsim_client.getSynchronizedData()

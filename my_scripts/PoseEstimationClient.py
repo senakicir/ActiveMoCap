@@ -89,6 +89,9 @@ class PoseEstimationClient(object):
         self.potential_states_list = []
         self.cam_pitch = 0 
 
+    def reset_crop(self, computer_vision_mode):
+        self.cropping_tool = Crop(openpose_test=computer_vision_mode)
+
     def reset(self, plot_loc):
         if self.param_find_M:
             M = find_M(self.online_res_list, self.model)
