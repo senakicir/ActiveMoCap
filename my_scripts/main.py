@@ -9,9 +9,14 @@ if __name__ == "__main__":
     use_airsim = True
     base_folder = "/Users/kicirogl/Documents/temp_main"
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
+<<<<<<< HEAD
     trajectory = 1
     #loop_mode = 0-normal sim, 1-openpose, 2-dome
     loop_mode = 1
+=======
+    trajectory = 0
+    computer_vision_mode = False
+>>>>>>> f3e1412ec41546e9f319117aeaa3d20162f2ef3f
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 2
     minmax = True #True-min, False-max
@@ -25,7 +30,7 @@ if __name__ == "__main__":
     is_quiet = False
     
     online_window_size = 10
-    calibration_length = 35
+    calibration_length = 200
     calibration_window_size = 10
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim}
@@ -33,7 +38,7 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":0, "mode_lift":0}
+    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
    
     animations = {"02_01": len(SEED_LIST)}
 

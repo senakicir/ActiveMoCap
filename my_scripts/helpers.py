@@ -25,7 +25,7 @@ CALIBRATION_LOSSES = ["proj", "sym"]
 FUTURE_LOSSES = ["proj", "smooth", "bone"]#, "lift"]#, "smoothpose"]
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
-ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4}
+ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5}
 
 bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [0, 4], [4, 5], [5, 6], [6, 20], #left leg

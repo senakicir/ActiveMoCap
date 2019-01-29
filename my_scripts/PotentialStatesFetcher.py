@@ -10,9 +10,9 @@ import time as time
 TRAVEL = 0.1
 TRAVEL2 = 3
 UPPER_LIM = -3
-LOWER_LIM = -0.5 #-2.5
-THETA_LIST = list(range(270, 180, -10))
-PHI_LIST = list(range(0, 360, 20))
+LOWER_LIM = -1 #-2.5
+THETA_LIST = list(range(270, 180, -20))
+PHI_LIST = list(range(0, 360, 30))
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
@@ -435,7 +435,7 @@ class PotentialStatesFetcher(object):
                 self.potential_covs_normal.append(inv_hess2)
 
             #take projection 
-            self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
+            #self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
         return self.potential_covs_normal, self.potential_hessians_normal
 
     def find_best_potential_state(self):
@@ -455,7 +455,7 @@ class PotentialStatesFetcher(object):
             best_ind = uncertainty_list.index(max(uncertainty_list))
         self.goal_state_ind = best_ind
         print("uncertainty list:", uncertainty_list, "best ind", best_ind)
-        goal_state = self.potential_states_go[best_ind]
+        goal_state = self.potential_states_go[best_ind].copy()
         self.potential_covs_normal = []
         self.potential_hessians_normal = []
         return goal_state
@@ -470,9 +470,9 @@ class PotentialStatesFetcher(object):
         if not self.is_quiet:
             #plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, self.model, custom_name = "potential_covs_normal_")
             #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
-            plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.model)
+            #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.model)
             #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
-            #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False)
+            plot_potential_ellipses(self, plot_loc, linecount, ellipses=False)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=True)
 
     
