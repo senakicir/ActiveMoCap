@@ -42,7 +42,7 @@ def determine_2d_positions(pose_client, return_heatmaps=True, is_torch = True, u
 
     bone_2d_gt, heatmaps = find_2d_pose_gt(unreal_positions, R_cam, bone_pos_3d_GT, input_image, cropping_tool, return_heatmaps, is_torch)
     if (mode_2d == 0):
-        bone_2d = bone_2d_gt
+        bone_2d = bone_2d_gt.clone()
         noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*1)
         bone_2d += noise
         heatmaps_scales = 0
