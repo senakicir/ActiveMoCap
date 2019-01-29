@@ -24,7 +24,7 @@ class PotentialStatesFetcher(object):
         self.updown_lim = active_parameters["UPDOWN_LIM"]
         self.target_z_pos = active_parameters["Z_POS"]
         self.lookahead = active_parameters["LOOKAHEAD"]
-        self.trajectory = active_parameters["LOOKAHEAD"]
+        self.trajectory = active_parameters["TRAJECTORY"]
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
         self.goUp = True

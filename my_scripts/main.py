@@ -10,7 +10,8 @@ if __name__ == "__main__":
     base_folder = "/Users/kicirogl/Documents/temp_main"
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
     trajectory = 1
-    computer_vision_mode = True
+    #loop_mode = 0-normal sim, 1-openpose, 2-dome
+    loop_mode = 1
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 2
     minmax = True #True-min, False-max
@@ -36,7 +37,7 @@ if __name__ == "__main__":
    
     animations = {"02_01": len(SEED_LIST)}
 
-    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "COMPUTER_VISION_MODE": computer_vision_mode}
+    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "LOOP_MODE": loop_mode}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     num_of_experiments = 1#len(WOBBLE_FREQ_LIST)
 
@@ -71,6 +72,7 @@ if __name__ == "__main__":
                     errors = run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters)
                     many_runs_last.append(errors["ave_3d_err"] )
                     many_runs_middle.append(errors["middle_3d_err"] )
+
         else:
             ind = 0
             for animation in animations:
@@ -79,5 +81,4 @@ if __name__ == "__main__":
                 parameters["TEST_SET_NAME"]= TEST_SETS[animation]
                 errors = run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters)
         
-        if not computer_vision_mode:
-            append_error_notes(f_notes_name, many_runs_last, many_runs_middle)
+        append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

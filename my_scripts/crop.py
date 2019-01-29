@@ -8,7 +8,7 @@ STABLE_FRAME = 20
 
 class Crop:
 
-    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y], openpose_test = True):
+    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y], loop_mode = 0):
         self.old_bbox = bbox_init
         self.bbox = bbox_init
         self.image_bounds = [0,0]
@@ -17,7 +17,7 @@ class Crop:
         self.bounding_box_margin = 3
         self.unstable = True
 
-        if openpose_test:
+        if loop_mode != 0:
             self.unstable = False
             global crop_alpha
             crop_alpha = 1
