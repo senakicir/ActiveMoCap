@@ -58,6 +58,11 @@ class VehicleClient:
  
     def simPause(self, is_paused):
         self.client.call('simPause', is_paused)
+    #sena was here
+    def simPauseDrone(self, is_paused):
+        self.client.call('simPauseDrone', is_paused)
+    def simPauseHuman(self, is_paused):
+        self.client.call('simPauseHuman', is_paused)
     def simIsPause(self):
         return self.client.call("simIsPaused")
     def simContinueForTime(self, seconds):
@@ -154,6 +159,10 @@ class VehicleClient:
     #sena was here
     def changeAnimation(self, newAnimNum, vehicle_name = ''):
         self.client.call('changeAnimation', vehicle_name, newAnimNum)
+        self.simPauseHuman(False)
+        time.sleep(0.01)
+        self.simPauseHuman(True)
+
     #sena was here
     def changeCalibrationMode(self, calibMode, vehicle_name = ''):
         self.client.call('changeCalibrationMode', vehicle_name, calibMode)

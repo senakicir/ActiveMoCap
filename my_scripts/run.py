@@ -115,7 +115,7 @@ def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
 
-    pose_client = PoseEstimationClient(energy_parameters,  Crop(openpose_test = loop_mode))
+    pose_client = PoseEstimationClient(energy_parameters,  Crop(loop_mode = loop_mode))
     current_state = State()
     potential_states_fetcher = PotentialStatesFetcher(pose_client, active_parameters)
     
@@ -366,15 +366,15 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
         take_photo(airsim_client, pose_client, file_manager.take_photo_loc)
         airsim_client.simPauseDrone(True)
 
-            #SAVE ALL VALUES OF THIS SIMULATION
-            file_manager.save_simulation_values(airsim_client, pose_client)
+        #SAVE ALL VALUES OF THIS SIMULATION
+        file_manager.save_simulation_values(airsim_client, pose_client)
 
-            airsim_client.linecount += 1
-            print('linecount', airsim_client.linecount)
+        airsim_client.linecount += 1
+        print('linecount', airsim_client.linecount)
 
-            if  (airsim_client.linecount == len(THETA_LIST)*len(PHI_LIST)):
-                end_test = True
-            airsim_client.simPause(False)
+        if  (airsim_client.linecount == len(THETA_LIST)*len(PHI_LIST)):
+            end_test = True
+        airsim_client.simPause(False)
 
         airsim_client.linecount += 1
         print('linecount', airsim_client.linecount)
