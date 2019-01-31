@@ -281,15 +281,11 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     for animation in animations_to_test:
         airsim_client.simPauseDrone(True)
         airsim_client.changeAnimation(ANIM_TO_UNREAL[animation])
-        #implement a human pause function in airsim
 
         for _ in range(2): 
             photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-
-            #????????????
-            take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
-            determine_openpose_error(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-            
+            pose_client.reset_crop(loop_mode=1)
+            take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)            
             potential_states_fetcher.reset(pose_client, current_state)
             potential_states_fetcher.dome_experiment()
 
@@ -304,7 +300,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 airsim_client.simPauseDrone(False)
                 airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), False)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
-                take_photo(airsim_client, pose_client, currrent_state,  file_manager.take_photo_loc)
+                take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
                 airsim_client.simPauseDrone(True)
 
                 current_state.cam_pitch = goal_state['pitch']
@@ -321,7 +317,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 print('linecount', airsim_client.linecount)
 
             print("WRITING ERROR NOW!")
-            file_manager.write_openpose_error(pose_client.current_pose_GT)
+            file_manager.write_openpose_error(current_state.bone_pos_gt)
 
             #implement a human pause function in airsim
             airsim_client.simPauseHuman(False)

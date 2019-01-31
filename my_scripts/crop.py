@@ -2,6 +2,7 @@ import numpy as np
 from math import ceil
 from square_bounding_box import *
 from helpers import SIZE_X, SIZE_Y, numpy_to_tuples
+import pdb
 
 crop_alpha = 0.5
 STABLE_FRAME = 20
@@ -25,6 +26,7 @@ class Crop:
             self.bounding_box_margin = 3
 
     def crop(self, image, linecount):
+        pdb.set_trace()
         if linecount >= STABLE_FRAME:
             self.unstable = False
 

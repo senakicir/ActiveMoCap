@@ -151,7 +151,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         if (pose_client.isCalibratingEnergy): 
             loss_dict = pose_client.loss_dict_calib
             objective = objective_calib
-            pose3d_init_scrambled = pose_client.poseList_3d_calibration.numpy().copy()
+            pose3d_init_scrambled = pose_client.poseList_3d_calibration.copy()
 
             #noise = pose_client.numpy_random.normal(0, 0.5, pose3d_init_scrambled.shape)
             noisy_init_pose = pose3d_init_scrambled# + noise

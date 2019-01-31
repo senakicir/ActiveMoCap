@@ -100,11 +100,8 @@ class Projection_Client(object):
 
         queue_index = 0
         self.pose_2d_tensor = torch.zeros(self.window_size , 2, num_of_joints)
-        for bone_2d_, R_drone_, C_drone_, R_cam_ in data_list:
-            R_drone_torch = torch.from_numpy(R_drone_).float()
-            C_drone_torch = torch.from_numpy(C_drone_).float()
-            self.pose_2d_tensor[queue_index, :, :] = torch.from_numpy(bone_2d_).float()
-            R_cam_torch = torch.from_numpy(R_cam_).float()
+        for bone_2d, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
+            self.pose_2d_tensor[queue_index, :, :] = (bone_2d.float()).clone()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
             self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )
 
@@ -127,11 +124,8 @@ class Projection_Client(object):
         self.camera_transformation[0, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_pot, C_cam_torch), dim=1), neat_tensor), dim=0) )
 
         queue_index = 1
-        for bone_2d_, R_drone_, C_drone_, R_cam_ in data_list:
-            R_drone_torch = torch.from_numpy(R_drone_).float()
-            C_drone_torch = torch.from_numpy(C_drone_).float()
-            self.pose_2d_tensor[queue_index, :, :] = torch.from_numpy(bone_2d_).float()
-            R_cam_torch = torch.from_numpy(R_cam_).float()
+        for bone_2d, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
+            self.pose_2d_tensor[queue_index, :, :] = (torch.from_numpy(bone_2d).float()).clone()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
             self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )
             queue_index += 1

@@ -26,7 +26,7 @@ def find_residuals(input_1, input_2):
 class pose3d_calibration_2(torch.nn.Module):
     def __init__(self, model):
         super(pose3d_calibration_2, self).__init__()
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(model)
+        self.bone_connections, _, self.NUM_OF_JOINTS = model_settings(model)
         self.pose3d = torch.nn.Parameter(torch.zeros([3, self.NUM_OF_JOINTS]), requires_grad=True)
 
     def forward(self, pose_2d, R_drone, C_drone):
@@ -58,7 +58,7 @@ class pose3d_online_2(torch.nn.Module):
 
     def __init__(self, bone_lengths_, window_size_, model):
         super(pose3d_online_2, self).__init__()
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(model)
         self.window_size = window_size_
         self.pose3d = torch.nn.Parameter(torch.zeros([self.window_size, 3, self.NUM_OF_JOINTS]), requires_grad=True)
         self.bone_lengths = Variable(bone_lengths_, requires_grad = False)
@@ -138,7 +138,7 @@ class pose3d_calibration(torch.nn.Module):
 
     def __init__(self, pose_client):
         super(pose3d_calibration, self).__init__()
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, _, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.left_bone_connections, self.right_bone_connections, _ = split_bone_connections(self.bone_connections)
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_calib), requires_grad=True)
         self.energy_weights = pose_client.weights_calib
@@ -191,7 +191,7 @@ class pose3d_online(torch.nn.Module):
 
     def __init__(self, pose_client):
         super(pose3d_online, self).__init__()
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_online), requires_grad=True)
         self.bone_lengths = Variable((pose_client.boneLengths), requires_grad = False)
@@ -261,7 +261,7 @@ class pose3d_future(torch.nn.Module):
 
     def __init__(self, pose_client, R_drone, C_drone, R_cam):
         super(pose3d_future, self).__init__()
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape_online), requires_grad=True)
         self.bone_lengths = Variable((pose_client.boneLengths), requires_grad = False)
@@ -356,7 +356,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
 
     def __init__(self, pose_client, projection_client):
         super(pose3d_calibration_parallel, self).__init__()
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, _, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         left_bone_connections, right_bone_connections, _ = split_bone_connections(self.bone_connections)
         self.left_bone_connections = np.array(left_bone_connections)
         self.right_bone_connections = np.array(right_bone_connections)
@@ -399,7 +399,7 @@ class pose3d_online_parallel(torch.nn.Module):
 
         self.projection_client = projection_client
 
-        bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
@@ -457,7 +457,7 @@ class pose3d_future_parallel(torch.nn.Module):
 
         self.projection_client = projection_client
 
-        bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
