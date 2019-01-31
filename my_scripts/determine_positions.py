@@ -23,27 +23,25 @@ objective_future = pose3d_future_parallel_wrapper()
 
 
 def adjust_with_M(M, pose, joint_names):
+    pdb.set_trace()
     root_pose = pose[:,joint_names.index('spine1')]
-    return np.dot(pose - root_pose[:, np.newaxis], M)+root_pose[:, np.newaxis]
+    return torch.mm(pose - root_pose.unsqueeze(1), M)+root_pose.unsqueeze(1)
 
-def determine_all_positions(airsim_client, pose_client,  plot_loc = 0, photo_loc = 0):
+def determine_all_positions(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
     if (pose_client.modes["mode_3d"] == 0):
-        positions, unreal_positions = determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc)
+        determine_3d_positions_all_GT(airsim_client, pose_client, current_state, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 1):
-        positions, unreal_positions = determine_3d_positions_backprojection(airsim_client, pose_client, plot_loc, photo_loc)
+        determine_3d_positions_backprojection(airsim_client, pose_client, current_state, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 2):            
-        positions, unreal_positions = determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc, photo_loc)
+        determine_3d_positions_energy_pytorch(airsim_client, pose_client, current_state, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 3):
-        positions, unreal_positions = determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc, photo_loc)
+        determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc, photo_loc)
+    current_state.update_human_info(pose_client.current_pose)
 
-    return positions, unreal_positions
-
-bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client=pose_client, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
-
-def determine_2d_positions(pose_client, return_heatmaps=True, is_torch = True, input_image = 0,  scales = [1]):
+def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_torch = True, input_image = 0,  scales = [1]):
     mode_2d, cropping_tool = pose_client.modes["mode_2d"], pose_client.cropping_tool
 
-    bone_2d_gt, heatmaps = find_2d_pose_gt (pose_client=pose_client, input_image=input_image, cropping_tool=cropping_tool, return_heatmaps=return_heatmaps, is_torch=is_torch)
+    bone_2d_gt, heatmaps = find_2d_pose_gt (current_state=current_state, input_image=input_image, cropping_tool=cropping_tool, return_heatmaps=return_heatmaps, is_torch=is_torch)
     if (mode_2d == 0):
         bone_2d = bone_2d_gt.clone()
         noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*2)
@@ -55,8 +53,8 @@ def determine_2d_positions(pose_client, return_heatmaps=True, is_torch = True, i
     pose_client.openpose_error = np.mean(np.linalg.norm(bone_2d_gt-bone_2d, axis=0))
     return bone_2d, heatmaps, heatmaps_scales, poses_scales
 
-def find_2d_pose_gt(pose_client, input_image, cropping_tool, return_heatmaps=True, is_torch=True):
-    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = pose_client.get_frame_parameters()
+def find_2d_pose_gt(current_state, input_image, cropping_tool, return_heatmaps=True, is_torch=True):
+    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
 
     if (is_torch):
         bone_pos_GT = torch.from_numpy(bone_pos_3d_GT).float()
@@ -75,13 +73,13 @@ def find_2d_pose_openpose(input_image, scales):
     return poses, heatmaps.cpu().numpy(), heatmaps_scales, poses_scales
 
 
-def determine_relative_3d_pose(pose_client, bone_2d, cropped_image, heatmap_2d):
-    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = pose_client.get_frame_parameters()
+def determine_relative_3d_pose(mode_lift, current_state, bone_2d, cropped_image, heatmap_2d):
+    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
 
-    if (pose_client.modes["mode_lift"] == 0):
+    if (mode_lift == 0):
         pose3d_relative = bone_pos_3d_GT
 
-    elif (pose_client.modes["mode_lift"]  == 1):
+    elif (mode_lift  == 1):
         num_of_joints = bone_2d.shape[1]
         pose = torch.cat((torch.t(bone_2d), torch.ones(num_of_joints,1)), 1)
         pose3d_lift, _, _ = liftnet_module.run(cropped_image, heatmap_2d, pose)
@@ -91,20 +89,19 @@ def determine_relative_3d_pose(pose_client, bone_2d, cropped_image, heatmap_2d):
     return pose3d_relative
 
 
-def determine_openpose_error(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
-    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = pose_client.get_frame_parameters()
+def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
+    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
 
     input_image = cv.imread(photo_loc)
     cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
     save_image(cropped_image, airsim_client.linecount, plot_loc)
 
     #find 2d pose (using openpose or gt)
-    bone_2d, _, _, _ = determine_2d_positions(pose_client=pose_client, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
+    bone_2d, _, _, _ = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
 
     pose_client.future_pose = bone_pos_3d_GT
     pose_client.current_pose = bone_pos_3d_GT
-    pose_client.current_drone_pos = C_drone
 
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone_gt, "eval_time": 0, "f_string": ""}
     pose_client.append_res(plot_end)
@@ -113,7 +110,7 @@ def determine_openpose_error(airsim_client, pose_client, plot_loc = 0, photo_loc
     #superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
 
 
-def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
+def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = pose_client.get_frame_parameters()
     bone_connections, joint_names, num_of_joints = model_settings(pose_client.model)
 
@@ -121,10 +118,10 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
 
     #find 2d pose (using openpose or gt)
-    bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client=pose_client, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
+    bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
 
     #find relative 3d pose using liftnet or GT relative pose
-    pose3d_lift = determine_relative_3d_pose(pose_client, bone_2d, cropped_image, heatmap_2d)
+    pose3d_lift = determine_relative_3d_pose(pose_client.modes["mode_lift"], current_state, bone_2d, cropped_image, heatmap_2d)
         
     #find liftnet bone directions and save them
     lift_bone_directions = return_lift_bone_connections(bone_connections)
@@ -157,7 +154,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
         if (pose_client.isCalibratingEnergy): 
             loss_dict = pose_client.loss_dict_calib
             objective = objective_calib
-            pose3d_init_scrambled = pose_client.poseList_3d_calibration.copy()
+            pose3d_init_scrambled = pose_client.poseList_3d_calibration.numpy().copy()
 
             #noise = pose_client.numpy_random.normal(0, 0.5, pose3d_init_scrambled.shape)
             noisy_init_pose = pose3d_init_scrambled# + noise
@@ -222,7 +219,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, plot_loc = 0
     middle_pose = adjust_with_M(pose_client.M, temp_middle_pose_, joint_names)
     middle_pose_GT = pose_client.update_middle_pose_GT(bone_pos_3d_GT)
 
-    check,  _ = take_bone_projection(optimized_3d_pose, R_drone_gt, C_drone_gt, R_cam_gt)
+    check,  _ = take_bone_projection_pytorch(optimized_3d_pose, R_drone_gt, C_drone_gt, R_cam_gt)
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - optimized_3d_pose, axis=0))
@@ -402,12 +399,9 @@ def determine_3d_positions_energy_pytorch(airsim_client, pose_client, plot_loc =
         if (airsim_client.linecount >1):
             plot_optimization_losses(pltpts, plot_loc, airsim_client.linecount, loss_dict)
 
-    positions = form_positions_dict(angle, drone_pos_vec, P_world[:,0])
-    f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
-    plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": func_eval_time, "f_string": f_output_str}
+    plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": func_eval_time, "f_string": ""}
     pose_client.append_res(plot_end)
 
-    return positions, unreal_positions
 
 def determine_3d_positions_backprojection(airsim_client, pose_client, plot_loc = 0, photo_loc = 0):
     drone_orientation_gt, _, bone_pos_3d_GT, drone_pos_gt = pose_client.get_gt_values()
@@ -428,12 +422,9 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, plot_loc =
         superimpose_on_image([check], plot_loc, airsim_client.linecount, bone_connections, photo_loc)
         plot_human(bone_pos_3d_GT, P_world, plot_loc, airsim_client.linecount, bone_connections, error_3d)
 
-    positions = form_positions_dict(angle, drone_pos_vec, P_world[:,0])
-    f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)
-    plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": f_output_str}
+    plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": ""}
     pose_client.append_res(plot_end)
 
-    return positions, unreal_positions
 
 def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_loc):
     drone_orientation_gt, _, bone_pos_3d_GT, drone_pos_gt = pose_client.get_gt_values()
@@ -463,23 +454,9 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, plot_loc, photo_lo
         if not pose_client.quiet:
             superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_", scale = -1)
 
-    positions = form_positions_dict(angle, drone_pos_vec, unreal_positions[HUMAN_POS_IND,:])
-    positions[HUMAN_POS_IND,2] = positions[HUMAN_POS_IND,2]
-    positions[R_SHOULDER_IND,:] = unreal_positions[R_SHOULDER_IND,:]
-    positions[L_SHOULDER_IND,:] = unreal_positions[L_SHOULDER_IND,:]
-    f_output_str = '\t'+str(unreal_positions[HUMAN_POS_IND, 0]) +'\t'+str(unreal_positions[HUMAN_POS_IND, 1])+'\t'+str(unreal_positions[HUMAN_POS_IND, 2])+'\t'+str(angle[0])+'\t'+str(angle[1])+'\t'+str(angle[2])+'\t'+str(drone_pos_vec.x_val)+'\t'+str(drone_pos_vec.y_val)+'\t'+str(drone_pos_vec.z_val)+'\n'
-    plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone.cpu().numpy(), "eval_time": 0, "f_string": f_output_str}
+    plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone.cpu().numpy(), "eval_time": 0, "f_string": ""}
     pose_client.append_res(plot_end)
-    print(bone_pos_3d_GT[:, joint_names.index("spine1")])
-    return positions, unreal_positions
 
-def form_positions_dict(angle, drone_pos_vec, human_pos):
-    positions = np.zeros([5, 3])
-    positions[DRONE_POS_IND,:] = np.array([drone_pos_vec.x_val, drone_pos_vec.y_val, drone_pos_vec.z_val])
-    positions[DRONE_ORIENTATION_IND,:] = np.array([angle[0], angle[1], angle[2]])
-    positions[HUMAN_POS_IND,:] = human_pos
-    positions[HUMAN_POS_IND,2] = positions[HUMAN_POS_IND,2]
-    return positions
 
 def switch_energy(value):
     pass

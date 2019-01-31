@@ -26,6 +26,7 @@ class PoseEstimationClient(object):
         self.error_2d = []
         self.error_3d = []
         self.middle_pose_error = []
+        self.openpose_error = 0
 
         self.poseList_3d = []
         self.poseList_3d_calibration = []
@@ -38,8 +39,6 @@ class PoseEstimationClient(object):
         self.calib_res_list = []
         self.online_res_list = []
         self.processing_time = []
-
-        self.openpose_error = 0
 
         self.isCalibratingEnergy = True
 
@@ -65,7 +64,6 @@ class PoseEstimationClient(object):
 
         self.calib_cov_list = []
         self.online_cov_list = []
-        
 
         self.result_shape_calib = [3, self.num_of_joints]
         self.result_shape_online = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
@@ -78,37 +76,12 @@ class PoseEstimationClient(object):
         self.loss_dict_online = ONLINE_LOSSES
         self.loss_dict_future = FUTURE_LOSSES
 
-        self.bone_pos_gt = np.zeros([3, self.num_of_joints])
-        self.R_drone_gt = np.zeros([3,3])
-        self.C_drone_gt = np.zeros([3,1])
-        self.R_cam_gt = np.zeros([3,3])
-        self.human_orientation_gt = np.zeros([3,])
-        self.drone_orientation_gt = np.zeros([3,])
-
-        self.cam_pitch = 0
+#        self.cam_pitch = 0 #move to state
         self.middle_pose_GT_list = []
 
         self.f_string = ""
         self.f_reconst_string = ""
         self.f_groundtruth_str = ""
-
-    def store_frame_parameters(self, drone_orientation_gt, bone_pos_gt, drone_pos_gt, gt_str):
-        self.bone_pos_gt =  bone_pos_gt
-        self.f_groundtruth_str = gt_str
-
-        shoulder_vector_gt = bone_pos_gt[:, self.joint_names.index('left_arm')] - bone_pos_gt[:, self.joint_names.index('right_arm')] 
-        self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
-        self.drone_orientation_gt = drone_orientation_gt
-        self.R_drone_gt = euler_to_rotation_matrix(self.drone_orientation_gt[0], self.drone_orientation_gt[1], self.drone_orientation_gt[2])
-        self.C_drone_gt = drone_pos_gt
-        self.R_cam_gt = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, self.cam_pitch+pi/2, CAMERA_YAW_OFFSET)
-
-    def return_human_pos(self):
-        return self.current_pose[:, self.joint_names.index('hip')]
-
-
-    def get_frame_parameters(self):
-        return self.bone_pos_gt, self.R_drone_gt, self.C_drone_gt, self.R_cam_gt
 
     def reset_crop(self, loop_mode):
         self.cropping_tool = Crop(loop_mode=loop_mode)

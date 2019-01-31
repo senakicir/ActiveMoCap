@@ -16,7 +16,7 @@ PHI_LIST = list(range(0, 360, 30))
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
-        _, self.joint_names, _, _ = model_settings(pose_client.model)
+        _, self.joint_names, _ = model_settings(pose_client.model)
         self.hip_index = self.joint_names.index('spine1')
         self.minmax = active_parameters["MINMAX"]
         self.hessian_method = active_parameters["HESSIAN_METHOD"]
@@ -31,11 +31,12 @@ class PotentialStatesFetcher(object):
         
         self.cv_mode_ind = [0,0]
 
-    def reset(self, pose_client, current_drone_pos):
-        self.current_drone_pos = np.squeeze(pose_client.current_drone_pos) #current_drone_pos
+    def reset(self, pose_client, current_state):
+        self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
+        self.human_GT = current_state.bone_pos_gt
+
         self.future_human_pos = pose_client.future_pose
         self.current_human_pos = pose_client.current_pose
-        self.human_GT = pose_client.current_pose_GT
         self.potential_states_try = []
         self.potential_states_go = []
         self.potential_hessians_normal = []

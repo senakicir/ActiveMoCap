@@ -151,7 +151,7 @@ def do_nothing(x):
     pass
 
 def find_M(plot_info, model):
-    _,joint_names,num_of_joints,_= model_settings(model) 
+    _,joint_names,num_of_joints= model_settings(model) 
     spine_index = joint_names.index('spine1')
     p_GT = np.zeros([3*len(plot_info),num_of_joints])
     p_est = np.zeros([3*len(plot_info),num_of_joints])
@@ -189,7 +189,7 @@ def find_M(plot_info, model):
 
 def read_M(model, name = "M_rel"):
     filename = name+".txt"
-    _,_,num_of_joints,_= model_settings(model)
+    _,_,num_of_joints= model_settings(model)
     if os.path.exists(filename):
         X = read_csv(filename, sep='\t', header=None).ix[:,:].as_matrix().astype('float')     
         return X[:,0:num_of_joints]  
@@ -555,7 +555,7 @@ def plot_global_motion(pose_client, plot_loc, ind):
         file_name = plot_loc + '/global_plot_online_'+ str(ind) + '.png'
 
     fig = plt.figure(figsize=(4,4))
-    bone_connections, _, _, _ = model_settings(pose_client.model)
+    bone_connections, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     ax = fig.add_subplot(111, projection='3d')
     for frame_ind in range (0, len(plot_info), 3):
@@ -617,7 +617,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.png'
 
     fig = plt.figure( figsize=(12, 4))
-    bone_connections, _, _, _ = model_settings(pose_client.model)
+    bone_connections, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     ax = fig.add_subplot(151, projection='3d')
 
@@ -863,7 +863,7 @@ def matrix_to_ellipse(matrix, center, plot_scale = 1):
     return x,y,z
 
 def shape_cov(cov, model, frame_index):
-    _, joint_names, num_of_joints, _ = model_settings(model)
+    _, joint_names, num_of_joints = model_settings(model)
     hip_index = joint_names.index('spine1')
     H = np.zeros([3,3])
     offset = hip_index + frame_index*3*num_of_joints
@@ -873,7 +873,7 @@ def shape_cov(cov, model, frame_index):
     return H
 
 def shape_cov_ave_joints(cov, model):
-    _, _, num_of_joints, _ = model_settings(model)
+    _, _, num_of_joints = model_settings(model)
     new_cov = np.cov([3,3])
     for i in range(3):
         for j in range(3):
@@ -882,7 +882,7 @@ def shape_cov_ave_joints(cov, model):
     return new_cov
 
 def choose_frame_from_cov(cov, frame_index, model):
-    _, _, num_of_joints, _ = model_settings(model)
+    _, _, num_of_joints = model_settings(model)
     return cov[frame_index*(3*num_of_joints):(frame_index+1)*(3*num_of_joints), frame_index*(3*num_of_joints):(frame_index+1)*(3*num_of_joints)]
 
 def shape_cov_hip(cov, model, frame_index):
@@ -894,7 +894,7 @@ def shape_cov_hip(cov, model, frame_index):
     return H
 
 def shape_cov_mini(cov, model, frame_index):
-    _, joint_names, _, _ = model_settings(model)
+    _, joint_names, _ = model_settings(model)
     hip_index = joint_names.index('spine1')
     H = np.zeros([3,3])
     H[:,0] = np.array([cov[hip_index, hip_index], cov[1+hip_index, hip_index], cov[2+hip_index, hip_index],])
@@ -910,7 +910,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/ellipse_online_'+ str(ind) + '.png'
 
-    bone_connections, joint_names, _, _ = model_settings(pose_client.model)
+    bone_connections, joint_names, _ = model_settings(pose_client.model)
     hip_index = joint_names.index('spine1')
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
@@ -984,7 +984,7 @@ def rotation_matrix_to_euler(R) :
         z = 0
     return np.array([x, y, z])
 
-def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
+def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=True):
     if (returnTensor == True):
         return torch.FloatTensor([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
                     [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
@@ -995,7 +995,7 @@ def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=False):
 
 
 def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, potential_states, C_drone, R_drone, model, plot_loc, ind):
-    _, joint_names, _, _ = model_settings(model)
+    _, joint_names, _ = model_settings(model)
     hip_index = joint_names.index('spine1')
 
     current_human_pos = current_human_pose[0:2, hip_index]
@@ -1078,7 +1078,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
     plt.close(fig)
     
 def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, model):
-    bone_connections, joint_names, _, _ = model_settings(model)
+    bone_connections, joint_names, _ = model_settings(model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     superimposed_plot_loc = plot_loc + "/potential_projections_" + str(linecount) + '.png'
@@ -1113,7 +1113,7 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
 
 
 def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = True):
-    _, joint_names, _, _ = model_settings(potential_states_fetcher.model)
+    _, joint_names, _ = model_settings(potential_states_fetcher.model)
     hip_index = joint_names.index('spine1')
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]

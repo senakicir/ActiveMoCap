@@ -1,6 +1,7 @@
 import cv2 as cv2
 from math import radians, cos, sin, pi, degrees, acos, sqrt
 import numpy as np
+import torch as torch
 from helpers import range_angle, model_settings, shape_cov, MIDDLE_POSE_INDEX, FUTURE_POSE_INDEX
 import time as time 
 from project_bones import take_potential_projection
@@ -37,72 +38,78 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 
 class State(object):
-    def __init__(self):
+    def __init__(self, model):
+        self.bone_connections, self.joint_names, self.num_of_joints = model_settings(model)
+
         #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
         #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
         #self.human_rotation_speed = 0
-        self.human_pos = np.array([0,0,0])
-        self.human_vel = 0
-        self.human_speed = 0
-        self.drone_pos = np.array([0,0,0])
-        self.current_polar_pos = np.array([0,0,0])
-        self.current_degree = 0
-        self.drone_orientation = np.array([0,0,0])
+        self.human_pos_est = np.array([0,0,0])
+        self.human_pos_gt = np.array([0,0,0])
+
         self.radius = SAFE_RADIUS#np.linalg.norm(projected_distance_vect[0:2,]) #to do
-        self.prev_human_pos = -42
 
         drone_polar_pos = np.array([0,0,0])#positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         #self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
 
-    def updateState(self, pose_client):
-        self.human_pos  = pose_client.return_human_pos()
-        if np.all(self.prev_human_pos == -42):
-            self.human_vel = np.zeros([3,])
-        else:
-            self.human_vel =  (self.human_pos - self.prev_human_pos)/DELTA_T
-        self.prev_human_pos = self.human_pos
-        self.human_speed = np.linalg.norm(self.human_vel) #the speed of the human (scalar)
-        
-        #what angle and polar position is the drone at currently
-        self.drone_pos = pose_client.C_drone_gt #airsim gives us the drone coordinates with initial drone loc. as origin
-        self.drone_orientation = pose_client.self.drone_orientation_gt
+        self.R_drone_gt = torch.zeros([3,3])
+        self.C_drone_gt = torch.zeros([3,1])
+        self.R_cam_gt = torch.zeros([3,3])
 
-        self.current_polar_pos , self.current_degree  = find_current_polar_info(self.drone_pos, self.human_pos)
- 
-        #calculate human orientation
-        #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
-        #prev_human_orientation = self.human_orientation
-        #a filter to eliminate noisy data (smoother movement)
-        #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])*BETA + prev_human_orientation*(1-BETA)
-        #self.human_rotation_speed = (self.human_orientation-prev_human_orientation)/DELTA_T
+        self.human_orientation_gt = np.zeros([3,])
+        self.drone_orientation_gt = np.zeros([3,])
+        self.drone_pos_gt = np.zeros([3,])
+        self.human_pos_gt = np.zeros([3,])
+        self.bone_pos_gt = np.zeros([3, self.num_of_joints])
 
+        self.drone_pos_est = np.zeros([3,])
+        self.human_pos_est = np.zeros([3,])
+        self.human_orientation_est = np.zeros([3,])
+        self.drone_orientation_est = np.array([0,0,0])
+        self.bone_pos_est = np.zeros([3, self.num_of_joints])
 
-    def get_desired_pos_and_angle_fixed_rotation(self):
-        desired_polar_angle = self.current_degree + INCREMENT_DEGREE_AMOUNT
-        desired_polar_pos = np.array([cos(desired_polar_angle) * self.radius, sin(desired_polar_angle) * self.radius, 0])
-        desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel 
-        desired_pos[2] = self.human_pos[2]-z_pos
-        desired_yaw = self.current_degree + pi#INCREMENT_DEGREE_AMOUNT/N + pi
-        desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2], desired_yaw)
+    def store_frame_parameters(self, drone_orientation_gt, bone_pos_gt, drone_pos_gt, drone_pos_est):
+        self.bone_pos_gt =  bone_pos_gt
+        self.human_pos_gt = bone_pos_gt[:, self.joint_names.index('spine1')]
 
-        return desired_pos, desired_yaw_deg
+        shoulder_vector_gt = bone_pos_gt[:, self.joint_names.index('left_arm')] - bone_pos_gt[:, self.joint_names.index('right_arm')] 
+        self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
+        self.drone_orientation_gt = drone_orientation_gt
+        self.drone_pos_gt = drone_pos_gt
 
-    def get_delta_orient(self, target_yaw):
-        delta_yaw = find_delta_yaw((self.drone_orientation)[2],  target_yaw)
-        return delta_yaw
+        self.R_drone_gt = euler_to_rotation_matrix(self.drone_orientation_gt[0], self.drone_orientation_gt[1], self.drone_orientation_gt[2])
+        self.C_drone_gt = torch.from_numpy(drone_pos_gt).float()
+        self.R_cam_gt = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, self.cam_pitch+pi/2, CAMERA_YAW_OFFSET)
+
+        self.drone_pos_est = drone_pos_est
+
+    def get_frame_parameters(self):
+        return self.bone_pos_gt, self.R_drone_gt, self.C_drone_gt, self.R_cam_gt
+
+    def update_human_info(self, bone_pos_est):
+        self.bone_pos_est = bone_pos_est
+        shoulder_vector_gt = bone_pos_est[:, self.joint_names.index('left_arm')] - bone_pos_est[:, self.joint_names.index('right_arm')] 
+        self.human_orientation_est = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
+        self.human_pos_est = bone_pos_est[:, self.joint_names.index('spine1')]
 
     def get_goal_pos_yaw_pitch(self, goal_state):
         goal_pos = goal_state["position"]
         goal_yaw = goal_state["orientation"]
         cam_pitch = goal_state["pitch"]
-        desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2],  goal_yaw)
+        desired_yaw_deg = find_delta_yaw((self.drone_orientation_gt)[2],  goal_yaw)
         return goal_pos , desired_yaw_deg, cam_pitch   
 
     def get_current_pitch(self):
-        new_radius = np.linalg.norm(self.drone_pos - self.human_pos)
-        new_theta = acos((self.drone_pos[2] - self.human_pos[2])/new_radius)
+        new_radius = np.linalg.norm(self.drone_pos_gt - self.human_pos_est)
+        new_theta = acos((self.drone_pos_gt[2] - self.human_pos_est[2])/new_radius)
         new_pitch = pi/2 - new_theta
         return new_pitch
+
+        ############ USELESS
+
+    def get_delta_orient(self, target_yaw):
+        delta_yaw = find_delta_yaw((self.drone_orientation)[2],  target_yaw)
+        return delta_yaw
 
     def get_desired_pos_and_yaw_trackbar(self):
         #calculate new polar coordinates according to circular motion (the circular offset required to rotate around human)
@@ -118,3 +125,13 @@ class State(object):
         desired_pos = desired_polar_pos + self.human_pos - np.array([0,0,desired_z_pos])
         desired_yaw = desired_polar_angle - pi
         return desired_pos, desired_yaw
+
+    def get_desired_pos_and_angle_fixed_rotation(self):
+        desired_polar_angle = self.current_degree + INCREMENT_DEGREE_AMOUNT
+        desired_polar_pos = np.array([cos(desired_polar_angle) * self.radius, sin(desired_polar_angle) * self.radius, 0])
+        desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel 
+        desired_pos[2] = self.human_pos[2]-z_pos
+        desired_yaw = self.current_degree + pi#INCREMENT_DEGREE_AMOUNT/N + pi
+        desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2], desired_yaw)
+
+        return desired_pos, desired_yaw_deg

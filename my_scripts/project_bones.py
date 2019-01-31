@@ -38,7 +38,7 @@ def take_bone_projection_pytorch(P_world, R_drone, C_drone, R_cam):
 
     return result, heatmaps
 
-def take_bone_backprojection_pytorch(bone_pred, R_drone, C_drone, joint_names):
+def take_bone_backprojection_pytorch(bone_pred, R_drone, C_drone, R_cam, joint_names):
     num_of_joints = bone_pred.data.shape[1]
     TORSO_SIZE_ = DEFAULT_TORSO_SIZE
 
@@ -52,7 +52,7 @@ def take_bone_backprojection_pytorch(bone_pred, R_drone, C_drone, joint_names):
     bone_pos_3d[2,:] = ones_tensor*z_val
     
     bone_pos_3d = torch.mm(K_inv_torch, bone_pos_3d)
-    P_world = camera_to_world (R_drone, C_drone, bone_pos_3d)
+    P_world = camera_to_world (R_drone, C_drone, R_cam, bone_pos_3d)
 
     return P_world
 
