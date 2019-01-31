@@ -190,7 +190,7 @@ def read_M(model, name = "M_rel"):
     filename = name+".txt"
     _,_,num_of_joints= model_settings(model)
     if os.path.exists(filename):
-        X = read_csv(filename, sep='\t', header=None).ix[:,:].as_matrix().astype('float')     
+        X = read_csv(filename, sep='\t', header=None).ix[:,:].values.astype('float')     
         return X[:,0:num_of_joints]
     else:
         return np.eye(num_of_joints)

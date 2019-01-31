@@ -166,7 +166,6 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
 
         determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
 
-        current_state.updateState(pose_client) #updates human pos, human orientation, human vel, drone pos
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
 
@@ -204,8 +203,6 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
         if (airsim_client.linecount < 5):
             drone_speed = drone_speed * airsim_client.linecount/5
 
-        print("desired_pos", desired_pos)
-        print("current pos", current_state.drone_pos)
         airsim_client.simPauseDrone(False)
         #add if here for calib
         if USE_AIRSIM:

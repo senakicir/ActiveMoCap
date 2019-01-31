@@ -58,7 +58,6 @@ def find_2d_pose_gt(current_state, input_image, cropping_tool, return_heatmaps=T
     bone_2d_var, heatmaps = take_bone_projection_pytorch(bone_pos_GT, R_drone_gt, C_drone_gt, R_cam_gt)
     
     bone_2d = bone_2d_var.detach()
-    pdb.set_trace()
     if (return_heatmaps):
         bone_2d = cropping_tool.crop_pose(bone_2d)
         heatmaps = create_heatmap(bone_2d.data.cpu().numpy(), input_image.shape[1], input_image.shape[0])
@@ -216,8 +215,8 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     #future_pose = adjust_with_M(pose_client.M, pose_client.future_pose, joint_names)
     middle_pose = adjust_with_M(pose_client.M, temp_middle_pose_, joint_names)
     middle_pose_GT = pose_client.update_middle_pose_GT(bone_pos_3d_GT)
-
-    check,  _ = take_bone_projection_pytorch(optimized_3d_pose, R_drone_gt, C_drone_gt, R_cam_gt)
+    optimized_3d_pose_torch = torch.from_numpy(optimized_3d_pose).float()
+    check,  _ = take_bone_projection_pytorch(optimized_3d_pose_torch, R_drone_gt, C_drone_gt, R_cam_gt)
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - optimized_3d_pose, axis=0))
@@ -233,8 +232,8 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         ave_middle_error = -42
 
     if (plot_loc != 0 and not pose_client.quiet): 
-        superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check)
-        superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
+        superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.numpy())
+        superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
 
         #plot_2d_projection(check, plot_loc, airsim_client.linecount, bone_connections, custom_name="proj_2d")
 
