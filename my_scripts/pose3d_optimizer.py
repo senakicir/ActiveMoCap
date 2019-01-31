@@ -1,5 +1,4 @@
 from project_bones import take_bone_projection_pytorch, Projection_Client
-from torch.autograd import Variable
 import torch as torch
 from helpers import model_settings, split_bone_connections, EPSILON, return_lift_bone_connections, euler_to_rotation_matrix, CAMERA_PITCH_OFFSET, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z
 import numpy as np 

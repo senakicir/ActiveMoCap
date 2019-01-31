@@ -7,7 +7,6 @@ import numpy as np
 import torch as torch
 from pandas import read_csv
 
-from torch.autograd import Variable
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 #import matplotlib
@@ -72,7 +71,7 @@ bones_map_to_mpi = find_bone_map()
 
 def rearrange_bones_to_mpi(bones_unarranged, is_torch = True):
     if (is_torch):
-        bones_rearranged = Variable(torch.zeros(3, 15))
+        bones_rearranged = torch.zeros(3, 15)
         bones_rearranged = bones_unarranged[:, bones_map_to_mpi]
     else:
         bones_rearranged = np.zeros([3,15])
@@ -192,7 +191,7 @@ def read_M(model, name = "M_rel"):
     _,_,num_of_joints= model_settings(model)
     if os.path.exists(filename):
         X = read_csv(filename, sep='\t', header=None).ix[:,:].as_matrix().astype('float')     
-        return X[:,0:num_of_joints]  
+        return X[:,0:num_of_joints]
     else:
         return np.eye(num_of_joints)
 

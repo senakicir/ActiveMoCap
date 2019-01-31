@@ -2,7 +2,6 @@ from helpers import *
 import pandas as pd
 import torch
 import numpy as np
-from State import HUMAN_POS_IND, DRONE_POS_IND, DRONE_ORIENTATION_IND, L_SHOULDER_IND, R_SHOULDER_IND
 
 class NonAirSimClient(object):
     def __init__(self, filename_bones, filename_others):

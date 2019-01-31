@@ -2,18 +2,13 @@ import cv2 as cv2
 from math import radians, cos, sin, pi, degrees, acos, sqrt
 import numpy as np
 import torch as torch
-from helpers import range_angle, model_settings, shape_cov, MIDDLE_POSE_INDEX, FUTURE_POSE_INDEX
+from helpers import range_angle, model_settings, shape_cov, euler_to_rotation_matrix
 import time as time 
-from project_bones import take_potential_projection
+from project_bones import take_potential_projection, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET
 import pdb 
 
 #constants
 BETA = 0.35
-DRONE_POS_IND = 0
-HUMAN_POS_IND = 2
-R_SHOULDER_IND = 3
-L_SHOULDER_IND = 4
-DRONE_ORIENTATION_IND = 1
 
 INCREMENT_DEGREE_AMOUNT = radians(-20)
 INCREMENT_RADIUS = 3
@@ -49,7 +44,7 @@ class State(object):
 
         self.radius = SAFE_RADIUS#np.linalg.norm(projected_distance_vect[0:2,]) #to do
 
-        drone_polar_pos = np.array([0,0,0])#positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
+        #drone_polar_pos = np.array([0,0,0])#positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         #self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
 
         self.R_drone_gt = torch.zeros([3,3])
@@ -67,8 +62,9 @@ class State(object):
         self.human_orientation_est = np.zeros([3,])
         self.drone_orientation_est = np.array([0,0,0])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
+        self.cam_pitch = 0
 
-    def store_frame_parameters(self, drone_orientation_gt, bone_pos_gt, drone_pos_gt, drone_pos_est):
+    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est):
         self.bone_pos_gt =  bone_pos_gt
         self.human_pos_gt = bone_pos_gt[:, self.joint_names.index('spine1')]
 
@@ -99,7 +95,7 @@ class State(object):
         desired_yaw_deg = find_delta_yaw((self.drone_orientation_gt)[2],  goal_yaw)
         return goal_pos , desired_yaw_deg, cam_pitch   
 
-    def get_current_pitch(self):
+    def get_required_pitch(self):
         new_radius = np.linalg.norm(self.drone_pos_gt - self.human_pos_est)
         new_theta = acos((self.drone_pos_gt[2] - self.human_pos_est[2])/new_radius)
         new_pitch = pi/2 - new_theta

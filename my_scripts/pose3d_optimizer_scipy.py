@@ -1,6 +1,5 @@
 from helpers import * 
-from project_bones import take_bone_projection, Projection_Client, take_bone_projection_pytorch
-from torch.autograd import Variable, grad
+from project_bones import take_bone_projection_pytorch, Projection_Client, take_bone_projection_pytorch
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
 import pdb
