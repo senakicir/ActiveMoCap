@@ -109,9 +109,8 @@ def return_arm_connection(bone_connections):
         right_arm_connections = [[1, 2], [2, 3], [3, 4]]
     return right_arm_connections, left_arm_connections
 
-def model_settings(model, bone_pos_3d_GT = Variable(torch.zeros(3,21))):
+def model_settings(model):
     if (model == "mpi"):
-        bone_pos_3d_GT = rearrange_bones_to_mpi(bone_pos_3d_GT)
         bone_connections = bones_mpi
         joint_names = joint_names_mpi
         num_of_joints = 15
@@ -119,7 +118,8 @@ def model_settings(model, bone_pos_3d_GT = Variable(torch.zeros(3,21))):
         bone_connections = bones_h36m
         joint_names = joint_names_h36m
         num_of_joints = 21
-    return bone_connections, joint_names, num_of_joints, bone_pos_3d_GT
+    return bone_connections, joint_names, num_of_joints
+
 
 def normalize_weights(weights_):    
     weights = {}

@@ -54,9 +54,8 @@ class State(object):
         drone_polar_pos = np.array([0,0,0])#positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         #self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
 
-    def updateState(self, positions_):
-        self.positions = positions_
-        self.human_pos  = self.positions[HUMAN_POS_IND,:]
+    def updateState(self, pose_client):
+        self.human_pos  = pose_client.return_human_pos()
         if np.all(self.prev_human_pos == -42):
             self.human_vel = np.zeros([3,])
         else:
@@ -65,8 +64,8 @@ class State(object):
         self.human_speed = np.linalg.norm(self.human_vel) #the speed of the human (scalar)
         
         #what angle and polar position is the drone at currently
-        self.drone_pos = positions_[DRONE_POS_IND, :] #airsim gives us the drone coordinates with initial drone loc. as origin
-        self.drone_orientation = positions_[DRONE_ORIENTATION_IND, :]
+        self.drone_pos = pose_client.C_drone_gt #airsim gives us the drone coordinates with initial drone loc. as origin
+        self.drone_orientation = pose_client.self.drone_orientation_gt
 
         self.current_polar_pos , self.current_degree  = find_current_polar_info(self.drone_pos, self.human_pos)
  

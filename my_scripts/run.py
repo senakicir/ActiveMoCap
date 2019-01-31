@@ -17,47 +17,42 @@ USE_AIRSIM = True
 LENGTH_OF_SIMULATION = 200
 photo_time = 0
 
-def get_client_unreal_values(client, X):
-    unreal_positions = np.zeros([5,3])
-    if (USE_AIRSIM):
-        keys = {'humanPos': HUMAN_POS_IND, 'dronePos' : DRONE_POS_IND, 'droneOrient': DRONE_ORIENTATION_IND, 'left_arm': L_SHOULDER_IND, 'right_arm': R_SHOULDER_IND}
-        for key, value in keys.items():
-            element = X[key]
-            if (key != 'droneOrient'):
-                unreal_positions[value, :] = np.array([element.x_val, element.y_val, -element.z_val])
-                unreal_positions[value, :]  = (unreal_positions[value, :] - client.DRONE_INITIAL_POS)/100
-            else:
-                unreal_positions[value, :] = np.array([element.x_val, element.y_val, element.z_val])
-    else:
-        do_nothing()
-    return unreal_positions
+def get_client_gt_values(airsim_client, pose_client, X):
+    drone_oriention_gt = np.array([X['droneOrient'].x_val, X['droneOrient'].y_val, X['droneOrient'].z_val])
+
+    gt_str = "" 
+    bone_pos_gt = np.zeros([3, 21])
+    DRONE_INITIAL_POS = airsim_client.DRONE_INITIAL_POS
+    bone_ind = 0
+    for ind, bone_i in enumerate(attributes):
+        gt_str = gt_str + str(bone_pos_gt[0, ind]) + '\t' + str(bone_pos_gt[1, ind]) + '\t' +  str(bone_pos_gt[2, ind]) + '\t'
+        if (bone_i != 'dronePos' and bone_i != 'droneOrient' and bone_i != 'humanPos'):
+            bone_pos_gt[:, bone_ind] = np.array([X[bone_i].x_val, X[bone_i].y_val, -X[bone_i].z_val]) - DRONE_INITIAL_POS
+            bone_pos_gt[:, bone_ind] = bone_pos_gt[:, bone_ind]/100
+            bone_ind += 1
+
+    if pose_client.model == "mpi":
+        bone_pos_gt = transform_gt_bones(bone_pos_gt)
+
+    drone_pos_gt = np.array([X['dronePos'].x_val, X['dronePos'].y_val, -X['dronePos'].z_val])
+    drone_pos_gt  = (drone_pos_gt - airsim_client.DRONE_INITIAL_POS)/100
+    drone_pos_gt = drone_pos_gt[:, np.newaxis]
+
+    pose_client.store_frame_parameters(drone_oriention_gt, bone_pos_gt, drone_pos_gt, gt_str)
 
 def take_photo(airsim_client, pose_client, image_folder_loc):
     if USE_AIRSIM:
         response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
 
-        airsim_client.simPause(True)
+        airsim_client.simPauseDrone(True)
+        airsim_client.simPauseHuman(True)
         response = response[0]
-        X = response.bones  
-        gt_numbers = vector3r_arr_to_dict(X)
-        unreal_positions = get_client_unreal_values(airsim_client, gt_numbers)
-        gt_str = ""
-        bone_pos = np.zeros([3, len(gt_numbers)-3])
-        DRONE_INITIAL_POS = airsim_client.DRONE_INITIAL_POS
-        for bone_ind, bone_i in enumerate(attributes):
-            gt_str = gt_str + str(gt_numbers[bone_i].x_val) + '\t' + str(gt_numbers[bone_i].y_val) + '\t' +  str(gt_numbers[bone_i].z_val) + '\t'
-            if (bone_ind >= 3):
-                bone_pos[:, bone_ind-3] = np.array([gt_numbers[bone_i].x_val, gt_numbers[bone_i].y_val, -gt_numbers[bone_i].z_val]) - DRONE_INITIAL_POS
-        bone_pos = bone_pos / 100
+        gt_numbers = vector3r_arr_to_dict(response.bones)
+        get_client_gt_values(airsim_client, pose_client, gt_numbers)
 
         multirotor_state = airsim_client.getMultirotorState()
         estimated_state =  multirotor_state.kinematics_estimated
-        drone_pos = estimated_state.position
-        #drone_orient = airsim.to_eularian_angles(estimated_state.orientation)
-        #CHANGE THIS
-        drone_orient = unreal_positions[DRONE_ORIENTATION_IND]
-
-        airsim_client.updateSynchronizedData(unreal_positions, bone_pos, drone_pos, drone_orient)
+        pose_client.drone_pos_est = estimated_state.position
 
         #img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8) 
         #img_rgba = img1d.reshape(response.height, response.width, 4)  
@@ -68,20 +63,16 @@ def take_photo(airsim_client, pose_client, image_folder_loc):
 
     else:
         response = airsim_client.simGetImages()
-        bone_pos = response.bone_pos
-        unreal_positions = response.unreal_positions
-        drone_orient = airsim_client.getPitchRollYaw()
-        drone_pos = airsim_client.getPosition()
-        airsim_client.updateSynchronizedData(unreal_positions, bone_pos, drone_pos, drone_orient)
-        gt_str = ""
-    pose_client.f_groundtruth_str = gt_str
+        bone_pos_gt = response.bone_pos
+        drone_oriention_gt, human_orientation_gt, drone_pos_gt = response.unreal_positions #fix this!
+        pose_client.drone_pos_est = airsim_client.getPosition()
+        pose_client.store_frame_parameters(drone_oriention_gt, human_orientation_gt, bone_pos_gt, drone_pos_gt, "")
 
     return response.image_data_uint8
 
 def determine_calibration_mode(airsim_client, pose_client):
     if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
         #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
-        airsim_client.changeCalibrationMode(False)
         pose_client.changeCalibrationMode(False)
 
 def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters):
@@ -170,9 +161,9 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
 
         determine_calibration_mode(airsim_client, pose_client)
 
-        positions, _ = determine_all_positions(airsim_client, pose_client, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+        determine_all_positions(airsim_client, pose_client, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
 
-        current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
+        current_state.updateState(pose_client) #updates human pos, human orientation, human vel, drone pos
         cam_pitch = current_state.get_current_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
 
@@ -247,9 +238,9 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
         photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
         take_photo(airsim_client, pose_client, file_manager.take_photo_loc)
 
-        positions, unreal_positions = determine_all_positions(airsim_client, pose_client, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+        determine_all_positions(airsim_client, pose_client, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
 
-        current_state.updateState(positions) #updates human pos, human orientation, human vel, drone pos
+        current_state.updateState(pose_client) #updates human pos, human orientation, human vel, drone pos
         cam_pitch = current_state.get_current_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
 
@@ -286,16 +277,14 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
        
 def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     animations_to_test = ["05_08", "38_03", "64_06", "02_01"]
+    file_manager.write_openpose_prefix(THETA_LIST, PHI_LIST, pose_client.num_of_joints)
 
     for animation in animations_to_test:
         airsim_client.simPauseDrone(True)
-        airsim_client.simPauseHuman(False)
         airsim_client.changeAnimation(ANIM_TO_UNREAL[animation])
+        #implement a human pause function in airsim
 
         for _ in range(2): 
-            airsim_client.simPauseDrone(True)
-            airsim_client.simPauseHuman(True)
-
             photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 
             #????????????
@@ -306,7 +295,6 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
             potential_states_fetcher.dome_experiment()
 
             num_of_samples = len(THETA_LIST)*len(PHI_LIST)
-            file_manager.write_openpose_prefix(THETA_LIST, PHI_LIST, pose_client.num_of_joints)
             for sample_ind in range(num_of_samples):
                 photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 

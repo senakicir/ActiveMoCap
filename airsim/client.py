@@ -21,12 +21,9 @@ class VehicleClient:
         #sena was here
         self.program_started = False #sena was here
         self.DRONE_INITIAL_POS = np.array([0, 0, 0])
-        self.unreal_positions = np.zeros([4,3])
-        self.bone_positions = np.zeros([17,3])
-        self.drone_pos = Vector3r()
-        self.drone_orient = np.array([0, 0, 0])
         self.requiredEstimationData = []
         self.isCalibratingEnergy = False
+        self.linecount = 0 #sena was here
         
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
@@ -160,7 +157,7 @@ class VehicleClient:
     def changeAnimation(self, newAnimNum, vehicle_name = ''):
         self.client.call('changeAnimation', vehicle_name, newAnimNum)
         self.simPauseHuman(False)
-        time.sleep(0.01)
+        time.sleep(0.1)
         self.simPauseHuman(True)
 
     #sena was here
@@ -175,22 +172,6 @@ class VehicleClient:
             self.program_started = True
             self.DRONE_INITIAL_POS = np.array([bonePos.dronePos.x_val, bonePos.dronePos.y_val, -bonePos.dronePos.z_val])
         return 0
-
-    #sena was here
-    def updateSynchronizedData(self, unreal_positions_, bone_positions_, drone_pos_, drone_orient_):
-        self.unreal_positions = np.copy(unreal_positions_)
-        self.bone_positions = np.copy(bone_positions_)
-        self.drone_pos = drone_pos_
-        self.drone_orient = np.copy(drone_orient_)
-    
-    #sena was here
-    def getSynchronizedData(self):
-        return self.unreal_positions, self.bone_positions, self.drone_pos, self.drone_orient
-
-    #sena was here
-    def switch_energy(self, val):
-        self.isCalibratingEnergy = val
-        self.client.changeCalibrationMode(val)
 
 
     # legacy handling

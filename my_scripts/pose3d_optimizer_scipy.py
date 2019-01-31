@@ -72,7 +72,7 @@ class pose3d_calibration_scipy():
         self.pytorch_objective = 0
 
     def reset(self, pose_client):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.data_list = pose_client.requiredEstimationData_calibration
         self.pltpts = {}
         self.M = pose_client.M
@@ -114,7 +114,7 @@ class pose3d_calibration_scipy():
 class pose3d_online_scipy():
 
     def reset(self, pose_client):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.data_list = pose_client.requiredEstimationData
         self.lift_list = pose_client.liftPoseList
         self.energy_weights = pose_client.weights_online
@@ -186,7 +186,7 @@ class pose3d_online_scipy():
 class pose3d_future():
 
     def reset(self, pose_client, potential_state):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         self.data_list = pose_client.requiredEstimationData
         self.lift_list = pose_client.liftPoseList
         self.energy_weights = pose_client.weights_future
@@ -272,7 +272,7 @@ class pose3d_calibration_parallel_wrapper():
         self.pytorch_objective = 0
 
     def reset(self, pose_client):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         
         data_list = pose_client.requiredEstimationData_calibration
 
@@ -284,7 +284,7 @@ class pose3d_calibration_parallel_wrapper():
         self.result_shape = pose_client.result_shape_calib
 
     def reset_future(self, pose_client, potential_state):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         
         data_list = pose_client.requiredEstimationData_calibration
 
@@ -323,7 +323,7 @@ class pose3d_calibration_parallel_wrapper():
 class pose3d_online_parallel_wrapper():
 
     def reset(self, pose_client):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
 
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
@@ -350,7 +350,7 @@ class pose3d_online_parallel_wrapper():
 class pose3d_future_parallel_wrapper():
 
     def reset_future(self, pose_client, potential_state):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS, _ = model_settings(pose_client.model)
+        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
         

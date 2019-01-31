@@ -2,7 +2,6 @@ from helpers import *
 import pandas as pd
 import torch
 import numpy as np
-from State import HUMAN_POS_IND, DRONE_POS_IND, DRONE_ORIENTATION_IND, L_SHOULDER_IND, R_SHOULDER_IND
 from crop import Crop
 from square_bounding_box import *
 from kalman_filters import *
@@ -13,12 +12,12 @@ class PoseEstimationClient(object):
         self.method = param["METHOD"]
         self.model  = param["MODEL"]
         self.ftol = param["FTOL"]
-        _, _, self.num_of_joints, _ = model_settings(self.model)
+        self.bone_connections, self.joint_names, self.num_of_joints = model_settings(self.model)
 
-        self.boneLengths = torch.zeros([self.num_of_joints-1,1])
         self.ONLINE_WINDOW_SIZE = param["ONLINE_WINDOW_SIZE"]
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
+        self.quiet = param["QUIET"]
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -31,17 +30,13 @@ class PoseEstimationClient(object):
         self.poseList_3d = []
         self.poseList_3d_calibration = []
         self.liftPoseList = []
-
-        self.middle_pose_GT_list = []
+        self.boneLengths = torch.zeros([self.num_of_joints-1,1])
 
         self.requiredEstimationData = []
         self.requiredEstimationData_calibration = []
 
         self.calib_res_list = []
         self.online_res_list = []
-        self.f_string = ""
-        self.f_reconst_string = ""
-        self.f_groundtruth_str = ""
         self.processing_time = []
 
         self.openpose_error = 0
@@ -57,9 +52,7 @@ class PoseEstimationClient(object):
 
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.future_pose = np.zeros([3, self.num_of_joints])
-        self.current_drone_pos = np.zeros([3,1])
-        self.current_pose_GT =  np.zeros([3, self.num_of_joints])
-        self.P_world =  0
+        self.P_world =  0 #all 6 poses
 
         if self.param_read_M:
             self.M = read_M(self.model, "M_rel")
@@ -73,7 +66,6 @@ class PoseEstimationClient(object):
         self.calib_cov_list = []
         self.online_cov_list = []
         
-        self.quiet = param["QUIET"]
 
         self.result_shape_calib = [3, self.num_of_joints]
         self.result_shape_online = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
@@ -86,11 +78,40 @@ class PoseEstimationClient(object):
         self.loss_dict_online = ONLINE_LOSSES
         self.loss_dict_future = FUTURE_LOSSES
 
-        self.potential_states_list = []
-        self.cam_pitch = 0 
+        self.bone_pos_gt = np.zeros([3, self.num_of_joints])
+        self.R_drone_gt = np.zeros([3,3])
+        self.C_drone_gt = np.zeros([3,1])
+        self.R_cam_gt = np.zeros([3,3])
+        self.human_orientation_gt = np.zeros([3,])
+        self.drone_orientation_gt = np.zeros([3,])
 
-    def reset_crop(self, computer_vision_mode):
-        self.cropping_tool = Crop(openpose_test=computer_vision_mode)
+        self.cam_pitch = 0
+        self.middle_pose_GT_list = []
+
+        self.f_string = ""
+        self.f_reconst_string = ""
+        self.f_groundtruth_str = ""
+
+    def store_frame_parameters(self, drone_orientation_gt, bone_pos_gt, drone_pos_gt, gt_str):
+        self.bone_pos_gt =  bone_pos_gt
+        self.f_groundtruth_str = gt_str
+
+        shoulder_vector_gt = bone_pos_gt[:, self.joint_names.index('left_arm')] - bone_pos_gt[:, self.joint_names.index('right_arm')] 
+        self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
+        self.drone_orientation_gt = drone_orientation_gt
+        self.R_drone_gt = euler_to_rotation_matrix(self.drone_orientation_gt[0], self.drone_orientation_gt[1], self.drone_orientation_gt[2])
+        self.C_drone_gt = drone_pos_gt
+        self.R_cam_gt = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, self.cam_pitch+pi/2, CAMERA_YAW_OFFSET)
+
+    def return_human_pos(self):
+        return self.current_pose[:, self.joint_names.index('hip')]
+
+
+    def get_frame_parameters(self):
+        return self.bone_pos_gt, self.R_drone_gt, self.C_drone_gt, self.R_cam_gt
+
+    def reset_crop(self, loop_mode):
+        self.cropping_tool = Crop(loop_mode=loop_mode)
 
     def reset(self, plot_loc):
         if self.param_find_M:
