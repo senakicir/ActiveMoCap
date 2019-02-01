@@ -26,7 +26,6 @@ class Crop:
             self.bounding_box_margin = 3
 
     def crop(self, image, linecount):
-        pdb.set_trace()
         if linecount >= STABLE_FRAME:
             self.unstable = False
 
@@ -70,6 +69,7 @@ class Crop:
             
             self.image_bounds = [min_bound_x, min_bound_y]
         else:
+            pdb.set_trace()
             return None
 
         crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,

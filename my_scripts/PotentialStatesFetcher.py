@@ -11,8 +11,11 @@ TRAVEL = 0.1
 TRAVEL2 = 3
 UPPER_LIM = -3
 LOWER_LIM = -1 #-2.5
-THETA_LIST = list(range(270, 180, -20))
-PHI_LIST = list(range(0, 360, 30))
+#THETA_LIST = list(range(270, 180, -20))
+#PHI_LIST = list(range(0, 360, 30))
+
+THETA_LIST = list(range(270, 180, -80))
+PHI_LIST = list(range(0, 360, 60))
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):

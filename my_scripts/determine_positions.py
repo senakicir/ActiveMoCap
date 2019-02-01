@@ -54,8 +54,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
 def find_2d_pose_gt(current_state, input_image, cropping_tool, return_heatmaps=True, is_torch=True):
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
 
-    bone_pos_GT = torch.from_numpy(bone_pos_3d_GT).float()
-    bone_2d_var, heatmaps = take_bone_projection_pytorch(bone_pos_GT, R_drone_gt, C_drone_gt, R_cam_gt)
+    bone_2d_var, heatmaps = take_bone_projection_pytorch(torch.from_numpy(bone_pos_3d_GT).float(), R_drone_gt, C_drone_gt, R_cam_gt)
     
     bone_2d = bone_2d_var.detach()
     if (return_heatmaps):
@@ -87,15 +86,15 @@ def determine_relative_3d_pose(mode_lift, current_state, bone_2d, cropped_image,
 
 
 def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
-    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
+    bone_pos_3d_GT, _, C_drone_gt, _ = current_state.get_frame_parameters()
+    bone_connections, joint_names, num_of_joints = model_settings(pose_client.model)
 
     input_image = cv.imread(photo_loc)
     cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
     save_image(cropped_image, airsim_client.linecount, plot_loc)
-
-    #find 2d pose (using openpose or gt)
     bone_2d, _, _, _ = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
+    superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
 
     pose_client.future_pose = bone_pos_3d_GT
     pose_client.current_pose = bone_pos_3d_GT
@@ -103,8 +102,6 @@ def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone_gt, "eval_time": 0, "f_string": ""}
     pose_client.append_res(plot_end)
     pose_client.f_reconst_string = "" 
-
-    #superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
 
 
 def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):

@@ -4,7 +4,6 @@ from NonAirSimClient import *
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
-from SillyNet import *
 
 
 def pose_test(parameters, energy_parameters):

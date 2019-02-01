@@ -10,6 +10,7 @@ from file_manager import FileManager
 
 import pprint
 import os
+import cv2 as cv
 
 gt_hv = []
 est_hv = []
@@ -62,6 +63,7 @@ def take_photo(airsim_client, pose_client, current_state, image_folder_loc):
         airsim.write_file(os.path.normpath(loc), response.image_data_uint8)
 
     else:
+        print("something is wrong!")
         response = airsim_client.simGetImages()
         bone_pos_gt = response.bone_pos
         gt_str = ""
@@ -71,6 +73,13 @@ def take_photo(airsim_client, pose_client, current_state, image_folder_loc):
     pose_client.f_groundtruth_str = gt_str
     current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est)
 
+    pdb.set_trace()
+    image = cv.imread(loc)
+    
+    plt.figure()
+    plt.imshow(image)
+    plt.show()
+    plt.close()
     return response.image_data_uint8
 
 def determine_calibration_mode(airsim_client, pose_client):
@@ -275,7 +284,7 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
 
        
 def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
-    animations_to_test = ["05_08", "38_03", "64_06", "02_01"]
+    animations_to_test = ["64_06", "02_01", "05_08", "38_03"]
     file_manager.write_openpose_prefix(THETA_LIST, PHI_LIST, pose_client.num_of_joints)
 
     for animation in animations_to_test:
@@ -284,7 +293,6 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
 
         for _ in range(2): 
             photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-            pose_client.reset_crop(loop_mode=1)
             take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)            
             potential_states_fetcher.reset(pose_client, current_state)
             potential_states_fetcher.dome_experiment()
@@ -292,7 +300,6 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
             num_of_samples = len(THETA_LIST)*len(PHI_LIST)
             for sample_ind in range(num_of_samples):
                 photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-
                 goal_state = potential_states_fetcher.potential_states_try[sample_ind]
 
                 sim_pos = goal_state['position']
@@ -300,10 +307,10 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 airsim_client.simPauseDrone(False)
                 airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), False)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
+                current_state.cam_pitch = goal_state['pitch']
                 take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
                 airsim_client.simPauseDrone(True)
-
-                current_state.cam_pitch = goal_state['pitch']
+                print("sample_ind", sample_ind)
                 
                 determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = file_manager.plot_loc, photo_loc = photo_loc)
 
@@ -333,12 +340,11 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
             potential_states_fetcher.reset(pose_client, current_state)
             goal_state, openpose_str = potential_states_fetcher.test_openpose_mode()
 
-            pose_client.f_openpose_str = openpose_str
             sim_pos = goal_state['position']
             airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), False)
-            take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
             airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
             current_state.cam_pitch = goal_state['pitch']
+            take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
             
             determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = file_manager.plot_loc, photo_loc = photo_loc)
             file_manager.write_openpose_error(pose_client.f_openpose_str)
