@@ -49,6 +49,10 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
     elif (mode_2d == 1):            
         bone_2d, heatmaps, heatmaps_scales, poses_scales = find_2d_pose_openpose(input_image,  scales)
     pose_client.openpose_error = np.mean(np.linalg.norm(bone_2d_gt-bone_2d, axis=0))
+    arm_joints, _, _ = return_arm_joints()
+    leg_joints, _, _ = return_leg_joints()
+    pose_client.openpose_arm_error = np.mean(np.linalg.norm(bone_2d_gt[:, arm_joints]-bone_2d[:, arm_joints], axis=0))
+    pose_client.openpose_leg_error = np.mean(np.linalg.norm(bone_2d_gt[:, leg_joints]-bone_2d[:, leg_joints], axis=0))
     return bone_2d, heatmaps, heatmaps_scales, poses_scales
 
 def find_2d_pose_gt(current_state, input_image, cropping_tool, return_heatmaps=True, is_torch=True):
@@ -102,7 +106,6 @@ def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone_gt, "eval_time": 0, "f_string": ""}
     pose_client.append_res(plot_end)
     pose_client.f_reconst_string = "" 
-
 
 def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()

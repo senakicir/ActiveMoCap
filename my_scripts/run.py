@@ -41,46 +41,41 @@ def get_client_gt_values(airsim_client, pose_client, X):
 
     return bone_pos_gt, drone_orientation_gt, drone_pos_gt, gt_str
 
+def airsim_retrieve_gt(airsim_client, pose_client, current_state):
+    airsim_client.simPauseDrone(False)
+    time.sleep(0.1)
+    response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
+    airsim_client.simPauseDrone(True)
+    airsim_client.simPauseHuman(True)
+    response = response[0]
+    gt_numbers = vector3r_arr_to_dict(response.bones)
+    bone_pos_gt, drone_orientation_gt, drone_pos_gt, gt_str = get_client_gt_values(airsim_client, pose_client, gt_numbers)
+
+    multirotor_state = airsim_client.getMultirotorState()
+    estimated_state =  multirotor_state.kinematics_estimated
+    drone_pos_est = estimated_state.position
+    
+    pose_client.f_groundtruth_str = gt_str
+    current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est)
+
+    return response.image_data_uint8
+
 def take_photo(airsim_client, pose_client, current_state, image_folder_loc):
     if USE_AIRSIM:
-        response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
-
-        airsim_client.simPauseDrone(True)
-        airsim_client.simPauseHuman(True)
-        response = response[0]
-        gt_numbers = vector3r_arr_to_dict(response.bones)
-        bone_pos_gt, drone_orientation_gt, drone_pos_gt, gt_str = get_client_gt_values(airsim_client, pose_client, gt_numbers)
-
-        multirotor_state = airsim_client.getMultirotorState()
-        estimated_state =  multirotor_state.kinematics_estimated
-        drone_pos_est = estimated_state.position
-
-        #img1d = np.fromstring(response.image_data_uint8, dtype=np.uint8) 
-        #img_rgba = img1d.reshape(response.height, response.width, 4)  
-        #airsim_client.photo = img_rgba[:,:,:,0:3]
-        
+        photo = airsim_retrieve_gt(airsim_client, pose_client, current_state)
         loc = image_folder_loc + '/img_' + str(airsim_client.linecount) + '.png'
-        airsim.write_file(os.path.normpath(loc), response.image_data_uint8)
-
+        airsim.write_file(os.path.normpath(loc), photo)
     else:
         print("something is wrong!")
         response = airsim_client.simGetImages()
         bone_pos_gt = response.bone_pos
-        gt_str = ""
         drone_pos_est = 0
+        photo = 0 
         drone_orientation_gt, drone_pos_gt = response.unreal_positions #fix this!
+        pose_client.f_groundtruth_str = ""
+        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est)
 
-    pose_client.f_groundtruth_str = gt_str
-    current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est)
-
-    pdb.set_trace()
-    image = cv.imread(loc)
-    
-    plt.figure()
-    plt.imshow(image)
-    plt.show()
-    plt.close()
-    return response.image_data_uint8
+    return photo
 
 def determine_calibration_mode(airsim_client, pose_client):
     if (airsim_client.linecount == pose_client.CALIBRATION_LENGTH):
@@ -284,16 +279,17 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
 
        
 def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
-    animations_to_test = ["64_06", "02_01", "05_08", "38_03"]
+    #animations_to_test = ["64_06", "02_01", "05_08", "38_03"]
     file_manager.write_openpose_prefix(THETA_LIST, PHI_LIST, pose_client.num_of_joints)
 
-    for animation in animations_to_test:
+    for animation in range(1,19):
         airsim_client.simPauseDrone(True)
-        airsim_client.changeAnimation(ANIM_TO_UNREAL[animation])
-
-        for _ in range(2): 
-            photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-            take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)            
+        #airsim_client.changeAnimation(ANIM_TO_UNREAL[animation])
+        airsim_client.changeAnimation(animation)
+        print("Animation:", animation)
+        time.sleep(1)
+        for _ in range(60): 
+            airsim_retrieve_gt(airsim_client, pose_client, current_state)
             potential_states_fetcher.reset(pose_client, current_state)
             potential_states_fetcher.dome_experiment()
 
@@ -310,25 +306,25 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 current_state.cam_pitch = goal_state['pitch']
                 take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
                 airsim_client.simPauseDrone(True)
-                print("sample_ind", sample_ind)
                 
                 determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = file_manager.plot_loc, photo_loc = photo_loc)
 
                 plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
 
                 #SAVE ALL VALUES OF THIS SIMULATION
-                file_manager.append_openpose_error(pose_client.openpose_error)
+                file_manager.append_openpose_error(pose_client.openpose_error, pose_client.openpose_arm_error,  pose_client.openpose_leg_error)
                 #file_manager.save_simulation_values(airsim_client, pose_client)
 
                 airsim_client.linecount += 1 #THIS IS CONFUSING
-                print('linecount', airsim_client.linecount)
+                #print('linecount', airsim_client.linecount)
 
             print("WRITING ERROR NOW!")
             file_manager.write_openpose_error(current_state.bone_pos_gt)
+            pose_client.plot_info = []
 
             #implement a human pause function in airsim
             airsim_client.simPauseHuman(False)
-            time.sleep(1.5)
+            time.sleep(0.8)
             airsim_client.simPauseHuman(True)
 
 def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):

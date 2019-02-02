@@ -61,6 +61,9 @@ CURRENT_POSE_INDEX = 1
 FUTURE_POSE_INDEX = 0
 MIDDLE_POSE_INDEX = 3
 
+plt.figure()
+plt.close()
+
 def find_bone_map():
     bones_map_to_mpi = []
     for ind, value in enumerate(joint_names_mpi):
@@ -107,6 +110,20 @@ def return_arm_connection(bone_connections):
         left_arm_connections = [[1, 5], [5, 6], [6, 7]]
         right_arm_connections = [[1, 2], [2, 3], [3, 4]]
     return right_arm_connections, left_arm_connections
+
+def return_arm_joints(model="mpi"):
+    if (model == "mpi"):
+        arm_joints = [5,6,7,2,3,4]
+        left_arm_joints = [5, 6, 7]
+        right_arm_joints = [2, 3, 4]
+    return arm_joints, right_arm_joints, left_arm_joints
+
+def return_leg_joints(model="mpi"):
+    if (model == "mpi"):
+        leg_joints = [11,12,13,8,9,10]
+        left_leg_joints = [11, 12, 13]
+        right_leg_joints = [8, 9, 10]
+    return leg_joints, right_leg_joints, left_leg_joints
 
 def model_settings(model):
     if (model == "mpi"):
@@ -225,7 +242,7 @@ def reset_all_folders(animation_list, base = ""):
             for a_folder_name in folder_names[key].values():
                 if not os.path.exists(a_folder_name):
                     os.makedirs(a_folder_name)
-            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', "f_openpose_error": experiment_folder_name +  '/openpose_error.txt'}
+            file_names[key] = {"f_output": experiment_folder_name +  '/a_flight.txt', "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name

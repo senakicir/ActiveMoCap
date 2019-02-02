@@ -18,12 +18,17 @@ class FileManager(object):
         self.f_groundtruth = open(self.filenames_anim["f_groundtruth"], 'w')
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
+        self.f_openpose_arm_error = open(self.filenames_anim["f_openpose_arm_error"], 'w')
+        self.f_openpose_leg_error = open(self.filenames_anim["f_openpose_leg_error"], 'w')
+
 
         self.plot_loc = self.foldernames_anim["superimposed_images"]
         self.take_photo_loc =  self.foldernames_anim["images"]
         self.estimate_folder_name = self.foldernames_anim["estimates"]
 
         self.openpose_err_str = ""
+        self.openpose_err_arm_str = ""
+        self.openpose_err_leg_str = ""
 
     def get_nonairsim_client_names(self):
         return 'test_sets/'+self.test_set_name+'/groundtruth.txt', 'test_sets/'+self.test_set_name+'/a_flight.txt'
@@ -62,17 +67,26 @@ class FileManager(object):
         for new_theta_deg in THETA_LIST:
             for new_phi_deg in PHI_LIST:
                 prefix_string += str(new_theta_deg) +", " + str(new_phi_deg) + '\t'
-        
+        self.f_openpose_arm_error.write(prefix_string + "\n")
+        self.f_openpose_leg_error.write(prefix_string + "\n")
+
         for _ in range(num_of_joints):
             prefix_string += '\t'
         self.f_openpose_error.write(prefix_string + "\n")
 
-    def append_openpose_error(self, err):
+    def append_openpose_error(self, err, arm_err, leg_err):
         self.openpose_err_str += str(err) + "\t"
+        self.openpose_err_arm_str += str(arm_err) + "\t"
+        self.openpose_err_leg_str += str(leg_err) + "\t"
 
     def write_openpose_error(self, human_pose):
         for i in range(human_pose.shape[1]):
             self.openpose_err_str += str(human_pose[0,i]) + "\t" + str(human_pose[1,i]) + "\t" + str(human_pose[2,i]) + "\t"
 
         self.f_openpose_error.write(self.openpose_err_str + "\n")
+        self.f_openpose_arm_error.write(self.openpose_err_arm_str + "\n")
+        self.f_openpose_leg_error.write(self.openpose_err_leg_str + "\n")
+
         self.openpose_err_str = ""
+        self.openpose_err_arm_str = ""
+        self.openpose_err_leg_str = ""

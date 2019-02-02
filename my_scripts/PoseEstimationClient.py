@@ -27,6 +27,9 @@ class PoseEstimationClient(object):
         self.error_3d = []
         self.middle_pose_error = []
         self.openpose_error = 0
+        self.openpose_arm_error = 0
+        self.openpose_leg_error = 0
+
 
         self.poseList_3d = []
         self.poseList_3d_calibration = []
