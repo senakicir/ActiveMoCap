@@ -154,38 +154,30 @@ hip_pose = poses[:, :, hip_index]
 normalized_poses = poses - hip_pose[:,:,np.newaxis]
 
 #make everyone's shoulder vector [0,1]
-shoulder_vector = normalized_poses[:, :, joint_names_mpi.index('spine1')] - normalized_poses[:, :, joint_names_mpi.index('right_arm')] 
-shoulder_vector = shoulder_vector/np.linalg.norm(shoulder_vector, axis=0)
+shoulder_vector = normalized_poses[:, 0:2, joint_names_mpi.index('spine1')] - normalized_poses[:, 0:2, joint_names_mpi.index('right_arm')] 
+shoulder_vector = shoulder_vector/np.linalg.norm(shoulder_vector, axis=1)[:, np.newaxis]
 rotated_poses =  np.zeros(poses.shape)
-align_vec = np.array([1, 1, 0])/np.linalg.norm(np.array([1, 1, 0]))
+rotated_poses[:,2,:] =  normalized_poses[:,2,:].copy()
+
+align_vec = np.array([1, 1])/np.linalg.norm(np.array([1, 1]))
 
 for pose_ind in range(shoulder_vector.shape[0]):
-    cross = np.cross(align_vec, shoulder_vector[pose_ind, :])
-    ab_angle = np.arccos(np.dot(align_vec, shoulder_vector[pose_ind, :]))
-
-    vx = np.array([[0,-cross[2],cross[1]],[cross[2],0,-cross[0]],[-cross[1],cross[0],0]])
-    R = np.identity(3)*np.cos(ab_angle) + (1-np.cos(ab_angle))*np.outer(cross,cross) + np.sin(ab_angle)*vx
-
-    rotated_poses[pose_ind, :] = (np.matmul(normalized_poses[pose_ind, :, :].T, R)).T
-    new_shoulder_vector = rotated_poses[pose_ind, :, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, :, joint_names_mpi.index('right_arm')]
-    new_shoulder_vector = new_shoulder_vector / np.linalg.norm(new_shoulder_vector)
-    #cross = np.cross(new_shoulder_vector[pose_ind, :], align_vec)
-    new_ab_angle = np.arccos(np.dot(new_shoulder_vector, align_vec))
-    print(ab_angle, new_ab_angle)
-
-    #angle_between_them = acos(np.dot(shoulder_vector[pose_ind, :], align_vec)
-    #rotated_poses[pose_ind,0,:] = cos(angle_between_them) * normalized_poses[pose_ind,0,:] - sin(angle_between_them) * normalized_poses[pose_ind,1,:]
-    #rotated_poses[pose_ind,1,:] = sin(angle_between_them) * normalized_poses[pose_ind,0,:] + cos(angle_between_them) * normalized_poses[pose_ind,1,:] 
+    angle_between_them = acos(np.dot(shoulder_vector[pose_ind, :], align_vec))
+    rotated_poses[pose_ind,0,:] = cos(angle_between_them) * normalized_poses[pose_ind,0,:] - sin(angle_between_them) * normalized_poses[pose_ind,1,:]
+    rotated_poses[pose_ind,1,:] = sin(angle_between_them) * normalized_poses[pose_ind,0,:] + cos(angle_between_them) * normalized_poses[pose_ind,1,:] 
     
-    #new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
-    #angle_between_them_new = acos(np.dot(new_shoulder_vector, align_vec) / (np.linalg.norm(new_shoulder_vector)*np.linalg.norm(align_vec)))
+    new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
+    new_shoulder_vector = new_shoulder_vector/np.linalg.norm(new_shoulder_vector)
+    angle_between_them_new = acos(np.dot(new_shoulder_vector, align_vec))
 
-    #if angle_between_them_new > 1e-5:
-    #    rotated_poses[pose_ind,0,:] = cos(-angle_between_them) * normalized_poses[pose_ind,0,:] - sin(-angle_between_them) * normalized_poses[pose_ind,1,:]
-    #    rotated_poses[pose_ind,1,:] = sin(-angle_between_them) * normalized_poses[pose_ind,0,:] + cos(-angle_between_them) * normalized_poses[pose_ind,1,:] 
-    
-    #new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
-    #angle_between_them_new = acos(np.dot(new_shoulder_vector, align_vec) /  (np.linalg.norm(new_shoulder_vector)*np.linalg.norm(align_vec)))
+    if angle_between_them_new > 1e-5:
+        rotated_poses[pose_ind,0,:] = cos(-angle_between_them) * normalized_poses[pose_ind,0,:] - sin(-angle_between_them) * normalized_poses[pose_ind,1,:]
+        rotated_poses[pose_ind,1,:] = sin(-angle_between_them) * normalized_poses[pose_ind,0,:] + cos(-angle_between_them) * normalized_poses[pose_ind,1,:] 
+
+    new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
+    new_shoulder_vector = new_shoulder_vector/np.linalg.norm(new_shoulder_vector)
+    angle_between_them_new = acos(np.dot(new_shoulder_vector, align_vec))
+    print(angle_between_them, angle_between_them_new)
     #display_pose(rotated_poses[pose_ind, :, :])
 
 reshaped_poses = rotated_poses.reshape([-1, 45], order="F")
