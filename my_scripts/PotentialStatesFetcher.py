@@ -263,8 +263,10 @@ class PotentialStatesFetcher(object):
 
                 _, new_phi_go = find_current_polar_info(drone_pos, self.human_GT[:, self.hip_index]) #used to be norm_pos_go
 
+
                 new_theta_go = acos((z - self.human_GT[2, self.hip_index])/new_radius)
                 new_pitch = pi/2 - new_theta_go
+                print(degrees(new_theta_go), degrees(new_theta), degrees(new_pitch))
 
                 goal_state = {"position":np.copy(drone_pos), "orientation": new_phi_go+pi, "pitch": new_pitch}
 

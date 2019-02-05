@@ -631,91 +631,92 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
     file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.png'
-
-    fig = plt.figure( figsize=(12, 4))
+    
     bone_connections, _, _ = model_settings(pose_client.model)
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
-    ax = fig.add_subplot(151, projection='3d')
 
-    last_frame_plot_info = plot_info[-1]
-    predicted_bones = last_frame_plot_info["est"]
-    bones_GT = last_frame_plot_info["GT"]
+    # fig = plt.figure( figsize=(12, 4))
+    # ax = fig.add_subplot(151, projection='3d')
 
-    X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
-    Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
-    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+    # last_frame_plot_info = plot_info[-1]
+    # predicted_bones = last_frame_plot_info["est"]
+    # bones_GT = last_frame_plot_info["GT"]
 
-    #plot drone
-    drone_x, drone_y, drone_z = [],[],[]
-    for frame_ind in range (0, len(plot_info)):
-        frame_plot_info = plot_info[frame_ind]
-        drone = frame_plot_info["drone"].squeeze()
-        drone_x.append(drone[0])
-        drone_y.append(drone[1])
-        drone_z.append(-drone[2])
+    # X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
+    # Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
+    # Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
 
-        X = np.concatenate([X, [drone[0]]])
-        Y = np.concatenate([Y, [drone[1]]])
-        Z = np.concatenate([Z, [-drone[2]]])
+    # #plot drone
+    # drone_x, drone_y, drone_z = [],[],[]
+    # for frame_ind in range (0, len(plot_info)):
+    #     frame_plot_info = plot_info[frame_ind]
+    #     drone = frame_plot_info["drone"].squeeze()
+    #     drone_x.append(drone[0])
+    #     drone_y.append(drone[1])
+    #     drone_z.append(-drone[2])
 
-    plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
+    #     X = np.concatenate([X, [drone[0]]])
+    #     Y = np.concatenate([Y, [drone[1]]])
+    #     Z = np.concatenate([Z, [-drone[2]]])
 
-    #plot final frame human
-    for i, bone in enumerate(left_bone_connections):
-        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
-    for i, bone in enumerate(right_bone_connections):
-        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+    # plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
 
-    for i, bone in enumerate(left_bone_connections):
-        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
-    for i, bone in enumerate(right_bone_connections):
-        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+    # #plot final frame human
+    # for i, bone in enumerate(left_bone_connections):
+    #     plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+    # for i, bone in enumerate(right_bone_connections):
+    #     plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+    # for i, bone in enumerate(middle_bone_connections):
+    #     ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
 
-    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+    # for i, bone in enumerate(left_bone_connections):
+    #     plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+    # for i, bone in enumerate(right_bone_connections):
+    #     plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+    # for i, bone in enumerate(middle_bone_connections):
+    #     ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
 
-    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
-    mid_x = (X.max()+X.min()) * 0.5
-    mid_y = (Y.max()+Y.min()) * 0.5
-    mid_z = (Z.max()+Z.min()) * 0.5
-    ax.set_xlim(mid_x - max_range, mid_x + max_range)
-    ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    # ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
 
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.title("Drone Trajectory")
+    # max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    # mid_x = (X.max()+X.min()) * 0.5
+    # mid_y = (Y.max()+Y.min()) * 0.5
+    # mid_z = (Z.max()+Z.min()) * 0.5
+    # ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    # ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    # ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
-    ax = fig.add_subplot(152)
-    ax.plot(drone_x, drone_y, c='xkcd:black', marker='^')
-    plt.title("top down")
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    # ax.set_xlabel('X')
+    # ax.set_ylabel('Y')
+    # ax.set_zlabel('Z')
+    # plt.title("Drone Trajectory")
 
-    ax = fig.add_subplot(153)
-    ax.plot(drone_z, c='xkcd:black', marker='^')
-    plt.title("z")
-    ax.set_xlabel("frame")
-    ax.set_ylabel("z")
+    # ax = fig.add_subplot(152)
+    # ax.plot(drone_x, drone_y, c='xkcd:black', marker='^')
+    # plt.title("top down")
+    # ax.set_xlabel("x")
+    # ax.set_ylabel("y")
 
-    ax = fig.add_subplot(154)
-    ax.plot(drone_x, c='xkcd:black', marker='^')
-    plt.title("x")
-    ax.set_xlabel("frame")
-    ax.set_ylabel("x")
+    # ax = fig.add_subplot(153)
+    # ax.plot(drone_z, c='xkcd:black', marker='^')
+    # plt.title("z")
+    # ax.set_xlabel("frame")
+    # ax.set_ylabel("z")
 
-    ax = fig.add_subplot(155)
-    ax.plot(drone_y, c='xkcd:black', marker='^')
-    plt.title("y")
-    ax.set_xlabel("frame")
-    ax.set_ylabel("y")
+    # ax = fig.add_subplot(154)
+    # ax.plot(drone_x, c='xkcd:black', marker='^')
+    # plt.title("x")
+    # ax.set_xlabel("frame")
+    # ax.set_ylabel("x")
 
-    plt.savefig(file_name)
-    plt.close()
+    # ax = fig.add_subplot(155)
+    # ax.plot(drone_y, c='xkcd:black', marker='^')
+    # plt.title("y")
+    # ax.set_xlabel("frame")
+    # ax.set_ylabel("y")
+
+    # plt.savefig(file_name)
+    # plt.close()
 
 #####################
     fig = plt.figure( figsize=(4, 4))

@@ -280,6 +280,8 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
        
 def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     #animations_to_test = ["64_06", "02_01", "05_08", "38_03"]
+    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
+    print("experiment began at:", date_time_name)
     file_manager.write_openpose_prefix(THETA_LIST, PHI_LIST, pose_client.num_of_joints)
 
     for animation in range(1,19):
@@ -309,8 +311,6 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 
                 determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = file_manager.plot_loc, photo_loc = photo_loc)
 
-                plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
-
                 #SAVE ALL VALUES OF THIS SIMULATION
                 file_manager.append_openpose_error(pose_client.openpose_error, pose_client.openpose_arm_error,  pose_client.openpose_leg_error)
                 #file_manager.save_simulation_values(airsim_client, pose_client)
@@ -318,14 +318,19 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 airsim_client.linecount += 1 #THIS IS CONFUSING
                 #print('linecount', airsim_client.linecount)
 
-            print("WRITING ERROR NOW!")
+            #print("WRITING ERROR NOW!")
             file_manager.write_openpose_error(current_state.bone_pos_gt)
-            pose_client.plot_info = []
+            plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
+            pose_client.calib_res_list.clear()
 
             #implement a human pause function in airsim
             airsim_client.simPauseHuman(False)
-            time.sleep(0.8)
+            time.sleep(0.75)
             airsim_client.simPauseHuman(True)
+    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
+    print("experiment ended at:", date_time_name)
+
+
 
 def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     for different_pose_ind in range(1): 
