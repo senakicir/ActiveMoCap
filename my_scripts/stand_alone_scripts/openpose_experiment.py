@@ -101,10 +101,10 @@ def display_pose(pose):
     plt.close(fig)
 
 def display_pose_clusters(pose_clusters):
-    fig = plt.figure()
+    fig = plt.figure(figsize=(32, 4))
     for cluster in range(8):
-        ax = fig.add_subplot(8,1,cluster,  projection='3d')
-        pose = pose_clusters[cluster]
+        ax = fig.add_subplot(1,8,cluster+1,  projection='3d')
+        pose = pose_clusters[cluster,:,:]
         X = pose[0,:]
         Y = pose[1,:]
         Z = -pose[2,:]
@@ -120,6 +120,7 @@ def display_pose_clusters(pose_clusters):
         ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
     plt.show()
+    plt.savefig('clusters.png')
     plt.close(fig)
 
 
@@ -153,29 +154,46 @@ hip_pose = poses[:, :, hip_index]
 normalized_poses = poses - hip_pose[:,:,np.newaxis]
 
 #make everyone's shoulder vector [0,1]
-shoulder_vector = normalized_poses[:, 0:2, joint_names_mpi.index('spine1')] - normalized_poses[:, 0:2, joint_names_mpi.index('right_arm')] 
+shoulder_vector = normalized_poses[:, :, joint_names_mpi.index('spine1')] - normalized_poses[:, :, joint_names_mpi.index('right_arm')] 
+shoulder_vector = shoulder_vector/np.linalg.norm(shoulder_vector, axis=0)
 rotated_poses =  np.zeros(poses.shape)
-rotated_poses[:,2,:] = poses[:,2,:].copy()
+align_vec = np.array([1, 1, 0])/np.linalg.norm(np.array([1, 1, 0]))
+
 for pose_ind in range(shoulder_vector.shape[0]):
-    angle_between_them = acos(np.dot(shoulder_vector[pose_ind, :], np.array([0,1])) / np.linalg.norm(shoulder_vector[pose_ind, :]))
-    rotated_poses[pose_ind,0,:] = cos(angle_between_them) * normalized_poses[pose_ind,0,:] - sin(angle_between_them) * normalized_poses[pose_ind,1,:]
-    rotated_poses[pose_ind,1,:] = sin(angle_between_them) * normalized_poses[pose_ind,0,:] + cos(angle_between_them) * normalized_poses[pose_ind,1,:] 
+    cross = np.cross(align_vec, shoulder_vector[pose_ind, :])
+    ab_angle = np.arccos(np.dot(align_vec, shoulder_vector[pose_ind, :]))
+
+    vx = np.array([[0,-cross[2],cross[1]],[cross[2],0,-cross[0]],[-cross[1],cross[0],0]])
+    R = np.identity(3)*np.cos(ab_angle) + (1-np.cos(ab_angle))*np.outer(cross,cross) + np.sin(ab_angle)*vx
+
+    rotated_poses[pose_ind, :] = (np.matmul(normalized_poses[pose_ind, :, :].T, R)).T
+    new_shoulder_vector = rotated_poses[pose_ind, :, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, :, joint_names_mpi.index('right_arm')]
+    new_shoulder_vector = new_shoulder_vector / np.linalg.norm(new_shoulder_vector)
+    #cross = np.cross(new_shoulder_vector[pose_ind, :], align_vec)
+    new_ab_angle = np.arccos(np.dot(new_shoulder_vector, align_vec))
+    print(ab_angle, new_ab_angle)
+
+    #angle_between_them = acos(np.dot(shoulder_vector[pose_ind, :], align_vec)
+    #rotated_poses[pose_ind,0,:] = cos(angle_between_them) * normalized_poses[pose_ind,0,:] - sin(angle_between_them) * normalized_poses[pose_ind,1,:]
+    #rotated_poses[pose_ind,1,:] = sin(angle_between_them) * normalized_poses[pose_ind,0,:] + cos(angle_between_them) * normalized_poses[pose_ind,1,:] 
     
-    new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
-    angle_between_them_new = acos(np.dot(new_shoulder_vector, np.array([0,1])) / np.linalg.norm(new_shoulder_vector))
+    #new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
+    #angle_between_them_new = acos(np.dot(new_shoulder_vector, align_vec) / (np.linalg.norm(new_shoulder_vector)*np.linalg.norm(align_vec)))
 
-    if angle_between_them_new > 1e-5:
-        rotated_poses[pose_ind,0,:] = cos(-angle_between_them) * normalized_poses[pose_ind,0,:] - sin(-angle_between_them) * normalized_poses[pose_ind,1,:]
-        rotated_poses[pose_ind,1,:] = sin(-angle_between_them) * normalized_poses[pose_ind,0,:] + cos(-angle_between_them) * normalized_poses[pose_ind,1,:] 
+    #if angle_between_them_new > 1e-5:
+    #    rotated_poses[pose_ind,0,:] = cos(-angle_between_them) * normalized_poses[pose_ind,0,:] - sin(-angle_between_them) * normalized_poses[pose_ind,1,:]
+    #    rotated_poses[pose_ind,1,:] = sin(-angle_between_them) * normalized_poses[pose_ind,0,:] + cos(-angle_between_them) * normalized_poses[pose_ind,1,:] 
     
-    new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
-    angle_between_them_new = acos(np.dot(new_shoulder_vector, np.array([0,1])) / np.linalg.norm(new_shoulder_vector))
-    display_pose(rotated_poses[pose_ind, :, :])
+    #new_shoulder_vector = rotated_poses[pose_ind, 0:2, joint_names_mpi.index('spine1')] - rotated_poses[pose_ind, 0:2, joint_names_mpi.index('right_arm')]
+    #angle_between_them_new = acos(np.dot(new_shoulder_vector, align_vec) /  (np.linalg.norm(new_shoulder_vector)*np.linalg.norm(align_vec)))
+    #display_pose(rotated_poses[pose_ind, :, :])
 
+reshaped_poses = rotated_poses.reshape([-1, 45], order="F")
 
-kmeans = KMeans(n_clusters=8, random_state=0).fit(rotated_poses)
-
-
+kmeans = KMeans(n_clusters=8, random_state=0)
+kmeans.fit(reshaped_poses)
+cluster_centers = (kmeans.cluster_centers_).reshape([-1, 3, 15], order="F")
+display_pose_clusters(cluster_centers)
 #find error mean, var wrt pose clusters
 
 
