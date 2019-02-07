@@ -157,22 +157,18 @@ class VehicleClient:
     def changeAnimation(self, newAnimNum, vehicle_name = ''):
         self.client.call('changeAnimation', vehicle_name, newAnimNum)
         self.simPauseHuman(False)
-        time.sleep(0.1)
+        time.sleep(1)
         self.simPauseHuman(True)
 
     #sena was here
     def changeCalibrationMode(self, calibMode, vehicle_name = ''):
         self.client.call('changeCalibrationMode', vehicle_name, calibMode)
     #sena was here
-    def initInitialDronePos(self):
-        return self.initInitialDronePos2(self.getBonePositions())
-    #sena was here
-    def initInitialDronePos2(self, bonePos):
+    def initInitialDronePos(self, vehicle_name = ''):
         if (self.program_started == False):
             self.program_started = True
-            self.DRONE_INITIAL_POS = np.array([bonePos.dronePos.x_val, bonePos.dronePos.y_val, -bonePos.dronePos.z_val])
-        return 0
-
+            initial_drone_pos = self.client.call('getInitialDronePos', vehicle_name)
+            self.DRONE_INITIAL_POS =  np.array([initial_drone_pos['x_val'], initial_drone_pos['y_val'], -initial_drone_pos['z_val']])
 
     # legacy handling
     # TODO: remove below legacy wrappers in future major releases

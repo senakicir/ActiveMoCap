@@ -66,7 +66,7 @@ class FileManager(object):
         prefix_string = ""
         for new_theta_deg in THETA_LIST:
             for new_phi_deg in PHI_LIST:
-                prefix_string += str(new_theta_deg) +", " + str(new_phi_deg) + '\t'
+                prefix_string += str(new_theta_deg) + ", " + str(new_phi_deg) + '\t'
         self.f_openpose_arm_error.write(prefix_string + "\n")
         self.f_openpose_leg_error.write(prefix_string + "\n")
 

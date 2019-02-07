@@ -246,9 +246,9 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
 
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
+        current_state.cam_pitch = cam_pitch
 
         potential_states_fetcher.reset(pose_client, current_state)
-
         goal_state = potential_states_fetcher.precalibration()
         drone_speed = TOP_SPEED
 
@@ -268,7 +268,6 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
             print("I was sleeping :(")
         airsim_client.simPauseDrone(True)
 
-        current_state.cam_pitch = cam_pitch
         plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
     
         file_manager.save_simulation_values(airsim_client, pose_client)
@@ -306,6 +305,8 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), False)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
                 current_state.cam_pitch = goal_state['pitch']
+                airsim_retrieve_gt(airsim_client, pose_client, current_state)
+                
                 take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
                 airsim_client.simPauseDrone(True)
                 
@@ -333,9 +334,27 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
 
 
 def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
+
+    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
+    print("experiment began at:", date_time_name)
+
+    for animation in range(1,19):
+        airsim_client.simPauseDrone(True)
+        #airsim_client.changeAnimation(ANIM_TO_UNREAL[animation])
+        airsim_client.changeAnimation(animation)
+        print("Animation:", animation)
+        time.sleep(1)
+
+    #precalibration(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
+
     for different_pose_ind in range(1): 
-        end_test = False
-        while (not end_test):
+        airsim_client.simPauseDrone(True)
+        time.sleep(1)
+
+        airsim_retrieve_gt(airsim_client, pose_client, current_state)
+        potential_states_fetcher.reset(pose_client, current_state)
+        potential_states_fetcher.dome_experiment()
+        for _ in range(20):
             photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 
             potential_states_fetcher.reset(pose_client, current_state)
