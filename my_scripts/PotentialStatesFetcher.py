@@ -11,8 +11,7 @@ TRAVEL = 0.1
 TRAVEL2 = 3
 UPPER_LIM = -3
 LOWER_LIM = -1 #-2.5
-THETA_LIST = list(range(270, 180, -20))
-PHI_LIST = list(range(0, 360, 20))
+
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
@@ -28,6 +27,8 @@ class PotentialStatesFetcher(object):
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
         self.goUp = True
+        self.THETA_LIST = active_parameters["THETA_LIST"]
+        self.PHI_LIST = active_parameters["PHI_LIST"]
         
         self.cv_mode_ind = [0,0]
 
@@ -213,14 +214,14 @@ class PotentialStatesFetcher(object):
     def test_openpose_mode(self):
         new_radius = SAFE_RADIUS
     
-        new_theta_deg = THETA_LIST[self.cv_mode_ind[0]]
-        new_phi_deg = PHI_LIST[self.cv_mode_ind[1]]
+        new_theta_deg = self.THETA_LIST[self.cv_mode_ind[0]]
+        new_phi_deg = self.PHI_LIST[self.cv_mode_ind[1]]
 
         new_theta = radians(new_theta_deg)
         new_phi = radians(new_phi_deg)
         
         self.cv_mode_ind[1] += 1
-        if (self.cv_mode_ind[1] == len(PHI_LIST)):
+        if (self.cv_mode_ind[1] == len(self.PHI_LIST)):
             self.cv_mode_ind[1] = 0
             self.cv_mode_ind[0] += 1
 
@@ -250,8 +251,8 @@ class PotentialStatesFetcher(object):
         shoulder_vector = self.human_GT[:, self.joint_names.index('left_arm')] - self.human_GT[:, self.joint_names.index('right_arm')] 
         human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
 
-        for new_theta_deg in THETA_LIST:
-            for new_phi_deg in PHI_LIST:
+        for new_theta_deg in self.THETA_LIST:
+            for new_phi_deg in self.PHI_LIST:
                 new_theta = radians(new_theta_deg)
                 new_phi = radians(new_phi_deg)
 
@@ -417,9 +418,9 @@ class PotentialStatesFetcher(object):
         for potential_state_ind, potential_state in enumerate(self.potential_states_try):
             self.objective.reset_future(pose_client, potential_state)
 
-            start_find_hess2 = time.time()
+            #start_find_hess2 = time.time()
             hess2 = self.objective.hessian(P_world)
-            end_find_hess2 = time.time()
+            #end_find_hess2 = time.time()
             
             #print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess2-start_find_hess2)
 
@@ -453,11 +454,11 @@ class PotentialStatesFetcher(object):
         else:
             best_ind = uncertainty_list.index(max(uncertainty_list))
         self.goal_state_ind = best_ind
-        print("uncertainty list:", uncertainty_list, "best ind", best_ind)
-        goal_state = self.potential_states_go[best_ind].copy()
+        print("uncertainty list var:", np.std(uncertainty_list), "uncertainty list min max", np.min(uncertainty_list), np.max(uncertainty_list), "best ind", best_ind)
+        goal_state = self.potential_states_go[best_ind]
         self.potential_covs_normal = []
         self.potential_hessians_normal = []
-        return goal_state
+        return goal_state, best_ind
 
     def find_random_next_state(self):
         random_ind = randint(0, len(self.potential_states_go)-1)

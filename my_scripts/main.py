@@ -11,7 +11,7 @@ if __name__ == "__main__":
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
     trajectory = 1
     #loop_mode = 0-normal sim, 1-openpose, 2-dome
-    loop_mode = 1
+    loop_mode = 2
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 2
     minmax = True #True-min, False-max
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     
     online_window_size = 10
     calibration_length = 200
-    calibration_window_size = 10
+    calibration_window_size = 200
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim}
 
@@ -37,7 +37,10 @@ if __name__ == "__main__":
    
     animations = {"02_01": len(SEED_LIST)}
 
-    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "LOOP_MODE": loop_mode}
+    theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
+    phi_list = list(range(0, 360, 45)) #list(range(0, 360, 20))
+
+    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "LOOP_MODE": loop_mode, "THETA_LIST": theta_list, "PHI_LIST": phi_list}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     num_of_experiments = 1#len(WOBBLE_FREQ_LIST)
 

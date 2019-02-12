@@ -22,7 +22,7 @@ class Crop:
             self.unstable = False
             global crop_alpha
             crop_alpha = 1
-            self.bbox = [SIZE_X//2-250,SIZE_Y//2-250,500,500]
+            self.bbox = [SIZE_X//2-135,SIZE_Y//2-135,270,270]
             self.bounding_box_margin = 3
 
     def crop(self, image, linecount):

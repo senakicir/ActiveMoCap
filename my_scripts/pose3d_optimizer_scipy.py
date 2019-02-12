@@ -2,6 +2,7 @@ from helpers import *
 from project_bones import take_bone_projection_pytorch, Projection_Client, take_bone_projection_pytorch
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
+from torch.autograd import grad
 import pdb
 
 def find_residuals(input_1, input_2):
@@ -266,6 +267,8 @@ class pose3d_future():
         jacobian = gradient[np.newaxis,:]
         return np.dot(jacobian.T, jacobian)
 
+#######################################
+
 class pose3d_calibration_parallel_wrapper():
     def __init__(self):
         self.pytorch_objective = 0
@@ -291,7 +294,7 @@ class pose3d_calibration_parallel_wrapper():
 
         #future state 
         yaw = potential_state["orientation"]
-        C_drone =  potential_state["position"]
+        C_drone =  potential_state["position"].copy()
         potential_pitch = potential_state["pitch"]
         future_pose = torch.from_numpy(pose_client.future_pose).float()
 
