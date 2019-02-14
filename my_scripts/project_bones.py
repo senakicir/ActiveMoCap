@@ -76,20 +76,20 @@ def camera_to_world(R_drone, C_drone, R_cam, P_camera):
 
     return P_world    
 
-
 def transform_cov_matrix(R_drone, R_cam, cov_):
     transformed_cov = (R_drone@R_cam)@cov_@(R_drone@R_cam).T
     return transformed_cov
 
 def take_potential_projection(potential_state, future_pose):
     C_drone = potential_state["position"].copy()
-    C_drone = C_drone[:, np.newaxis]
+    potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
     yaw = potential_state["orientation"]
-    R_drone = euler_to_rotation_matrix(0,0,yaw)
+    potential_R_drone = euler_to_rotation_matrix(0,0,yaw, returnTensor=True)
     camera_pitch = potential_state["pitch"]
-    R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, camera_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = False)
-    proj, _ =  take_bone_projection(future_pose, R_drone, C_drone, R_cam)
-    return proj
+    potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, camera_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor=True)
+    potential_future_pose = torch.from_numpy(future_pose.copy()).float()
+    proj, _ =  take_bone_projection_pytorch(potential_future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
+    return proj.numpy()
 
 class Projection_Client(object):
     def reset(self, data_list, num_of_joints):

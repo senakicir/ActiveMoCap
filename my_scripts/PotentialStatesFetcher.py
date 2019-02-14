@@ -1,4 +1,4 @@
-from helpers import model_settings, choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians
+from helpers import model_settings, choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_future
@@ -12,6 +12,19 @@ TRAVEL2 = 3
 UPPER_LIM = -3
 LOWER_LIM = -1 #-2.5
 
+def sample_states_spherical(psf, new_radius, human_orientation, new_theta, new_phi):
+    new_yaw = new_phi  + human_orientation
+    x = new_radius*cos(new_yaw)*sin(new_theta) + psf.human_GT[0, psf.hip_index]
+    y = new_radius*sin(new_yaw)*sin(new_theta) + psf.human_GT[1, psf.hip_index]
+    z = new_radius*cos(new_theta)+ psf.human_GT[2, psf.hip_index]
+    drone_pos = np.array([x, y, z])
+
+    _, new_phi_go = find_current_polar_info(drone_pos, psf.human_GT[:, psf.hip_index]) #used to be norm_pos_go
+
+    goal_state = {"position":np.copy(drone_pos), "orientation": new_phi_go+pi, "pitch": new_theta+pi/2}
+
+    psf.potential_states_try.append(goal_state)
+    psf.potential_states_go.append(goal_state)
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
@@ -29,6 +42,7 @@ class PotentialStatesFetcher(object):
         self.goUp = True
         self.THETA_LIST = active_parameters["THETA_LIST"]
         self.PHI_LIST = active_parameters["PHI_LIST"]
+        self.number_of_samples = len(self.THETA_LIST)*len(self.PHI_LIST) 
         
         self.cv_mode_ind = [0,0]
 
@@ -253,22 +267,9 @@ class PotentialStatesFetcher(object):
 
         for new_theta_deg in self.THETA_LIST:
             for new_phi_deg in self.PHI_LIST:
-                new_theta = radians(new_theta_deg)
-                new_phi = radians(new_phi_deg)
+                sample_states_spherical(self, new_radius, human_orientation, radians(new_theta_deg), radians(new_phi_deg))
 
-                #find coordinates of drone
-                new_yaw = new_phi  + human_orientation
-                x = new_radius*cos(new_yaw)*sin(new_theta) + self.human_GT[0, self.hip_index]
-                y = new_radius*sin(new_yaw)*sin(new_theta) + self.human_GT[1, self.hip_index]
-                z = new_radius*cos(new_theta)+ self.human_GT[2, self.hip_index]
-                drone_pos = np.array([x, y, z])
-
-                _, new_phi_go = find_current_polar_info(drone_pos, self.human_GT[:, self.hip_index]) #used to be norm_pos_go
-
-                goal_state = {"position":np.copy(drone_pos), "orientation": new_phi_go+pi, "pitch": new_theta+pi/2}
-
-                self.potential_states_try.append(goal_state)
-                self.potential_states_go.append(goal_state)
+        return self.potential_states_try
 
     def up_down_baseline(self):
         new_radius = SAFE_RADIUS
@@ -434,8 +435,7 @@ class PotentialStatesFetcher(object):
             else:
                 self.potential_covs_normal.append(inv_hess2)
 
-            #take projection 
-            #self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
+            self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
         return self.potential_covs_normal, self.potential_hessians_normal
 
     def find_best_potential_state(self):
@@ -475,4 +475,5 @@ class PotentialStatesFetcher(object):
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=False)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=True)
 
-    
+    def plot_projections(self, linecount, plot_loc):
+        plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.model)

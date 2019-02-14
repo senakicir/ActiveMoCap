@@ -135,7 +135,10 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     if (airsim_client.linecount != 0):
         pre_pose_3d = pose_client.future_pose
     else:
-        pre_pose_3d = take_bone_backprojection_pytorch(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, joint_names).numpy()
+        if pose_client.init_pose_with_gt:
+            pre_pose_3d = bone_pos_3d_GT.copy()
+        else:
+            pre_pose_3d = take_bone_backprojection_pytorch(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, joint_names).numpy()
         pose_client.poseList_3d_calibration = pre_pose_3d
         P_world = pre_pose_3d
 

@@ -17,7 +17,9 @@ class PoseEstimationClient(object):
         self.ONLINE_WINDOW_SIZE = param["ONLINE_WINDOW_SIZE"]
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
+        self.PRECALIBRATION_LENGTH = param["PRECALIBRATION_LENGTH"]
         self.quiet = param["QUIET"]
+        self.init_pose_with_gt = param["INIT_POSE_WITH_GT"]
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -133,17 +135,14 @@ class PoseEstimationClient(object):
         self.isCalibratingEnergy = calibMode
 
     def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, linecount):
-        self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-        while len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE:
-            self.requiredEstimationData_calibration.pop()
         #pre calibration!
-        #if linecount < 20:
-        #    self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-        #else:
-        #    self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-        #    while len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE:
-        #        self.requiredEstimationData_calibration.pop()
-        #self.poseList_3d_calibration = pose3d_
+        if linecount < self.PRECALIBRATION_LENGTH:
+            self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        else:
+            self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+            while len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE:
+                self.requiredEstimationData_calibration.pop()
+        self.poseList_3d_calibration = pose3d_
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, pose3d_lift = None):
         self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])

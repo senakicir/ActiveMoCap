@@ -298,7 +298,7 @@ class pose3d_calibration_parallel_wrapper():
         potential_pitch = potential_state["pitch"]
         future_pose = torch.from_numpy(pose_client.future_pose).float()
 
-        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
+        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor=True)
         potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
         potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
         potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)

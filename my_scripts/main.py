@@ -27,6 +27,8 @@ if __name__ == "__main__":
     online_window_size = 10
     calibration_length = 200
     calibration_window_size = 200
+    precalibration_length = 0
+    init_pose_with_gt = True
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim}
 
@@ -37,7 +39,7 @@ if __name__ == "__main__":
    
     animations = {"02_01": len(SEED_LIST)}
 
-    theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
+    theta_list = list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 45)) #list(range(0, 360, 20))
 
     active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "LOOP_MODE": loop_mode, "THETA_LIST": theta_list, "PHI_LIST": phi_list}
@@ -54,7 +56,7 @@ if __name__ == "__main__":
         weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
         weights = normalize_weights(weights_)
 
-        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights}
+        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt}
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
         active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
         active_parameters["Z_POS"] = Z_POS_LIST[0]

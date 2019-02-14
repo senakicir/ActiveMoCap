@@ -58,6 +58,7 @@ class VehicleClient:
     #sena was here
     def simPauseDrone(self, is_paused):
         self.client.call('simPauseDrone', is_paused)
+        time.sleep(0.01)
     def simPauseHuman(self, is_paused):
         self.client.call('simPauseHuman', is_paused)
     def simIsPause(self):
@@ -116,6 +117,9 @@ class VehicleClient:
 
     def simSetVehiclePose(self, pose, ignore_collison, vehicle_name = ''):
         self.client.call('simSetVehiclePose', pose, ignore_collison, vehicle_name)
+    #sena was here
+    def simSetVehiclePose_senaver(self, pose, vehicle_name = ''):
+        self.client.call('simSetVehiclePose_senaver', pose, vehicle_name)
     def simGetVehiclePose(self, vehicle_name = ''):
         pose = self.client.call('simGetVehiclePose', vehicle_name)
         return Pose.from_msgpack(pose)

@@ -1128,6 +1128,38 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
+def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, model):
+    bone_connections, joint_names, _ = model_settings(model)
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+
+    superimposed_plot_loc = plot_loc + "/potential_projections_noimage_" + str(linecount) + '.png'
+
+    if (len(pose2d_list) > 6):
+        nrows, ncols = 3, 3
+    elif (len(pose2d_list) > 3):
+        nrows, ncols = 3, 2
+    else:
+        nrows, ncols = 3, 1
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
+
+    im = np.zeros([SIZE_Y, SIZE_X])
+    for ind, pose in enumerate(pose2d_list):
+        ax = axes.flat[ind]
+        ax.imshow(im)
+    
+        #plot part
+        for _, bone in enumerate(left_bone_connections):    
+            p1, = ax.plot( pose[0, bone], pose[1,bone], color = "r", linewidth=1, label="Left")   
+        for i, bone in enumerate(right_bone_connections):    
+            p2, = ax.plot( pose[0, bone], pose[1,bone], color = "b", linewidth=1, label="Right")   
+        for i, bone in enumerate(middle_bone_connections):    
+            ax.plot( pose[0, bone], pose[1,bone], color = "b", linewidth=1)   
+        ax.set_title(str(ind))
+        ax.get_xaxis().set_visible(False)
+        ax.get_yaxis().set_visible(False) 
+
+    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.close()
 
 def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = True):
     _, joint_names, _ = model_settings(potential_states_fetcher.model)
