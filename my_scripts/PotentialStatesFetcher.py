@@ -12,8 +12,8 @@ TRAVEL2 = 3
 UPPER_LIM = -3
 LOWER_LIM = -1 #-2.5
 
-def sample_states_spherical(psf, new_radius, human_orientation, new_theta, new_phi):
-    new_yaw = new_phi  + human_orientation
+def sample_states_spherical(psf, new_radius, new_theta, new_phi):
+    new_yaw = new_phi  + psf.human_orientation_GT
     x = new_radius*cos(new_yaw)*sin(new_theta) + psf.human_GT[0, psf.hip_index]
     y = new_radius*sin(new_yaw)*sin(new_theta) + psf.human_GT[1, psf.hip_index]
     z = new_radius*cos(new_theta)+ psf.human_GT[2, psf.hip_index]
@@ -49,6 +49,7 @@ class PotentialStatesFetcher(object):
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
         self.human_GT = current_state.bone_pos_gt
+        self.human_orientation_GT = current_state.human_orientation_gt
 
         self.future_human_pos = pose_client.future_pose
         self.current_human_pos = pose_client.current_pose
@@ -224,51 +225,10 @@ class PotentialStatesFetcher(object):
         goal_state = {"position":np.copy(pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go}
         return goal_state
 
-    #not used anymore
-    def test_openpose_mode(self):
-        new_radius = SAFE_RADIUS
-    
-        new_theta_deg = self.THETA_LIST[self.cv_mode_ind[0]]
-        new_phi_deg = self.PHI_LIST[self.cv_mode_ind[1]]
-
-        new_theta = radians(new_theta_deg)
-        new_phi = radians(new_phi_deg)
-        
-        self.cv_mode_ind[1] += 1
-        if (self.cv_mode_ind[1] == len(self.PHI_LIST)):
-            self.cv_mode_ind[1] = 0
-            self.cv_mode_ind[0] += 1
-
-        #find human orientation (from GT)
-        shoulder_vector = self.human_GT[:, self.joint_names.index('left_arm')] - self.human_GT[:, self.joint_names.index('right_arm')] 
-        human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
-
-        #find coordinates of drone
-        new_yaw = new_phi  + human_orientation
-        x = new_radius*cos(new_yaw)*sin(new_theta) + self.human_GT[0, self.hip_index]
-        y = new_radius*sin(new_yaw)*sin(new_theta) + self.human_GT[1, self.hip_index]
-        z = new_radius*cos(new_theta)+ self.human_GT[2, self.hip_index]
-        drone_pos = np.array([x, y, z])
-
-        _, new_phi_go = find_current_polar_info(drone_pos, self.human_GT[:, self.hip_index]) #used to be norm_pos_go
-
-        new_theta_go = acos((z - self.human_GT[2, self.hip_index])/new_radius)
-        new_pitch = pi/2 - new_theta_go
-        goal_state = {"position":drone_pos.copy(), "orientation": new_phi_go+pi, "pitch": new_pitch}
-        openpose_str = str(new_theta_deg)+ "\t" + str(new_phi_deg) + "\t"
-        return goal_state, openpose_str
-
     def dome_experiment(self):
-        new_radius = SAFE_RADIUS
-            
-        #find human orientation (from GT)
-        shoulder_vector = self.human_GT[:, self.joint_names.index('left_arm')] - self.human_GT[:, self.joint_names.index('right_arm')] 
-        human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
-
         for new_theta_deg in self.THETA_LIST:
             for new_phi_deg in self.PHI_LIST:
-                sample_states_spherical(self, new_radius, human_orientation, radians(new_theta_deg), radians(new_phi_deg))
-
+                sample_states_spherical(self, SAFE_RADIUS, radians(new_theta_deg), radians(new_phi_deg))
         return self.potential_states_try
 
     def up_down_baseline(self):
@@ -468,7 +428,7 @@ class PotentialStatesFetcher(object):
 
     def plot_everything(self, linecount, plot_loc, photo_loc):
         if not self.is_quiet:
-            #plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, self.model, custom_name = "potential_covs_normal_")
+            plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, self.model, custom_name = "potential_covs_normal_")
             #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.model)
             #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)

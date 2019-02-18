@@ -9,9 +9,9 @@ if __name__ == "__main__":
     use_airsim = True
     base_folder = "/Users/kicirogl/Documents/temp_main"
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
-    trajectory = 1
+    trajectory = 0
     #loop_mode = 0-normal sim, 1-openpose, 2-dome
-    loop_mode = 2
+    loop_mode = 0
     #hessian method 0-future, 1- middle, 2-whole
     hessian_method = 2
     minmax = True #True-min, False-max
@@ -26,7 +26,8 @@ if __name__ == "__main__":
     
     online_window_size = 10
     calibration_length = 200
-    calibration_window_size = 200
+    calibration_window_size = 10
+
     precalibration_length = 0
     init_pose_with_gt = True
 
