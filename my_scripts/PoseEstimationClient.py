@@ -32,9 +32,9 @@ class PoseEstimationClient(object):
         self.openpose_arm_error = 0
         self.openpose_leg_error = 0
 
-
         self.poseList_3d = []
         self.poseList_3d_calibration = []
+        self.prev_poseList_3d  = []
         self.liftPoseList = []
         self.boneLengths = torch.zeros([self.num_of_joints-1,1])
 
@@ -142,7 +142,28 @@ class PoseEstimationClient(object):
             self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
             while len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE:
                 self.requiredEstimationData_calibration.pop()
+        self.prev_poseList_3d = self.poseList_3d_calibration
         self.poseList_3d_calibration = pose3d_
+
+    def rewind_calibration_step(self):
+        if self.isCalibratingEnergy:
+            self.requiredEstimationData_calibration.pop(0)
+            self.middle_pose_GT_list.pop(0)
+            middle_pose_error = self.middle_pose_error.pop()
+            error = self.error_3d.pop()
+            self.error_2d.pop()
+            self.poseList_3d_calibration = self.prev_poseList_3d
+            self.current_pose = self.prev_poseList_3d
+            self.future_pose = self.prev_poseList_3d
+            self.poseList_3d = self.prev_poseList_3d
+            self.pose_client.P_world = self.prev_poseList_3d
+
+            self.requiredEstimationData.pop(0)
+            self.poseList_3d.pop(0)
+            self.liftPoseList.pop(0)
+        else: 
+            print("making mistake in pose estimation client, you do not have this part coded yet")
+        return error 
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, pose3d_lift = None):
         self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])

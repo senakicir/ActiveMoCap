@@ -1,4 +1,4 @@
-from helpers import model_settings, choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix
+from helpers import model_settings, choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_future
@@ -6,11 +6,6 @@ from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
 from random import randint
 from project_bones import take_potential_projection
 import time as time
-
-TRAVEL = 0.1
-TRAVEL2 = 3
-UPPER_LIM = -3
-LOWER_LIM = -1 #-2.5
 
 def sample_states_spherical(psf, new_radius, new_theta, new_phi):
     new_yaw = new_phi  + psf.human_orientation_GT
@@ -28,7 +23,7 @@ def sample_states_spherical(psf, new_radius, new_theta, new_phi):
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
-        _, self.joint_names, _ = model_settings(pose_client.model)
+        _, self.joint_names, self.number_of_joints = model_settings(pose_client.model)
         self.hip_index = self.joint_names.index('spine1')
         self.minmax = active_parameters["MINMAX"]
         self.hessian_method = active_parameters["HESSIAN_METHOD"]
@@ -36,15 +31,19 @@ class PotentialStatesFetcher(object):
         self.updown_lim = active_parameters["UPDOWN_LIM"]
         self.target_z_pos = active_parameters["Z_POS"]
         self.lookahead = active_parameters["LOOKAHEAD"]
+        self.go_distance = active_parameters["GO_DISTANCE"]
+
         self.trajectory = active_parameters["TRAJECTORY"]
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
         self.goUp = True
         self.THETA_LIST = active_parameters["THETA_LIST"]
         self.PHI_LIST = active_parameters["PHI_LIST"]
+        self.UPPER_LIM = active_parameters["UPPER_LIM"]
+        self.LOWER_LIM = active_parameters["LOWER_LIM"]
+
+        self.FIND_BEST_TRAJ = active_parameters["FIND_BEST_TRAJ"]        
         self.number_of_samples = len(self.THETA_LIST)*len(self.PHI_LIST) 
-        
-        self.cv_mode_ind = [0,0]
 
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
@@ -72,8 +71,6 @@ class PotentialStatesFetcher(object):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
-        travel = self.lookahead
-        travel_go = TRAVEL2
 
         current_drone_pos = np.copy(self.current_drone_pos)
 
@@ -87,21 +84,21 @@ class PotentialStatesFetcher(object):
 
         up_vec = np.cross(unit_horizontal, new_drone_vec)
         side_vec = np.cross(unit_z, new_drone_vec) 
-        up_vec_norm = up_vec*travel/np.linalg.norm(up_vec)
-        side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
-        up_vec_norm_go = up_vec*travel_go/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec*travel_go/np.linalg.norm(side_vec)
+        up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
+        side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
+        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
 
         weights_up = [-1,0,1]
         weights_side = [-1,0,1]
-        if current_drone_pos[2]  > LOWER_LIM: #about to crash
+        if current_drone_pos[2]  > self.LOWER_LIM: #about to crash
             weights_up = [-1]
-        elif current_drone_pos[2] + 1 > LOWER_LIM: #about to crash
+        elif current_drone_pos[2] + 1 > self.LOWER_LIM: #about to crash
             weights_up = [-1, 0]
 
-        if current_drone_pos[2]  < UPPER_LIM:
+        if current_drone_pos[2]  < self.UPPER_LIM:
             weights_up = [1]
-        elif current_drone_pos[2] -1 < UPPER_LIM:
+        elif current_drone_pos[2] -1 < self.UPPER_LIM:
             weights_up = [0, 1]
                       
         ind = 0
@@ -140,8 +137,6 @@ class PotentialStatesFetcher(object):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
-        travel = self.lookahead
-        travel_go = TRAVEL2
 
         current_drone_pos = np.copy(self.current_drone_pos)
 
@@ -155,8 +150,8 @@ class PotentialStatesFetcher(object):
 
         up_vec = np.cross(unit_horizontal, new_drone_vec)
         side_vec = np.cross(unit_z, new_drone_vec) 
-        up_vec_norm_go = up_vec*travel_go/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec*travel_go/np.linalg.norm(side_vec)
+        up_vec_norm_go = up_vec*self.go_distance/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec*self.go_distance/np.linalg.norm(side_vec)
 
         if dir == "u":
             w1 = -1
@@ -177,7 +172,6 @@ class PotentialStatesFetcher(object):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
-        travel = TRAVEL2
 
         current_drone_pos = np.copy(self.current_drone_pos)
 
@@ -187,7 +181,7 @@ class PotentialStatesFetcher(object):
         new_drone_vec = new_radius*(drone_vec/cur_radius)
 
         side_vec = np.cross(unit_z, new_drone_vec) 
-        side_vec_norm = side_vec*travel/np.linalg.norm(side_vec)
+        side_vec_norm = side_vec* self.go_distance/np.linalg.norm(side_vec)
        
         pos = new_drone_vec + self.future_human_pos[:, self.hip_index] + side_vec_norm
         potential_drone_vec = pos - self.future_human_pos[:, self.hip_index]
@@ -233,7 +227,6 @@ class PotentialStatesFetcher(object):
 
     def up_down_baseline(self):
         new_radius = SAFE_RADIUS
-        travel = TRAVEL2
         baseline_lim_up = self.updown_lim[0]
         baseline_lim_down = self.updown_lim[1]
         current_drone_pos = np.copy(self.current_drone_pos)
@@ -247,7 +240,7 @@ class PotentialStatesFetcher(object):
         unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
 
         up_vec = np.cross(unit_horizontal, new_drone_vec)
-        up_vec_norm_go = up_vec*travel/np.linalg.norm(up_vec)
+        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
 
         if current_drone_pos[2] + 1 > baseline_lim_down: #about to crash
             self.goUp = True
@@ -272,7 +265,6 @@ class PotentialStatesFetcher(object):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
-        travel = TRAVEL2
         wobble_lim_up = -6
         wobble_lim_down = -2
 
@@ -284,7 +276,7 @@ class PotentialStatesFetcher(object):
         new_drone_vec = new_radius*(drone_vec/cur_radius)
 
         side_vec = np.cross(unit_z, new_drone_vec) 
-        side_vec_norm_go = side_vec*travel/np.linalg.norm(side_vec)
+        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
 
         if current_drone_pos[2] + 1 > wobble_lim_down: #about to crash
             self.goUp = True
@@ -309,7 +301,6 @@ class PotentialStatesFetcher(object):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
-        travel = TRAVEL2
         wobble_lim_up = self.updown_lim[0]
         wobble_lim_down =self.updown_lim[1]
         up_vec_weight = self.wobble_freq
@@ -326,8 +317,8 @@ class PotentialStatesFetcher(object):
 
         up_vec = np.cross(unit_horizontal, new_drone_vec)
         side_vec = np.cross(unit_z, new_drone_vec) 
-        up_vec_norm_go = up_vec*travel/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec*travel/np.linalg.norm(side_vec)
+        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
 
         if current_drone_pos[2] + 1 > wobble_lim_down: #about to crash
             self.goUp = True
@@ -378,20 +369,17 @@ class PotentialStatesFetcher(object):
     def find_hessians_for_potential_states(self, pose_client, P_world):
         for potential_state_ind, potential_state in enumerate(self.potential_states_try):
             self.objective.reset_future(pose_client, potential_state)
-
-            #start_find_hess2 = time.time()
             hess2 = self.objective.hessian(P_world)
-            #end_find_hess2 = time.time()
-            
-            #print("Time for finding hessian no", potential_state_ind, ": ", end_find_hess2-start_find_hess2)
-
             self.potential_hessians_normal.append(hess2)
+
             inv_hess2 = np.linalg.inv(hess2)
 
             if (self.hessian_method == 0):
                 self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.model))
             elif (self.hessian_method == 1):
                 self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.model))
+            elif (self.hessian_method == 2):
+                self.potential_covs_normal.append(inv_hess2)
             else:
                 self.potential_covs_normal.append(inv_hess2)
 
@@ -401,14 +389,19 @@ class PotentialStatesFetcher(object):
     def find_best_potential_state(self):
         uncertainty_list = []
         for cov in self.potential_covs_normal:
-            if self.hessian_method == 2:
+            if self.hessian_method == 3:
                 _, s, _ = np.linalg.svd(cov)
                 uncertainty_list.append(np.sum(s)) 
+            elif self.hessian_method == 2:
+                cov_shaped = shape_cov_general(cov, self.model, 0)
+                uncertainty_joints = np.zeros([self.number_of_joints,])
+                for joint_ind in range(self.number_of_joints):
+                    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
+                    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
+                uncertainty_list.append(np.mean(uncertainty_joints))
             else:
                 _, s, _ = np.linalg.svd(cov)
-                #uncertainty_list.append(np.max(s)) 
                 uncertainty_list.append(np.sum(s)) 
-                #uncertainty_list.append(np.linalg.det(cov))
         if (self.minmax):
             best_ind = uncertainty_list.index(min(uncertainty_list))
         else:
@@ -416,8 +409,6 @@ class PotentialStatesFetcher(object):
         self.goal_state_ind = best_ind
         print("uncertainty list var:", np.std(uncertainty_list), "uncertainty list min max", np.min(uncertainty_list), np.max(uncertainty_list), "best ind", best_ind)
         goal_state = self.potential_states_go[best_ind]
-        self.potential_covs_normal = []
-        self.potential_hessians_normal = []
         return goal_state, best_ind
 
     def find_random_next_state(self):
@@ -429,11 +420,12 @@ class PotentialStatesFetcher(object):
     def plot_everything(self, linecount, plot_loc, photo_loc):
         if not self.is_quiet:
             plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, self.model, custom_name = "potential_covs_normal_")
+            plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, self.model, custom_name = "potential_hess_normal_")
             #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.model)
             #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=False)
-            #plot_potential_ellipses(self, plot_loc, linecount, ellipses=True)
+            plot_potential_ellipses(self, plot_loc, linecount, ellipses=True)
 
     def plot_projections(self, linecount, plot_loc):
         plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.model)

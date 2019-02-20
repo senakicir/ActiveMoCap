@@ -11,14 +11,17 @@ if __name__ == "__main__":
     #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
     trajectory = 0
     #loop_mode = 0-normal sim, 1-openpose, 2-dome
-    loop_mode = 0
-    #hessian method 0-future, 1- middle, 2-whole
+    loop_mode = 2
+    #hessian method 0-future, 1- middle, 2-joints separate, 3-whole
     hessian_method = 2
     minmax = True #True-min, False-max
     SEED_LIST = [41]#, 5, 2, 12, 1995]
     WOBBLE_FREQ_LIST = [0.5, 1, 2, 5, 20]
     UPDOWN_LIM_LIST = [[-3, -1]]
     LOOKAHEAD_LIST = [0.3]
+    go_distance = 3
+    upper_lim = -3
+    lower_lim = -1 #-2.5
 
     param_read_M = True
     param_find_M = False
@@ -26,12 +29,13 @@ if __name__ == "__main__":
     
     online_window_size = 10
     calibration_length = 200
-    calibration_window_size = 10
+    calibration_window_size = 200
 
     precalibration_length = 0
     init_pose_with_gt = True
+    find_best_traj = True
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim}
+    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- openpose
@@ -40,10 +44,10 @@ if __name__ == "__main__":
    
     animations = {"02_01": len(SEED_LIST)}
 
-    theta_list = list(range(270, 180, -40)) #list(range(270, 180, -20))
+    theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 45)) #list(range(0, 360, 20))
 
-    active_parameters = {"TRAJECTORY": trajectory, "HESSIAN_METHOD": hessian_method, "MINMAX": minmax, "LOOP_MODE": loop_mode, "THETA_LIST": theta_list, "PHI_LIST": phi_list}
+    active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_METHOD":hessian_method, "MINMAX":minmax, "FIND_BEST_TRAJ":find_best_traj, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     num_of_experiments = 1#len(WOBBLE_FREQ_LIST)
 

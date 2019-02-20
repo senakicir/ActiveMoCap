@@ -919,6 +919,18 @@ def shape_cov_mini(cov, model, frame_index):
     H[:,2] = np.array([cov[hip_index, 2+hip_index], cov[1+hip_index, 2+hip_index], cov[2+hip_index, 2+hip_index],])
     return H
 
+def shape_cov_general(cov, model, frame_index = 0):    
+    _, _, num_of_joints = model_settings(model)
+    H = np.zeros([num_of_joints,3,3])
+    for joint_ind in range(num_of_joints):
+        x = frame_index*(3*num_of_joints)+joint_ind+(0*num_of_joints)
+        y = frame_index*(3*num_of_joints)+joint_ind+(1*num_of_joints)
+        z = frame_index*(3*num_of_joints)+joint_ind+(2*num_of_joints)
+        H[joint_ind, :, 0] = np.array([cov[x,x], cov[x,y], cov[x,z],])
+        H[joint_ind, :, 1] = np.array([cov[y,x], cov[y,y], cov[y,z],])
+        H[joint_ind, :, 2] = np.array([cov[z,x], cov[z,y], cov[z,z],])
+    return H
+
 def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     if (pose_client.isCalibratingEnergy):
         plot_info = pose_client.calib_res_list
@@ -1070,7 +1082,8 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
     cmap = cm.viridis
     norm = colors.Normalize(vmin=vmin, vmax=vmax)
     plt.suptitle("Covariance matrices for potential states")
-    for ind, hess in enumerate(hessians):
+    for ind in range(min(nrows*ncols, len(hessians))):
+        hess = hessians[ind]
         #shaped_hess = shape_cov_ave_joints(hess, model)
         shaped_hess = hess
         ax = axes.flat[ind]
@@ -1078,13 +1091,13 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
         ax.set_title(str(ind))
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False)
-        eigenvals, _ = np.linalg.eig(hess)
-        uncertainty1 = float("{0:.4f}".format(np.linalg.det(hess)))
-        uncertainty2 = float("{0:.4f}".format(np.max(eigenvals)))
-        uncertainty3 = float("{0:.4f}".format(np.sum(eigenvals)))
-        ax.text(0.05,5,str(uncertainty1), color="white")
-        ax.text(0.05,10,str(uncertainty2), color="white")   
-        ax.text(0.05,15,str(uncertainty3), color="white")   
+        #eigenvals, _ = np.linalg.eig(hess)
+        #uncertainty1 = float("{0:.4f}".format(np.linalg.det(hess)))
+        #uncertainty2 = float("{0:.4f}".format(np.max(eigenvals)))
+        #uncertainty3 = float("{0:.4f}".format(np.sum(eigenvals)))
+        #ax.text(0.05,5,str(uncertainty1), color="white")
+        #ax.text(0.05,10,str(uncertainty2), color="white")   
+        #ax.text(0.05,15,str(uncertainty3), color="white")   
 
     fig.subplots_adjust(right=0.8, hspace = 0.5)
     cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])

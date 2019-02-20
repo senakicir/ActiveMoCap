@@ -27,7 +27,7 @@ def fun_jacobian(pytorch_objective, x, new_shape):
     gradient_scrambled = gradient_torch.cpu().numpy()
     gradient = np.reshape(a = gradient_scrambled, newshape =  [multip_dim, ], order = "C")
     return gradient
-
+ 
 def fun_jacobian_residuals(pytorch_objective, x, new_shape):
     multip_dim = 1
     for i in new_shape:

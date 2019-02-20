@@ -223,19 +223,15 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - optimized_3d_pose, axis=0))
     middle_pose_error = np.mean(np.linalg.norm(middle_pose_GT - middle_pose, axis=0))
-    
-    if (not pose_client.isCalibratingEnergy):
-        pose_client.error_3d.append(error_3d)
-        pose_client.middle_pose_error.append(middle_pose_error)
-        ave_error =  sum(pose_client.error_3d)/len(pose_client.error_3d)
-        ave_middle_error =  sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
-    else:
-        ave_error = -42
-        ave_middle_error = -42
+
+    pose_client.error_3d.append(error_3d)
+    pose_client.middle_pose_error.append(middle_pose_error)
+    ave_error =  sum(pose_client.error_3d)/len(pose_client.error_3d)
+    ave_middle_error =  sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
 
     if (plot_loc != 0 and not pose_client.quiet): 
-        superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.numpy())
-        superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
+        #superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.numpy())
+        #superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
 
         #plot_2d_projection(check, plot_loc, airsim_client.linecount, bone_connections, custom_name="proj_2d")
 

@@ -95,8 +95,7 @@ def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
     global USE_AIRSIM
     USE_AIRSIM = parameters["USE_AIRSIM"]
-    z_pos = active_parameters["Z_POS"]
-    loop_mode = active_parameters["LOOP_MODE"]
+    loop_mode = parameters["LOOP_MODE"]
     #connect to the AirSim simulator
     if USE_AIRSIM:
         airsim_client = airsim.MultirotorClient()
@@ -128,7 +127,7 @@ def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
 
     if USE_TRACKBAR:
-        create_trackbars(current_state.radius, z_pos)
+        create_trackbars(current_state.radius, active_parameters["Z_POS"])
 
 ################
     if loop_mode == 0:
@@ -419,8 +418,6 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
     print("experiment began at:", date_time_name)
     airsim_client.simPauseDrone(True)
 
-    #precalibration(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
-
     airsim_retrieve_gt(airsim_client, pose_client, current_state)
     pose_client.future_pose = current_state.bone_pos_gt
     pose_client.current_pose = current_state.bone_pos_gt
@@ -428,14 +425,37 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
 
     potential_states_fetcher.reset(pose_client, current_state)
     potential_states_try = potential_states_fetcher.dome_experiment()
-    for chosen_ind in range(50):        
+    for exp_ind in range(50):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
+
+        if potential_states_fetcher.FIND_BEST_TRAJ:
+            error_list = np.zeros([len(potential_states_try),])
+            for state_ind in range(len(potential_states_try)):
+                goal_state = potential_states_try[state_ind]
+
+                sim_pos = goal_state['position']
+                airsim_client.simPauseDrone(False)
+                airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
+                airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
+                current_state.cam_pitch = goal_state['pitch']
+                take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+                photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
+                airsim_client.simPauseDrone(True)
+
+                determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+                error_list[state_ind] = pose_client.rewind_calibration_step()
+            best_index = np.argmin(error_list)
+            print("best index was", best_index, "with error", error_list[state_ind])
+
         potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
-        goal_state, best_ind = potential_states_fetcher.find_best_potential_state()
+        if exp_ind == 0:
+            goal_state = potential_states_fetcher.potential_states_try[0]
+        else:
+            goal_state, _ = potential_states_fetcher.find_best_potential_state()
+
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
-        #potential_states_fetcher.plot_projections(airsim_client.linecount, file_manager.plot_loc)
 
         sim_pos = goal_state['position']
         airsim_client.simPauseDrone(False)
