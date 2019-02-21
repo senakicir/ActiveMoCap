@@ -45,6 +45,8 @@ class PotentialStatesFetcher(object):
         self.FIND_BEST_TRAJ = active_parameters["FIND_BEST_TRAJ"]        
         self.number_of_samples = len(self.THETA_LIST)*len(self.PHI_LIST) 
 
+        self.error_list = np.zeros(self.number_of_samples)
+
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
         self.human_GT = current_state.bone_pos_gt
@@ -66,6 +68,8 @@ class PotentialStatesFetcher(object):
             self.objective = objective_calib
         else:
             self.objective = objective_future
+
+        self.error_list = np.zeros(self.number_of_samples)
 
     def get_potential_positions_really_spherical_future(self):
 
@@ -424,8 +428,8 @@ class PotentialStatesFetcher(object):
             #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.model)
             #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
-            plot_potential_ellipses(self, plot_loc, linecount, ellipses=False)
-            plot_potential_ellipses(self, plot_loc, linecount, ellipses=True)
+            plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
+            plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
 
     def plot_projections(self, linecount, plot_loc):
         plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.model)

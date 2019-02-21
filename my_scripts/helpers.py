@@ -1174,17 +1174,27 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, model):
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = True):
+def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
     _, joint_names, _ = model_settings(potential_states_fetcher.model)
     hip_index = joint_names.index('spine1')
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
-    fig = plt.figure(figsize=(4,4))
-    ax = fig.add_subplot(111, projection='3d')
+    if top_down:
+        fig = plt.figure(figsize=(8,4))
+        ax = fig.add_subplot(121, projection='3d')
+        ax_top_down = fig.add_subplot(122) 
+    else:
+        fig = plt.figure(figsize=(4,4))
+        ax = fig.add_subplot(111, projection='3d')
+
     potential_states = potential_states_fetcher.potential_states_go
-    
+    if plot_errors:
+        error_list = potential_states_fetcher.error_list
+        cmap = cm.cool
+        norm = colors.Normalize(vmin=(np.min(error_list)), vmax=(np.max(error_list)))
+
     #plot the people
     plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='^', label="current human pos")
     plot2, = ax.plot([future_human_pos[0]], [future_human_pos[1]], [-future_human_pos[2]], c='xkcd:royal blue', marker='^', label="future human pos")
@@ -1197,21 +1207,36 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = 
 
     #plot ellipses
     centers = []
+    
     for state_ind, potential_state in enumerate(potential_states):
         state_pos =  potential_state["position"]
         center = np.copy(state_pos)
         center[2] = -center[2]
         centers.append(center)
+        markersize=30
+        text_color="b"
+        if (state_ind == potential_states_fetcher.goal_state_ind):
+            markersize=100
+            text_color="r"
         if ellipses:
             covs = potential_states_fetcher.potential_covs_normal
             x,y,z = matrix_to_ellipse(shape_cov(covs[state_ind], potential_states_fetcher.model, 0), center, 0.1)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+            ax.text(center[0], center[1], center[2], str(state_ind), color=text_color)
+            if top_down:
+                ax_top_down.plot(x,y)
+                ax_top_down.set_xlabel('X')
+                ax_top_down.set_ylabel('Y')
         else:
-            ax.plot([center[0]], [center[1]], [center[2]], marker='^', color='b')
-        color = 'black'
-        if (state_ind == potential_states_fetcher.goal_state_ind):
-            color = 'red'
-        ax.text(center[0], center[1], center[2], str(state_ind), color=color)
+            if plot_errors:
+                ax.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[error_list[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
+                point_text = '{0:d}:{1:.4f}'.format(state_ind, error_list[state_ind])
+                ax.text(center[0], center[1], center[2], point_text, color="b")
+            else:
+                ax.plot([center[0]], [center[1]], [center[2]], marker='^', c=text_color, markersize=markersize)
+                ax.text(center[0], center[1], center[2], str(state_ind))
+                if top_down:
+                    ax_top_down.text(center[0], center[1], str(state_ind))
 
 
         X = np.concatenate([X, np.array([center[0]])])
@@ -1234,6 +1259,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses = 
     ax.set_zlabel('Z')
 
     ax.legend(handles=[plot1, plot2, plot3])
+
     file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
     plt.savefig(file_name)
     plt.close(fig)

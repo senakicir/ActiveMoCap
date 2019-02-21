@@ -40,13 +40,13 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
     mode_2d, cropping_tool = pose_client.modes["mode_2d"], pose_client.cropping_tool
 
     bone_2d_gt, heatmaps = find_2d_pose_gt (current_state=current_state, input_image=input_image, cropping_tool=cropping_tool, return_heatmaps=return_heatmaps, is_torch=is_torch)
-    if (mode_2d == 0):
+    if (mode_2d != 2):
         bone_2d = bone_2d_gt.clone()
-        noise = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*3)
-        bone_2d += noise
+        if (mode_2d == 1):
+            bone_2d = pose_client.add_2d_noise(bone_2d_gt)
         heatmaps_scales = 0
         poses_scales = 0
-    elif (mode_2d == 1):            
+    else:            
         bone_2d, heatmaps, heatmaps_scales, poses_scales = find_2d_pose_openpose(input_image,  scales)
     pose_client.openpose_error = np.mean(np.linalg.norm(bone_2d_gt-bone_2d, axis=0))
     arm_joints, _, _ = return_arm_joints()
@@ -147,6 +147,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         pose_client.addNewCalibrationFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, pre_pose_3d, airsim_client.linecount)
     pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, pre_pose_3d, pose3d_lift_directions)
 
+    pdb.set_trace()
     final_loss = np.zeros([1,1])
     if (airsim_client.linecount > 0):
         #calibration mode parameters
@@ -424,7 +425,7 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, current_state, plo
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints = model_settings(pose_client.model)
 
-    if (pose_client.modes["mode_2d"] == 1):
+    if (pose_client.modes["mode_2d"] == 2):
         input_image = cv.imread(photo_loc) 
 
         cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)

@@ -20,6 +20,7 @@ class PoseEstimationClient(object):
         self.PRECALIBRATION_LENGTH = param["PRECALIBRATION_LENGTH"]
         self.quiet = param["QUIET"]
         self.init_pose_with_gt = param["INIT_POSE_WITH_GT"]
+        self.noise_2d_std = param["NOISE_2D_STD"]
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -88,6 +89,9 @@ class PoseEstimationClient(object):
         self.f_reconst_string = ""
         self.f_groundtruth_str = ""
 
+        self.noise_2d = torch.normal(torch.zeros([2, self.num_of_joints]), torch.ones([2, self.num_of_joints])*self.noise_2d_std)
+        self.prev_noise_2d = 0
+
     def reset_crop(self, loop_mode):
         self.cropping_tool = Crop(loop_mode=loop_mode)
 
@@ -106,6 +110,12 @@ class PoseEstimationClient(object):
             self.calib_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
         else:
             self.online_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
+
+    def add_2d_noise(self, bone_2d):
+        self.prev_noise_2d = self.noise_2d
+        bone_2d += self.noise_2d
+        self.noise_2d = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*self.noise_2d_std)
+        return bone_2d 
 
     def updateMeasurementCov(self, cov, curr_pose_ind, future_pose_ind):
         if  self.isCalibratingEnergy:
@@ -155,14 +165,15 @@ class PoseEstimationClient(object):
             self.poseList_3d_calibration = self.prev_poseList_3d
             self.current_pose = self.prev_poseList_3d
             self.future_pose = self.prev_poseList_3d
-            self.poseList_3d = self.prev_poseList_3d
-            self.pose_client.P_world = self.prev_poseList_3d
+            self.P_world = self.prev_poseList_3d
 
             self.requiredEstimationData.pop(0)
             self.poseList_3d.pop(0)
             self.liftPoseList.pop(0)
+            self.calib_res_list.pop()
         else: 
             print("making mistake in pose estimation client, you do not have this part coded yet")
+        self.noise_2d = self.prev_noise_2d
         return error 
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, pose3d_lift = None):

@@ -67,8 +67,8 @@ def take_photo(airsim_client, pose_client, current_state, image_folder_loc):
         photo = airsim_retrieve_gt(airsim_client, pose_client, current_state)
         loc = image_folder_loc + '/img_' + str(airsim_client.linecount) + '.png'
         airsim.write_file(os.path.normpath(loc), photo)
-        if (airsim_client.linecount > 2):
-            loc_rem = image_folder_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
+        loc_rem = image_folder_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
+        if os.path.isfile(loc_rem):
             os.remove(loc_rem)
     else:
         print("something is wrong!")
@@ -431,7 +431,6 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
         potential_states_fetcher.potential_states_go = potential_states_try
 
         if potential_states_fetcher.FIND_BEST_TRAJ:
-            error_list = np.zeros([len(potential_states_try),])
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
 
@@ -445,9 +444,10 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
                 airsim_client.simPauseDrone(True)
 
                 determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-                error_list[state_ind] = pose_client.rewind_calibration_step()
-            best_index = np.argmin(error_list)
-            print("best index was", best_index, "with error", error_list[state_ind])
+                potential_states_fetcher.error_list[state_ind] = pose_client.rewind_calibration_step()
+            best_index = np.argmin(potential_states_fetcher.error_list)
+            
+            print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
 
         potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
         if exp_ind == 0:
