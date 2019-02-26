@@ -21,6 +21,8 @@ class PoseEstimationClient(object):
         self.quiet = param["QUIET"]
         self.init_pose_with_gt = param["INIT_POSE_WITH_GT"]
         self.noise_2d_std = param["NOISE_2D_STD"]
+        self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
+        self.USE_SINGLE_JOINT = param["USE_SINGLE_JOINT"]
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -78,9 +80,11 @@ class PoseEstimationClient(object):
         self.weights_online = param["WEIGHTS"]
         self.weights_future = {'proj': 0.33, 'smooth': 0.33, 'bone': 0.33}#param["WEIGHTS"]
 
-        self.loss_dict_calib = CALIBRATION_LOSSES
-        self.loss_dict_online = ONLINE_LOSSES
-        self.loss_dict_future = FUTURE_LOSSES
+        self.loss_dict_calib = ["proj"]
+        if self.USE_SYMMETRY_TERM:  
+            self.loss_dict_calib.append("sym")
+        self.loss_dict_online = ["proj", "smooth", "bone", "lift"]
+        self.loss_dict_future = ["proj", "smooth", "bone", "lift"]
 
 #        self.cam_pitch = 0 #move to state
         self.middle_pose_GT_list = []

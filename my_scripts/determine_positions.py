@@ -147,7 +147,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         pose_client.addNewCalibrationFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, pre_pose_3d, airsim_client.linecount)
     pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, pre_pose_3d, pose3d_lift_directions)
 
-    pdb.set_trace()
     final_loss = np.zeros([1,1])
     if (airsim_client.linecount > 0):
         #calibration mode parameters
@@ -206,7 +205,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         optimized_3d_pose = P_world
         pose_client.future_pose = optimized_3d_pose
         temp_middle_pose_ = optimized_3d_pose
-        loss_dict = CALIBRATION_LOSSES
+        loss_dict = pose_client.loss_dict_calib
         func_eval_time = 0
         pose_client.current_pose = optimized_3d_pose
         pose_client.P_world = P_world 

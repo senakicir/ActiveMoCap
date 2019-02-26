@@ -365,6 +365,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
         self.energy_weights = pose_client.weights_calib
         self.loss_dict = pose_client.loss_dict_calib
         self.projection_client = projection_client
+        self.use_symmetry_term = pose_client.USE_SYMMETRY_TERM
 
         self.pltpts = {}
         for loss_key in self.loss_dict:
@@ -372,10 +373,11 @@ class pose3d_calibration_parallel(torch.nn.Module):
 
     def forward(self):        
         output = {}
-        left_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, self.left_bone_connections[:,0]] - self.pose3d[:, self.left_bone_connections[:,1]], 2), dim=0))
-        right_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, self.right_bone_connections[:,0]] - self.pose3d[:, self.right_bone_connections[:,1]], 2), dim=0))
-        bonelosses = torch.pow((left_length_of_bone - right_length_of_bone),2)
-        output["sym"] = torch.sum(bonelosses)/6
+        if self.use_symmetry_term :
+            left_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, self.left_bone_connections[:,0]] - self.pose3d[:, self.left_bone_connections[:,1]], 2), dim=0))
+            right_length_of_bone = (torch.sum(torch.pow(self.pose3d[:, self.right_bone_connections[:,0]] - self.pose3d[:, self.right_bone_connections[:,1]], 2), dim=0))
+            bonelosses = torch.pow((left_length_of_bone - right_length_of_bone),2)
+            output["sym"] = torch.sum(bonelosses)/6
 
         rep_pose3d = self.pose3d.repeat(self.projection_client.window_size, 1, 1)
         projected_2d = self.projection_client.take_projection(rep_pose3d)

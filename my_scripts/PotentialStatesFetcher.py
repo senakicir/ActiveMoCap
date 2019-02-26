@@ -37,13 +37,12 @@ class PotentialStatesFetcher(object):
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
         self.goUp = True
-        self.THETA_LIST = active_parameters["THETA_LIST"]
-        self.PHI_LIST = active_parameters["PHI_LIST"]
+        self.POSITION_GRID = active_parameters["POSITION_GRID"]
+
         self.UPPER_LIM = active_parameters["UPPER_LIM"]
         self.LOWER_LIM = active_parameters["LOWER_LIM"]
 
-        self.FIND_BEST_TRAJ = active_parameters["FIND_BEST_TRAJ"]        
-        self.number_of_samples = len(self.THETA_LIST)*len(self.PHI_LIST) 
+        self.number_of_samples = len(self.POSITION_GRID)
 
         self.error_list = np.zeros(self.number_of_samples)
 
@@ -224,9 +223,8 @@ class PotentialStatesFetcher(object):
         return goal_state
 
     def dome_experiment(self):
-        for new_theta_deg in self.THETA_LIST:
-            for new_phi_deg in self.PHI_LIST:
-                sample_states_spherical(self, SAFE_RADIUS, radians(new_theta_deg), radians(new_phi_deg))
+        for theta, phi in self.POSITION_GRID:
+            sample_states_spherical(self, SAFE_RADIUS, theta, phi)
         return self.potential_states_try
 
     def up_down_baseline(self):

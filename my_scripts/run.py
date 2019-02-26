@@ -135,7 +135,7 @@ def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active
     elif loop_mode == 1:
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == 2:
-        dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
+        dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters["FIND_BEST_TRAJ"], parameters["PREDEFINED_TRAJ_LEN"])
 ################
 
     #calculate errors
@@ -412,7 +412,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
 
 
 
-def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
+def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, find_best_traj=True, predefined_traj_len=1):
 
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
@@ -425,12 +425,13 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
 
     potential_states_fetcher.reset(pose_client, current_state)
     potential_states_try = potential_states_fetcher.dome_experiment()
+
     for exp_ind in range(50):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
-
-        if potential_states_fetcher.FIND_BEST_TRAJ:
+        
+        if find_best_traj: #/and exp_ind >= predefined_traj_len:
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
 
@@ -448,13 +449,13 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
             best_index = np.argmin(potential_states_fetcher.error_list)
             
             print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
-
         potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
-        if exp_ind == 0:
-            goal_state = potential_states_fetcher.potential_states_try[0]
+
+        if exp_ind < predefined_traj_len:
+            goal_state = potential_states_fetcher.potential_states_try[exp_ind]
+            potential_states_fetcher.goal_state_ind = exp_ind
         else:
             goal_state, _ = potential_states_fetcher.find_best_potential_state()
-
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
 
         sim_pos = goal_state['position']
@@ -472,7 +473,6 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
         airsim_client.linecount += 1
         plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
         print('linecount', airsim_client.linecount)
-
 
 def create_trackbars(radius, z_pos):
     # create trackbars for angle change

@@ -1,5 +1,7 @@
 from run import run_simulation_trial
 from helpers import reset_all_folders, normalize_weights, fill_notes, TEST_SETS, append_error_notes
+from math import radians
+import numpy as np
 
 if __name__ == "__main__":
     kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" :1, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1e-3}
@@ -34,9 +36,13 @@ if __name__ == "__main__":
     precalibration_length = 0
     init_pose_with_gt = True
     find_best_traj = True
-    noise_2d_std = 6
+    noise_2d_std = 3
+    predefined_traj_len = 5
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode}
+    use_symmetry_term = False
+    use_single_joint = True
+
+    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
@@ -46,9 +52,11 @@ if __name__ == "__main__":
     animations = {"02_01": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
-    phi_list = list(range(0, 360, 45)) #list(range(0, 360, 20))
+    phi_list = np.arange(0,359, 45/2).tolist() #list(range(0, 359, 45//2)) #list(range(0, 360, 20))
+    position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
+    position_grid.append([radians(180), radians(0)])
 
-    active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_METHOD":hessian_method, "MINMAX":minmax, "FIND_BEST_TRAJ":find_best_traj, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
+    active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_METHOD":hessian_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     num_of_experiments = 1#len(WOBBLE_FREQ_LIST)
 
@@ -62,7 +70,7 @@ if __name__ == "__main__":
         weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
         weights = normalize_weights(weights_)
 
-        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std}
+        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint}
         
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
         active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
