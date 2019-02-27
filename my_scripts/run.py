@@ -422,6 +422,7 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
     pose_client.future_pose = current_state.bone_pos_gt
     pose_client.current_pose = current_state.bone_pos_gt
     pose_client.P_world = current_state.bone_pos_gt 
+    pose_client.update_bone_lengths(torch.from_numpy(current_state.bone_pos_gt).float())
 
     potential_states_fetcher.reset(pose_client, current_state)
     potential_states_try = potential_states_fetcher.dome_experiment()
@@ -445,7 +446,7 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
                 airsim_client.simPauseDrone(True)
 
                 determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-                potential_states_fetcher.error_list[state_ind] = pose_client.rewind_calibration_step()
+                potential_states_fetcher.error_list[state_ind] = pose_client.rewind_step()
             best_index = np.argmin(potential_states_fetcher.error_list)
             
             print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])

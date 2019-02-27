@@ -73,11 +73,11 @@ class pose3d_calibration_scipy():
 
     def reset(self, pose_client):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
-        self.data_list = pose_client.requiredEstimationData_calibration
+        self.data_list = pose_client.requiredEstimationData
         self.pltpts = {}
         self.M = pose_client.M
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration(pose_client)
-        self.result_shape = pose_client.result_shape_calib
+        self.result_shape = pose_client.result_shape
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
@@ -125,7 +125,7 @@ class pose3d_online_scipy():
         self.pytorch_objective = pytorch_optimizer.pose3d_online(pose_client)
         self.lift_bone_directions = return_lift_bone_connections(self.bone_connections)
         self.M = pose_client.M
-        self.result_shape = pose_client.result_shape_online
+        self.result_shape = pose_client.result_shape
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
@@ -276,19 +276,19 @@ class pose3d_calibration_parallel_wrapper():
     def reset(self, pose_client):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         
-        data_list = pose_client.requiredEstimationData_calibration
+        data_list = pose_client.requiredEstimationData
 
         projection_client = Projection_Client()
         projection_client.reset(data_list, self.NUM_OF_JOINTS)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}
-        self.result_shape = pose_client.result_shape_calib
+        self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
         self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
         
-        data_list = pose_client.requiredEstimationData_calibration
+        data_list = pose_client.requiredEstimationData
 
         projection_client = Projection_Client()
 
@@ -307,7 +307,7 @@ class pose3d_calibration_parallel_wrapper():
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}
-        self.result_shape = pose_client.result_shape_calib
+        self.result_shape = pose_client.result_shape
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
@@ -334,7 +334,7 @@ class pose3d_online_parallel_wrapper():
         self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client)
 
         self.pltpts = {}
-        self.result_shape = pose_client.result_shape_online
+        self.result_shape = pose_client.result_shape
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
@@ -358,7 +358,7 @@ class pose3d_future_parallel_wrapper():
         
         self.pltpts = {}
         self.loss_dict = pose_client.loss_dict_future
-        self.result_shape = pose_client.result_shape_online
+        self.result_shape = pose_client.result_shape
 
         #future state 
         yaw = potential_state["orientation"]

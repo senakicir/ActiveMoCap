@@ -6,6 +6,21 @@ from crop import Crop
 from square_bounding_box import *
 from kalman_filters import *
 
+def calculate_bone_lengths(bones, bone_connections, batch):
+    if batch:
+        return (torch.sum(torch.pow(bones[:, :, bone_connections[:,0]] - bones[:, :, bone_connections[:,1]], 2), dim=1))
+    else:  
+        return (torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))
+
+def calculate_bone_directions(bones, lift_bone_directions, batch):
+    if batch:
+        current_bone_vector = bones[1:, :, lift_bone_directions[:,0]] - bones[1:, :, lift_bone_directions[:,1]]
+        norm_bone_vector = (torch.norm(current_bone_vector, dim=1, keepdim=True)).repeat(1,3,1) #try without repeat
+    else:
+        current_bone_vector = bones[:, lift_bone_directions[:,0]] - bones[:, lift_bone_directions[:,1]]
+        norm_bone_vector = (torch.norm(current_bone_vector, dim=0, keepdim=True)).repeat(3,1) #try without repeat
+    return current_bone_vector/(norm_bone_vector+EPSILON)
+
 class PoseEstimationClient(object):
     def __init__(self, param, cropping_tool):
         self.modes = param["MODES"]
@@ -36,13 +51,10 @@ class PoseEstimationClient(object):
         self.openpose_leg_error = 0
 
         self.poseList_3d = []
-        self.poseList_3d_calibration = []
-        self.prev_poseList_3d  = []
         self.liftPoseList = []
         self.boneLengths = torch.zeros([self.num_of_joints-1,1])
 
         self.requiredEstimationData = []
-        self.requiredEstimationData_calibration = []
 
         self.calib_res_list = []
         self.online_res_list = []
@@ -59,7 +71,9 @@ class PoseEstimationClient(object):
 
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.future_pose = np.zeros([3, self.num_of_joints])
-        self.P_world =  0 #all 6 poses
+
+        self.prev_poseList_3d = []
+        self.result_shape = [3, self.num_of_joints]
 
         if self.param_read_M:
             self.M = read_M(self.model, "M_rel")
@@ -72,9 +86,6 @@ class PoseEstimationClient(object):
 
         self.calib_cov_list = []
         self.online_cov_list = []
-
-        self.result_shape_calib = [3, self.num_of_joints]
-        self.result_shape_online = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
@@ -103,9 +114,12 @@ class PoseEstimationClient(object):
         if self.param_find_M:
             M = find_M(self.online_res_list, self.model)
             #plot_matrix(M, plot_loc, 0, "M", "M")
-       
         self.isCalibratingEnergy = True
-        return 0        
+        return 0   
+
+    def update_bone_lengths(self, bones):
+        bone_connections = np.array(self.bone_connections)
+        self.boneLengths = calculate_bone_lengths(bones=bones, bone_connections=bone_connections, batch=False)
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])
@@ -147,43 +161,38 @@ class PoseEstimationClient(object):
 
     def changeCalibrationMode(self, calibMode):
         self.isCalibratingEnergy = calibMode
-
-    def addNewCalibrationFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, linecount):
-        #pre calibration!
-        if linecount < self.PRECALIBRATION_LENGTH:
-            self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-        else:
-            self.requiredEstimationData_calibration.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-            while len(self.requiredEstimationData_calibration) > self.CALIBRATION_WINDOW_SIZE:
-                self.requiredEstimationData_calibration.pop()
-        self.prev_poseList_3d = self.poseList_3d_calibration
-        self.poseList_3d_calibration = pose3d_
-
-    def rewind_calibration_step(self):
         if self.isCalibratingEnergy:
-            self.requiredEstimationData_calibration.pop(0)
-            self.middle_pose_GT_list.pop(0)
-            middle_pose_error = self.middle_pose_error.pop()
-            error = self.error_3d.pop()
-            self.error_2d.pop()
-            self.poseList_3d_calibration = self.prev_poseList_3d
-            self.current_pose = self.prev_poseList_3d
-            self.future_pose = self.prev_poseList_3d
-            self.P_world = self.prev_poseList_3d
+            self.result_shape = [3, self.num_of_joints]
+        else:
+            self.result_shape = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
 
-            self.requiredEstimationData.pop(0)
-            self.poseList_3d.pop(0)
-            self.liftPoseList.pop(0)
-            self.calib_res_list.pop()
-        else: 
-            print("making mistake in pose estimation client, you do not have this part coded yet")
+    def rewind_step(self):
+        self.middle_pose_GT_list.pop(0)
+        middle_pose_error = self.middle_pose_error.pop()
+
+        self.requiredEstimationData.pop(0)
+        self.liftPoseList.pop(0)
+
+        self.poseList_3d = self.prev_poseList_3d.copy()
+
+        error = self.error_3d.pop()
+        self.error_2d.pop()
         self.noise_2d = self.prev_noise_2d
+
         return error 
 
-    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, pose3d_lift = None):
-        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-        if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
-            self.requiredEstimationData.pop()
+    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, linecount, pose3d_lift = None):
+        if self.isCalibratingEnergy:
+            if linecount < self.PRECALIBRATION_LENGTH:
+                self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+            else:
+                self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE:
+                    self.requiredEstimationData.pop()
+        else:
+            self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
+                self.requiredEstimationData.pop()
 
         self.poseList_3d.insert(0, pose3d_)
         if (len(self.poseList_3d) > self.ONLINE_WINDOW_SIZE):
@@ -193,23 +202,23 @@ class PoseEstimationClient(object):
         if (len(self.liftPoseList) > self.ONLINE_WINDOW_SIZE):
             self.liftPoseList.pop()
 
-    def update3dPos(self, pose3d_, is_calib = False):
-        if (is_calib):
-            self.poseList_3d_calibration = pose3d_
-            for ind in range(0,len(self.poseList_3d)):
-                self.poseList_3d[ind] = pose3d_.copy()
-        else:
-            for ind in range(0,len(self.poseList_3d)):
-                self.poseList_3d[ind] = pose3d_[ind, :, :].copy()
+    def update3dPos(self, P_world):
+        self.prev_poseList_3d = self.poseList_3d.copy()
 
+        if (self.isCalibratingEnergy):
+            for ind in range(0,len(self.requiredEstimationData)):
+                self.poseList_3d[ind] = P_world.copy()
+            self.current_pose = P_world.copy()
+            self.middle_pose = P_world.copy()
+            self.future_pose = P_world.copy()
 
-    def update3dPos_2(self, pose3d_, is_calib = False):
-        if (is_calib):
-            for ind in range(0,len(self.poseList_3d_calibration)):
-                self.poseList_3d_calibration[ind] = pose3d_.copy()
         else:
-            for ind in range(0,len(self.poseList_3d)):
-                self.poseList_3d[ind] = pose3d_[ind, :, :].copy()
+            for ind in range(0, P_world.shape[0]):
+                self.poseList_3d[ind] = P_world[ind, :, :].copy()
+
+            self.current_pose =  P_world[CURRENT_POSE_INDEX, :,:].copy() #current pose
+            self.middle_pose = P_world[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.future_pose =  P_world[FUTURE_POSE_INDEX, :,:].copy() #future pose
 
     def update_middle_pose_GT(self, middle_pose):
         self.middle_pose_GT_list.insert(0, middle_pose)
