@@ -417,6 +417,7 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
     airsim_client.simPauseDrone(True)
+    mode_2d = pose_client.modes["mode_2d"]
 
     airsim_retrieve_gt(airsim_client, pose_client, current_state)
     pose_client.future_pose = current_state.bone_pos_gt
@@ -427,11 +428,15 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
     potential_states_fetcher.reset(pose_client, current_state)
     potential_states_try = potential_states_fetcher.dome_experiment()
 
+    goal_state = potential_states_fetcher.potential_states_try[0]
+
+    
     for exp_ind in range(50):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
         
+
         if find_best_traj: #/and exp_ind >= predefined_traj_len:
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
@@ -444,14 +449,13 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
                 take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
                 photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
                 airsim_client.simPauseDrone(True)
-
+                pose_client.modes["mode_2d"]=0
                 determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
                 potential_states_fetcher.error_list[state_ind] = pose_client.rewind_step()
             best_index = np.argmin(potential_states_fetcher.error_list)
             
             print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
         potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
-
         if exp_ind < predefined_traj_len:
             goal_state = potential_states_fetcher.potential_states_try[exp_ind]
             potential_states_fetcher.goal_state_ind = exp_ind
@@ -460,15 +464,16 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
 
         sim_pos = goal_state['position']
-        airsim_client.simPauseDrone(False)
+        unpause_function(airsim_client, pose_client)
         airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
         current_state.cam_pitch = goal_state['pitch']
 
         take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
         photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-        airsim_client.simPauseDrone(True)
-        
+        pause_function(airsim_client, pose_client)
+
+        pose_client.modes["mode_2d"]=mode_2d
         determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
 
         airsim_client.linecount += 1

@@ -25,7 +25,7 @@ if __name__ == "__main__":
     upper_lim = -3
     lower_lim = -1 #-2.5
 
-    param_read_M = True
+    param_read_M = False
     param_find_M = False
     is_quiet = False
     
@@ -37,7 +37,7 @@ if __name__ == "__main__":
     init_pose_with_gt = True
     find_best_traj = True
     noise_2d_std = 3
-    predefined_traj_len = 5
+    predefined_traj_len = 11
 
     use_symmetry_term = False
     use_single_joint = True
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     animations = {"02_01": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
-    phi_list = np.arange(0,359, 45/2).tolist() #list(range(0, 359, 45//2)) #list(range(0, 360, 20))
+    phi_list = np.arange(0,359, 9).tolist() #list(range(0, 359, 45//2)) #list(range(0, 360, 20))
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     position_grid.append([radians(180), radians(0)])
 

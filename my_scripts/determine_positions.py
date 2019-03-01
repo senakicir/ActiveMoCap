@@ -42,7 +42,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
     if (mode_2d != 2):
         bone_2d = bone_2d_gt.clone()
         if (mode_2d == 1):
-            bone_2d = pose_client.add_2d_noise(bone_2d_gt)
+            bone_2d = pose_client.add_2d_noise(bone_2d)
         heatmaps_scales = 0
         poses_scales = 0
     else:            
@@ -164,7 +164,6 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
             objective_jacobian = objective_online.jacobian
 
         objective.reset(pose_client)
-
         start_time = time.time()
         optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
         func_eval_time = time.time() - start_time

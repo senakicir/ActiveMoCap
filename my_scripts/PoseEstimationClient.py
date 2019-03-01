@@ -104,8 +104,7 @@ class PoseEstimationClient(object):
         self.f_reconst_string = ""
         self.f_groundtruth_str = ""
 
-        self.noise_2d = torch.normal(torch.zeros([2, self.num_of_joints]), torch.ones([2, self.num_of_joints])*self.noise_2d_std)
-        self.prev_noise_2d = 0
+        self.noise_2d = 0
 
     def reset_crop(self, loop_mode):
         self.cropping_tool = Crop(loop_mode=loop_mode)
@@ -130,9 +129,8 @@ class PoseEstimationClient(object):
             self.online_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
 
     def add_2d_noise(self, bone_2d):
-        self.prev_noise_2d = self.noise_2d
-        bone_2d += self.noise_2d
         self.noise_2d = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*self.noise_2d_std)
+        bone_2d = bone_2d.clone() + self.noise_2d
         return bone_2d 
 
     def updateMeasurementCov(self, cov, curr_pose_ind, future_pose_ind):
@@ -177,7 +175,6 @@ class PoseEstimationClient(object):
 
         error = self.error_3d.pop()
         self.error_2d.pop()
-        self.noise_2d = self.prev_noise_2d
 
         return error 
 
@@ -194,6 +191,7 @@ class PoseEstimationClient(object):
             if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
                 self.requiredEstimationData.pop()
 
+        self.prev_poseList_3d = self.poseList_3d.copy()
         self.poseList_3d.insert(0, pose3d_)
         if (len(self.poseList_3d) > self.ONLINE_WINDOW_SIZE):
             self.poseList_3d.pop()
@@ -203,10 +201,8 @@ class PoseEstimationClient(object):
             self.liftPoseList.pop()
 
     def update3dPos(self, P_world):
-        self.prev_poseList_3d = self.poseList_3d.copy()
-
         if (self.isCalibratingEnergy):
-            for ind in range(0,len(self.requiredEstimationData)):
+            for ind in range(len(self.poseList_3d)):
                 self.poseList_3d[ind] = P_world.copy()
             self.current_pose = P_world.copy()
             self.middle_pose = P_world.copy()
