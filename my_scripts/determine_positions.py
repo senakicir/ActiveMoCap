@@ -87,6 +87,38 @@ def determine_relative_3d_pose(mode_lift, current_state, bone_2d, cropped_image,
         pose3d_relative = camera_to_world(R_drone_gt, C_drone_gt, R_cam_gt, pose3d_lift.cpu())
     return pose3d_relative
 
+def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
+    bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
+    bone_connections, joint_names, num_of_joints = model_settings(pose_client.model)
+    
+    input_image = cv.imread(photo_loc)
+    cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+
+    #find 2d pose (using openpose or gt)
+    bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
+
+    #find relative 3d pose using liftnet or GT relative pose
+    pose3d_lift = determine_relative_3d_pose(pose_client.modes["mode_lift"], current_state, bone_2d, cropped_image, heatmap_2d)
+        
+    #find liftnet bone directions and save them
+    pose3d_lift_directions = calculate_bone_directions(pose3d_lift, np.array(return_lift_bone_connections(bone_connections)), batch=False) 
+
+    #uncrop 2d pose
+    bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
+
+    #add information you need to your window
+    if pose_client.isCalibratingEnergy:
+        pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
+        P_world = bone_pos_3d_GT
+    else:
+        for _ in range(pose_client.ONLINE_WINDOW_SIZE):
+            pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
+        P_world = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE+1, axis=0)
+    pose_client.update3dPos(P_world)
+    pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
+    pose_client.future_pose = current_state.bone_pos_gt
+    pose_client.current_pose = current_state.bone_pos_gt
+
 def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
     bone_pos_3d_GT, _, C_drone_gt, _ = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints = model_settings(pose_client.model)
@@ -121,12 +153,12 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     #find liftnet bone directions and save them
     pose3d_lift_directions = calculate_bone_directions(pose3d_lift, np.array(return_lift_bone_connections(bone_connections)), batch=False) 
 
-    #uncrop 2d pose     
+    #uncrop 2d pose
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
 
     #add current pose as initial pose. if first frame, take backprojection for initialization
     if (airsim_client.linecount != 0):
-        pre_pose_3d = pose_client.future_pose
+        pre_pose_3d = pose_client.P_world[FUTURE_POSE_INDEX, :, :].copy()
     else:
         if pose_client.init_pose_with_gt:
             pre_pose_3d = bone_pos_3d_GT.copy()
@@ -134,7 +166,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
             pre_pose_3d = take_bone_backprojection_pytorch(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, joint_names).numpy()
 
     #add information you need to your window
-    pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, pre_pose_3d, airsim_client.linecount, pose3d_lift_directions)
+    pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
 
     final_loss = np.zeros([1,1])
     result_shape = pose_client.result_shape
@@ -156,9 +188,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
             loss_dict = pose_client.loss_dict_online
             result_size = result_shape[0]*result_shape[1]*result_shape[2]
             pose3d_init = np.zeros(result_shape)
-            for queue_index, pose3d_ in enumerate(pose_client.poseList_3d):
-                pose3d_init[queue_index+1, :] = pose3d_.copy()
-            pose3d_init[FUTURE_POSE_INDEX, :] = pose3d_init[CURRENT_POSE_INDEX, :] #initialize future pose as current pose
+            pose3d_init = pose_client.P_world.copy()
             pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size,], order = "C")
             objective = objective_online
             objective_jacobian = objective_online.jacobian

@@ -100,6 +100,7 @@ class Projection_Client(object):
 
         queue_index = 0
         self.pose_2d_tensor = torch.zeros(self.window_size , 2, num_of_joints)
+    
         for bone_2d, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
             self.pose_2d_tensor[queue_index, :, :] = (bone_2d.float()).clone()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )

@@ -61,6 +61,8 @@ MIDDLE_POSE_INDEX = 3
 plt.figure()
 plt.close()
 
+max_radii = 1
+
 def find_bone_map():
     bones_map_to_mpi = []
     for ind, value in enumerate(joint_names_mpi):
@@ -724,9 +726,9 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     predicted_bones = last_frame_plot_info["est"]
     bones_GT = last_frame_plot_info["GT"]
 
-    X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
-    Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
-    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+    #X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
+    #Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
+    #Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
 
     #plot drone
     drone_x, drone_y, drone_z = [],[],[]
@@ -737,9 +739,9 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         drone_y.append(drone[1])
         drone_z.append(-drone[2])
 
-        X = np.concatenate([X, [drone[0]]])
-        Y = np.concatenate([Y, [drone[1]]])
-        Z = np.concatenate([Z, [-drone[2]]])
+        #X = np.concatenate([X, [drone[0]]])
+        #Y = np.concatenate([Y, [drone[1]]])
+        #Z = np.concatenate([Z, [-drone[2]]])
 
     plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
 
@@ -760,13 +762,13 @@ def plot_drone_traj(pose_client, plot_loc, ind):
 
     ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
 
-    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
-    mid_x = (X.max()+X.min()) * 0.5
-    mid_y = (Y.max()+Y.min()) * 0.5
-    mid_z = (Z.max()+Z.min()) * 0.5
-    ax.set_xlim(mid_x - max_range, mid_x + max_range)
-    ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    #max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    #mid_x = (X.max()+X.min()) * 0.5
+    #mid_y = (Y.max()+Y.min()) * 0.5
+    #mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(predicted_bones[0,0]-10, predicted_bones[0,0] +10)
+    ax.set_ylim(predicted_bones[1,0]-10, predicted_bones[1,0] +10)
+    ax.set_zlim(predicted_bones[2,0]-10, predicted_bones[2,0] +10)
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
@@ -860,9 +862,9 @@ def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
 
     return heatmap
 
-def matrix_to_ellipse(matrix, center, plot_scale = 1):
+def matrix_to_ellipse(matrix, center):
     _, s, rotation = np.linalg.svd(matrix)
-    radii = np.sqrt(s)/plot_scale
+    radii = 3*np.sqrt(s)/max_radii
 
     # now carry on with EOL's answer
     u = np.linspace(0.0, 2.0 * np.pi, 100)
@@ -875,6 +877,33 @@ def matrix_to_ellipse(matrix, center, plot_scale = 1):
             [x[i,j],y[i,j],z[i,j]] = np.dot([x[i,j],y[i,j],z[i,j]], rotation) + center
 
     return x,y,z
+
+def matrices_to_ellipses(covs, centers, model):
+    radii_list = np.zeros([len(covs), 3])
+    ellipses = []
+    for state_ind, cov in covs:
+        shaped_cov = shape_cov(cov, model, 0)
+        _, s, rotation = np.linalg.svd(shaped_cov)
+        radii = np.sqrt(s)
+        radii_list[state_ind, :] = radii[0:3]
+    max_radii = np.max(radii_list)
+
+    for state_ind, center in centers:
+        radii = radii_list[state_ind, :]/(0.3*max_radii)
+
+        # now carry on with EOL's answer
+        u = np.linspace(0.0, 2.0 * np.pi, 100)
+        v = np.linspace(0.0, np.pi, 100)
+        x = radii[0] * np.outer(np.cos(u), np.sin(v))
+        y = radii[1] * np.outer(np.sin(u), np.sin(v))
+        z = radii[2] * np.outer(np.ones_like(u), np.cos(v))
+        for i in range(len(x)):
+            for j in range(len(x)):
+                [x[i,j],y[i,j],z[i,j]] = np.dot([x[i,j],y[i,j],z[i,j]], rotation) + center
+        ellipses.append((x,y,z))
+    return ellipses
+
+
 
 def shape_cov(cov, model, frame_index):
     _, joint_names, num_of_joints = model_settings(model)
@@ -1101,7 +1130,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
     fig.colorbar(im, cax=cbar_ax)
 
     file_name = plot_loc + name + str(linecount) + ".png"
-    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0, dpi=100)
     plt.close(fig)
     
 def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, model):
@@ -1178,6 +1207,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
+
     if top_down:
         fig = plt.figure(figsize=(8,4))
         ax = fig.add_subplot(121, projection='3d')
@@ -1187,6 +1217,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
         ax = fig.add_subplot(111, projection='3d')
 
     potential_states = potential_states_fetcher.potential_states_go
+    covs = potential_states_fetcher.potential_covs_normal
     if plot_errors:
         error_list = potential_states_fetcher.error_list
         cmap = cm.cool
@@ -1204,26 +1235,37 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
 
     #plot ellipses
     centers = []
-    
     for state_ind, potential_state in enumerate(potential_states):
         state_pos =  potential_state["position"]
         center = np.copy(state_pos)
         center[2] = -center[2]
         centers.append(center)
+    
+    if ind < 3:
+        radii_list = np.zeros([len(covs), 3])
+        for state_ind, cov in enumerate(covs):
+            shaped_cov = shape_cov(cov, potential_states_fetcher.model, FUTURE_POSE_INDEX)
+            _, s, _ = np.linalg.svd(shaped_cov)
+            radii = np.sqrt(s)
+            radii_list[state_ind, :] = radii[0:3]
+        global max_radii
+        max_radii = np.max(radii_list)
+
+    #cov_ellipses = matrices_to_ellipses(covs, centers,  potential_states_fetcher.model)
+
+    for state_ind, center in enumerate(centers):
         markersize=30
         text_color="b"
         if (state_ind == potential_states_fetcher.goal_state_ind):
             markersize=100
             text_color="r"
         if ellipses:
-            covs = potential_states_fetcher.potential_covs_normal
-            x,y,z = matrix_to_ellipse(shape_cov(covs[state_ind], potential_states_fetcher.model, 0), center, 0.1)
+            x, y, z = matrix_to_ellipse(matrix=shape_cov(covs[state_ind], potential_states_fetcher.model, FUTURE_POSE_INDEX), center=center)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
             ax.text(center[0], center[1], center[2], str(state_ind), color=text_color)
             if top_down:
                 ax_top_down.plot(x,y)
-                ax_top_down.set_xlabel('X')
-                ax_top_down.set_ylabel('Y')
+                ax_top_down.text(center[0], center[1], str(state_ind), color=text_color)
         else:
             if plot_errors:
                 ax.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[error_list[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
@@ -1250,10 +1292,15 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     ax.set_xlim(mid_x - max_range, mid_x + max_range)
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
-
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+
+    if top_down:
+        ax_top_down.set_xlim(mid_x - max_range*2, mid_x + max_range*2)
+        ax_top_down.set_ylim(mid_y - max_range*2, mid_y + max_range*2)
+        ax_top_down.set_xlabel('X')
+        ax_top_down.set_ylabel('Y')
 
     ax.legend(handles=[plot1, plot2, plot3])
 

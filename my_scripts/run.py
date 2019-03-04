@@ -87,7 +87,7 @@ def determine_calibration_mode(airsim_client, pose_client):
         #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
         pose_client.changeCalibrationMode(False)
 
-def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters):
+def run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters):
     errors = {}
 
     file_manager = FileManager(parameters)   
@@ -129,6 +129,8 @@ def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active
     if USE_TRACKBAR:
         create_trackbars(current_state.radius, active_parameters["Z_POS"])
 
+    determine_calibration_mode(airsim_client, pose_client)
+
 ################
     if loop_mode == 0:
         normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
@@ -155,83 +157,6 @@ def run_simulation_trial(kalman_arguments, parameters, energy_parameters, active
     file_manager.close_files()
 
     return errors
-
-def normal_simulation_loop_2(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
-    end_test = False
-    airsim_client.simPauseHuman(True)
-
-    photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-    take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
-
-    determine_calibration_mode(airsim_client, pose_client)
-    determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-    trajectory = potential_states_fetcher.trajectory 
-
-    while (not end_test):
-        #choose next location
-        potential_states_fetcher.reset(pose_client, current_state)
-
-        if airsim_client.linecount < pose_client.PRECALIBRATION_LENGTH:
-            goal_state = potential_states_fetcher.precalibration()
-        else:
-            if (trajectory == 0):
-                potential_states_fetcher.get_potential_positions_really_spherical_future()
-                potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
-                goal_state, _ = potential_states_fetcher.find_best_potential_state()
-                potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, photo_loc)
-            if (trajectory == 1):
-                goal_state = potential_states_fetcher.constant_rotation_baseline_future()
-            if (trajectory == 2): #RANDOM
-                potential_states_fetcher.get_potential_positions_really_spherical_future()
-                goal_state = potential_states_fetcher.find_random_next_state()
-            if (trajectory == 4):
-                goal_state = potential_states_fetcher.wobbly_baseline()
-            if (trajectory == 5):
-                goal_state = potential_states_fetcher.up_down_baseline()
-            if (trajectory == 6):
-                goal_state = potential_states_fetcher.left_right_baseline()
-        desired_pos, desired_yaw_deg, _ = current_state.get_goal_pos_yaw_pitch(goal_state)
-        drone_speed = TOP_SPEED
-        if (airsim_client.linecount < 5):
-            drone_speed = drone_speed * airsim_client.linecount/5
-
-        pause_function(airsim_client, pose_client)
-        airsim_client.simPauseDrone(False)
-        #add if here for calib
-        if USE_AIRSIM:
-            start_move = time.time()
-            airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
-            end_move = time.time()
-            time_passed = end_move - start_move
-            print("time passed", time_passed)
-            if (DELTA_T > time_passed):
-                time.sleep(DELTA_T-time_passed)
-                print("I was sleeping :(")
-        else:
-            airsim_client.moveToPositionAsync() #placeholderfunc
-        airsim_client.simPauseDrone(True)
-        unpause_function(airsim_client, pose_client)
-
-        photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-        take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
-        cam_pitch = current_state.get_required_pitch()
-        airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
-        current_state.cam_pitch = cam_pitch
-
-        determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-
-        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)    
-        file_manager.save_simulation_values(airsim_client, pose_client)
-
-        airsim_client.linecount += 1
-        determine_calibration_mode(airsim_client, pose_client)
-        print('linecount', airsim_client.linecount)
-
-        if (not USE_AIRSIM):
-            end_test = airsim_client.end
-        else:
-            if (airsim_client.linecount == LENGTH_OF_SIMULATION):
-                end_test = True
 
 def normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     end_test = False
@@ -410,51 +335,58 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
 
-
-
 def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, find_best_traj=True, predefined_traj_len=1):
 
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
-    airsim_client.simPauseDrone(True)
     mode_2d = pose_client.modes["mode_2d"]
+    airsim_client.simPauseDrone(False)
 
     airsim_retrieve_gt(airsim_client, pose_client, current_state)
     pose_client.future_pose = current_state.bone_pos_gt
     pose_client.current_pose = current_state.bone_pos_gt
-    pose_client.P_world = current_state.bone_pos_gt 
-    pose_client.update_bone_lengths(torch.from_numpy(current_state.bone_pos_gt).float())
 
     potential_states_fetcher.reset(pose_client, current_state)
     potential_states_try = potential_states_fetcher.dome_experiment()
 
+    #START AT POSITION 0
     goal_state = potential_states_fetcher.potential_states_try[0]
+    sim_pos = goal_state['position']
+    airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
+    airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
+    current_state.cam_pitch = goal_state['pitch']
+    take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+    photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 
-    
-    for exp_ind in range(50):        
+    initialize_with_gt(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+    airsim_client.linecount += 1
+
+    for exp_ind in range(1, 50):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
-        
+
+        if not pose_client.isCalibratingEnergy:
+            airsim_client.simPauseHuman(False)
+            time.sleep(DELTA_T)
+            airsim_client.simPauseHuman(True)
 
         if find_best_traj: #/and exp_ind >= predefined_traj_len:
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
 
                 sim_pos = goal_state['position']
-                airsim_client.simPauseDrone(False)
                 airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
                 current_state.cam_pitch = goal_state['pitch']
                 take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
                 photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-                airsim_client.simPauseDrone(True)
                 pose_client.modes["mode_2d"]=0
                 determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
                 potential_states_fetcher.error_list[state_ind] = pose_client.rewind_step()
             best_index = np.argmin(potential_states_fetcher.error_list)
-            
             print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
+
         potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
         if exp_ind < predefined_traj_len:
             goal_state = potential_states_fetcher.potential_states_try[exp_ind]
@@ -464,14 +396,12 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
 
         sim_pos = goal_state['position']
-        unpause_function(airsim_client, pose_client)
         airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
         current_state.cam_pitch = goal_state['pitch']
 
         take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
         photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-        pause_function(airsim_client, pose_client)
 
         pose_client.modes["mode_2d"]=mode_2d
         determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)

@@ -1,4 +1,4 @@
-from run import run_simulation_trial
+from run import run_simulation
 from helpers import reset_all_folders, normalize_weights, fill_notes, TEST_SETS, append_error_notes
 from math import radians
 import numpy as np
@@ -29,18 +29,20 @@ if __name__ == "__main__":
     param_find_M = False
     is_quiet = False
     
-    online_window_size = 10
+    online_window_size = 6
     calibration_length = 200
     calibration_window_size = 200
 
     precalibration_length = 0
     init_pose_with_gt = True
     find_best_traj = True
-    noise_2d_std = 3
-    predefined_traj_len = 11
+    noise_2d_std = 0
+    predefined_traj_len = 1
 
-    use_symmetry_term = False
-    use_single_joint = True
+    use_symmetry_term = True
+    use_single_joint = False
+    use_velocity_smoothness = True
+    use_lift_term = True
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len}
 
@@ -52,7 +54,7 @@ if __name__ == "__main__":
     animations = {"02_01": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
-    phi_list = np.arange(0,359, 9).tolist() #list(range(0, 359, 45//2)) #list(range(0, 360, 20))
+    phi_list = list(range(0, 360, 20))
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     position_grid.append([radians(180), radians(0)])
 
@@ -70,7 +72,7 @@ if __name__ == "__main__":
         weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
         weights = normalize_weights(weights_)
 
-        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint}
+        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint, "USE_VELOCITY_SMOOTHNESS": use_velocity_smoothness, "USE_LIFT_TERM": use_lift_term}
         
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
         active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
@@ -89,7 +91,7 @@ if __name__ == "__main__":
                     parameters["EXPERIMENT_NAME"] = key
                     parameters["TEST_SET_NAME"]= ""
                     energy_parameters["SEED"] = SEED_LIST[ind]
-                    errors = run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters)
+                    errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
                     many_runs_last.append(errors["ave_3d_err"] )
                     many_runs_middle.append(errors["middle_3d_err"] )
 
@@ -99,6 +101,6 @@ if __name__ == "__main__":
                 parameters["ANIMATION_NUM"]=  animation
                 parameters["EXPERIMENT_NAME"] = animation + "_" + str(ind)
                 parameters["TEST_SET_NAME"]= TEST_SETS[animation]
-                errors = run_simulation_trial(kalman_arguments, parameters, energy_parameters, active_parameters)
+                errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
         
         append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

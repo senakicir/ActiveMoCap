@@ -38,6 +38,8 @@ class PoseEstimationClient(object):
         self.noise_2d_std = param["NOISE_2D_STD"]
         self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
         self.USE_SINGLE_JOINT = param["USE_SINGLE_JOINT"]
+        self.USE_VELOCITY_SMOOTHNESS = param["USE_VELOCITY_SMOOTHNESS"]
+        self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -50,8 +52,12 @@ class PoseEstimationClient(object):
         self.openpose_arm_error = 0
         self.openpose_leg_error = 0
 
-        self.poseList_3d = []
+        self.P_world = np.zeros([self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints])
         self.liftPoseList = []
+        self.thrownAway_liftPoseList = None
+        self.thrownAway_requiredEstimationData = None
+        self.threw_Away = True
+        
         self.boneLengths = torch.zeros([self.num_of_joints-1,1])
 
         self.requiredEstimationData = []
@@ -89,7 +95,7 @@ class PoseEstimationClient(object):
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
-        self.weights_future = {'proj': 0.33, 'smooth': 0.33, 'bone': 0.33}#param["WEIGHTS"]
+        self.weights_future = param["WEIGHTS"]
 
         self.loss_dict_calib = ["proj"]
         if self.USE_SYMMETRY_TERM:  
@@ -170,52 +176,54 @@ class PoseEstimationClient(object):
 
         self.requiredEstimationData.pop(0)
         self.liftPoseList.pop(0)
+        if self.threw_Away:
+            self.liftPoseList.append(self.thrownAway_liftPoseList)
+            self.requiredEstimationData.append(self.thrownAway_requiredEstimationData)
 
-        self.poseList_3d = self.prev_poseList_3d.copy()
+        self.P_world = self.prev_P_world.copy()
 
         error = self.error_3d.pop()
         self.error_2d.pop()
 
+        if self.isCalibratingEnergy:
+            self.calib_res_list.pop()
+        else:
+            self.online_res_list.pop()
         return error 
 
-    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, pose3d_, linecount, pose3d_lift = None):
-        if self.isCalibratingEnergy:
-            if linecount < self.PRECALIBRATION_LENGTH:
-                self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-            else:
-                self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE:
-                    self.requiredEstimationData.pop()
-        else:
-            self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
-            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
-                self.requiredEstimationData.pop()
-
-        self.prev_poseList_3d = self.poseList_3d.copy()
-        self.poseList_3d.insert(0, pose3d_)
-        if (len(self.poseList_3d) > self.ONLINE_WINDOW_SIZE):
-            self.poseList_3d.pop()
-
+    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, linecount, pose3d_lift = None):
+        self.threw_Away = False
         self.liftPoseList.insert(0, pose3d_lift)
-        if (len(self.liftPoseList) > self.ONLINE_WINDOW_SIZE):
-            self.liftPoseList.pop()
+        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        if self.isCalibratingEnergy:
+            if linecount >= self.PRECALIBRATION_LENGTH:
+                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE:
+                    self.thrownAway_requiredEstimationData = self.requiredEstimationData.pop()
+                    self.thrownAway_liftPoseList = self.liftPoseList.pop()
+                    self.threw_Away = True
+
+        else:
+            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
+                self.thrownAway_requiredEstimationData = self.requiredEstimationData.pop()
+                self.thrownAway_liftPoseList = self.liftPoseList.pop()
+                self.threw_Away = True
+        
 
     def update3dPos(self, P_world):
+        self.prev_P_world = self.P_world.copy()
+
         if (self.isCalibratingEnergy):
-            for ind in range(len(self.poseList_3d)):
-                self.poseList_3d[ind] = P_world.copy()
             self.current_pose = P_world.copy()
             self.middle_pose = P_world.copy()
             self.future_pose = P_world.copy()
-
+            self.P_world = np.repeat(P_world[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
         else:
-            for ind in range(0, P_world.shape[0]):
-                self.poseList_3d[ind] = P_world[ind, :, :].copy()
-
             self.current_pose =  P_world[CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.middle_pose = P_world[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
             self.future_pose =  P_world[FUTURE_POSE_INDEX, :,:].copy() #future pose
+            self.P_world = P_world.copy()
 
+        
     def update_middle_pose_GT(self, middle_pose):
         self.middle_pose_GT_list.insert(0, middle_pose)
         if (len(self.middle_pose_GT_list) > MIDDLE_POSE_INDEX):
