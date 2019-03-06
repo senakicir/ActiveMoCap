@@ -371,6 +371,9 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
             time.sleep(DELTA_T)
             airsim_client.simPauseHuman(True)
 
+            potential_states_fetcher.reset(pose_client, current_state)
+            potential_states_try = potential_states_fetcher.dome_experiment()
+
         if find_best_traj: #/and exp_ind >= predefined_traj_len:
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]

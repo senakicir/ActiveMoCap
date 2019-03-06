@@ -26,7 +26,8 @@ class PotentialStatesFetcher(object):
         _, self.joint_names, self.number_of_joints = model_settings(pose_client.model)
         self.hip_index = self.joint_names.index('spine1')
         self.minmax = active_parameters["MINMAX"]
-        self.hessian_method = active_parameters["HESSIAN_METHOD"]
+        self.hessian_part = active_parameters["HESSIAN_PART"]
+        self.uncertainty_calc_method = active_parameters["UNCERTAINTY_CALC_METHOD"]
         self.wobble_freq = active_parameters["WOBBLE_FREQ"]
         self.updown_lim = active_parameters["UPDOWN_LIM"]
         self.target_z_pos = active_parameters["Z_POS"]
@@ -376,13 +377,14 @@ class PotentialStatesFetcher(object):
 
             inv_hess2 = np.linalg.inv(hess2)
 
-            if (self.hessian_method == 0):
+            if (self.hessian_part == 0):
                 self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.model))
-            elif (self.hessian_method == 1):
+            elif (self.hessian_part == 1):
                 self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.model))
-            elif (self.hessian_method == 2):
+            elif (self.hessian_part == 2):
                 self.potential_covs_normal.append(inv_hess2)
             else:
+                print("chosen invalid hessian part")
                 self.potential_covs_normal.append(inv_hess2)
 
             self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
@@ -391,19 +393,26 @@ class PotentialStatesFetcher(object):
     def find_best_potential_state(self):
         uncertainty_list = []
         for cov in self.potential_covs_normal:
-            if self.hessian_method == 3:
+            if self.uncertainty_calc_method == 0:
                 _, s, _ = np.linalg.svd(cov)
                 uncertainty_list.append(np.sum(s)) 
-            elif self.hessian_method == 2:
-                cov_shaped = shape_cov_general(cov, self.model, 0)
-                uncertainty_joints = np.zeros([self.number_of_joints,])
-                for joint_ind in range(self.number_of_joints):
-                    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
-                    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
-                uncertainty_list.append(np.mean(uncertainty_joints))
+            elif self.uncertainty_calc_method == 1:
+                s = np.diag(cov)
+                uncertainty_list.append(np.sum(s)) 
+            elif self.uncertainty_calc_method == 2:
+                _, s, _ = np.linalg.svd(cov)
+                uncertainty_list.append(np.multiply(s)) 
+            elif self.uncertainty_calc_method == 3:
+                uncertainty_list.append(np.linalg.det(s))
+                #cov_shaped = shape_cov_general(cov, self.model, 0)
+                #uncertainty_joints = np.zeros([self.number_of_joints,])
+                #for joint_ind in range(self.number_of_joints):
+                #    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
+                #    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
+                #uncertainty_list.append(np.mean(uncertainty_joints))
             else:
-                _, s, _ = np.linalg.svd(cov)
-                uncertainty_list.append(np.sum(s)) 
+                print("chosen invalid uncertainty calc")
+
         if (self.minmax):
             best_ind = uncertainty_list.index(min(uncertainty_list))
         else:

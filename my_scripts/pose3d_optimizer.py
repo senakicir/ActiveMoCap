@@ -99,12 +99,18 @@ class pose3d_online_parallel(torch.nn.Module):
         self.energy_weights = pose_client.weights_online
         self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
-        self.use_velocity_smoothness = pose_client.USE_VELOCITY_SMOOTHNESS
+        self.smoothness_mode = pose_client.SMOOTHNESS_MODE
         self.use_lift_term = pose_client.USE_LIFT_TERM
 
         self.pltpts = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
+
+        self.n = list(range(1, self.window_size+1))
+        self.n.append(0)
+        self.m = list(range(1, self.window_size))
+        self.m.append(0)
+
 
     def forward(self):
         output = {}
@@ -119,12 +125,18 @@ class pose3d_online_parallel(torch.nn.Module):
         output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
         #smoothness term
-        if self.use_velocity_smoothness:
+        if self.smoothness_mode == 0:
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], 3*self.NUM_OF_JOINTS)
-        else:
+        elif self.smoothness_mode == 1:
             output["smooth"] = mse_loss(self.pose3d[1:, :, :], self.pose3d[:-1, :, :], 3*self.NUM_OF_JOINTS)
-        
+        elif self.smoothness_mode == 2:
+            vel_tensor = self.pose3d[:, :, :] - self.pose3d[self.n, :, :]
+            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], 3*self.NUM_OF_JOINTS)
+        elif self.smoothness_mode == 3:
+            vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
+            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
+
         #lift term        
         if self.use_lift_term:
             pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
@@ -159,18 +171,21 @@ class pose3d_future_parallel(torch.nn.Module):
         
         self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
 
-        self.use_velocity_smoothness = pose_client.USE_VELOCITY_SMOOTHNESS
+        self.smoothness_mode  = pose_client.SMOOTHNESS_MODE
         self.use_lift_term = pose_client.USE_LIFT_TERM
 
         self.energy_weights = pose_client.weights_future
         self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
         self.pltpts = {}
+
+        self.n = list(range(1, self.window_size+1))
+        self.n.append(0)
+        self.m = list(range(1, self.window_size))
+        self.m.append(0)
+
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
        
-        #a = list(range(self.window_size))
-        #a = a.insert(0,-1)
-        #self.shift = a
 
     def forward(self):
         output = {}
@@ -185,11 +200,17 @@ class pose3d_future_parallel(torch.nn.Module):
         output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
         #smoothness term
-        if self.use_velocity_smoothness:
+        if self.smoothness_mode == 0:
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], 3*self.NUM_OF_JOINTS)
-        else:
+        elif self.smoothness_mode == 1:
             output["smooth"] = mse_loss(self.pose3d[1:,:,:], self.pose3d[:-1,:,:], 3*self.NUM_OF_JOINTS)
+        elif self.smoothness_mode == 2:
+            vel_tensor = self.pose3d[:, :, :] - self.pose3d[self.n, :, :]
+            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], 3*self.NUM_OF_JOINTS)
+        elif self.smoothness_mode == 3:
+            vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
+            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
 
         #lift term        
         if self.use_lift_term:

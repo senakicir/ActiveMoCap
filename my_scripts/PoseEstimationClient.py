@@ -38,7 +38,7 @@ class PoseEstimationClient(object):
         self.noise_2d_std = param["NOISE_2D_STD"]
         self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
         self.USE_SINGLE_JOINT = param["USE_SINGLE_JOINT"]
-        self.USE_VELOCITY_SMOOTHNESS = param["USE_VELOCITY_SMOOTHNESS"]
+        self.SMOOTHNESS_MODE = param["SMOOTHNESS_MODE"]
         self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
 
         self.numpy_random = np.random.RandomState(param["SEED"])

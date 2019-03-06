@@ -766,9 +766,9 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     #mid_x = (X.max()+X.min()) * 0.5
     #mid_y = (Y.max()+Y.min()) * 0.5
     #mid_z = (Z.max()+Z.min()) * 0.5
-    ax.set_xlim(predicted_bones[0,0]-10, predicted_bones[0,0] +10)
-    ax.set_ylim(predicted_bones[1,0]-10, predicted_bones[1,0] +10)
-    ax.set_zlim(predicted_bones[2,0]-10, predicted_bones[2,0] +10)
+    ax.set_xlim(predicted_bones[0,0]-7, predicted_bones[0,0] +7)
+    ax.set_ylim(predicted_bones[1,0]-7, predicted_bones[1,0] +7)
+    ax.set_zlim(-predicted_bones[2,0]-2, -predicted_bones[2,0] +9)
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
@@ -1130,7 +1130,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
     fig.colorbar(im, cax=cbar_ax)
 
     file_name = plot_loc + name + str(linecount) + ".png"
-    plt.savefig(file_name, bbox_inches='tight', pad_inches=0, dpi=100)
+    plt.savefig(file_name, bbox_inches='tight', pad_inches=0, dpi=1000)
     plt.close(fig)
     
 def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, model):
