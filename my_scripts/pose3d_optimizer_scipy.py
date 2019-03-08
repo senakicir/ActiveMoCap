@@ -72,7 +72,7 @@ class pose3d_calibration_parallel_wrapper():
         self.pytorch_objective = 0
 
     def reset(self, pose_client):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
+        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         
         data_list = pose_client.requiredEstimationData
 
@@ -84,7 +84,7 @@ class pose3d_calibration_parallel_wrapper():
         self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
+        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
 
@@ -121,13 +121,42 @@ class pose3d_calibration_parallel_wrapper():
 class pose3d_online_parallel_wrapper():
 
     def reset(self, pose_client):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
-
+        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
+
         projection_client.reset(data_list, self.NUM_OF_JOINTS)
         
-        self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client)
+        if pose_client.USE_TRAJECTORY_BASIS:
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, future_proj=False)
+        else:
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, future_proj=False)
+
+        self.pltpts = {}
+        self.result_shape = pose_client.result_shape
+
+    def reset_future(self, pose_client, potential_state):
+        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
+        data_list = pose_client.requiredEstimationData
+        projection_client = Projection_Client()
+
+        #future state 
+        yaw = potential_state["orientation"]
+        C_drone =  potential_state["position"].copy()
+        potential_pitch = potential_state["pitch"]
+        future_pose = torch.from_numpy(pose_client.future_pose).float()
+
+        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
+        potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
+        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
+        potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
+
+        projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
+
+        if pose_client.USE_TRAJECTORY_BASIS:
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, future_proj=True)
+        else:
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, future_proj=True)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
@@ -144,44 +173,3 @@ class pose3d_online_parallel_wrapper():
     def hessian(self, x):
         hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
         return hessian
-
-class pose3d_future_parallel_wrapper():
-
-    def reset_future(self, pose_client, potential_state):
-        self.bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
-        data_list = pose_client.requiredEstimationData
-        projection_client = Projection_Client()
-        
-        self.pltpts = {}
-        self.loss_dict = pose_client.loss_dict_future
-        self.result_shape = pose_client.result_shape
-
-        #future state 
-        yaw = potential_state["orientation"]
-        C_drone =  potential_state["position"].copy()
-        potential_pitch = potential_state["pitch"]
-        future_pose = torch.from_numpy(pose_client.future_pose).float()
-
-        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
-        potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
-        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
-        potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
-
-        projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
-
-        #torch for jacobian
-        self.pytorch_objective = pytorch_optimizer.pose3d_future_parallel(pose_client, projection_client)
-
-    def forward(self, x):
-        overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
-        self.pltpts = self.pytorch_objective.pltpts
-        return overall_output
-        
-    def jacobian(self,x):
-        gradient = fun_jacobian(self.pytorch_objective, x, self.result_shape)
-        return gradient
-
-    def hessian(self, x):
-        hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
-        return hessian
-        

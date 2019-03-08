@@ -165,31 +165,29 @@ def save_bone_positions_2(index, bones, f_output):
 def do_nothing(x):
     pass
 
-def find_M(plot_info, model):
-    _,joint_names,num_of_joints= model_settings(model) 
-    spine_index = joint_names.index('spine1')
+def find_M(plot_info, hip_index, num_of_joints):
     p_GT = np.zeros([3*len(plot_info),num_of_joints])
     p_est = np.zeros([3*len(plot_info),num_of_joints])
     for frame_ind, frame_plot_info in enumerate(plot_info):
         predicted_bones = frame_plot_info["est"]
         bones_GT = frame_plot_info["GT"]
-        root_GT = bones_GT[:,spine_index]
-        root_est = predicted_bones[:,spine_index]
+        root_GT = bones_GT[:,hip_index]
+        root_est = predicted_bones[:,hip_index]
         p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT-root_GT[:, np.newaxis]
         p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones-root_est[:, np.newaxis]
 
 
     #remove spine row from both arrays
-    p_est = np.delete(p_est, spine_index, 1)
-    p_GT = np.delete(p_GT, spine_index, 1)
+    p_est = np.delete(p_est, hip_index, 1)
+    p_GT = np.delete(p_GT, hip_index, 1)
     filename = "M_rel.txt"
     
     X = np.linalg.inv(np.dot(p_est.T, p_est))
     M = np.dot(np.dot(X, p_est.T), p_GT)
 
-    M = np.insert(M, spine_index, 0, axis=1)
-    M = np.insert(M, spine_index, 0, axis=0)
-    M[spine_index, spine_index] = 1
+    M = np.insert(M, hip_index, 0, axis=1)
+    M = np.insert(M, hip_index, 0, axis=0)
+    M[hip_index, hip_index] = 1
 
     M_file = open(filename, 'w')
     M_str = ""
@@ -202,9 +200,8 @@ def find_M(plot_info, model):
 
     return M
 
-def read_M(model, name = "M_rel"):
+def read_M(num_of_joints, name = "M_rel"):
     filename = name+".txt"
-    _,_,num_of_joints= model_settings(model)
     if os.path.exists(filename):
         X = read_csv(filename, sep='\t', header=None).ix[:,:].values.astype('float')     
         return X[:,0:num_of_joints]
@@ -497,7 +494,7 @@ def save_image(img, ind, plot_loc, custom_name=None):
     plt.close(fig)
 
 
-def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, error = -5, custom_name = None, orientation = "z_up", label_names =None, additional_text =None):   
+def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_single_joint, error = -5, custom_name = None, orientation = "z_up", label_names =None, additional_text =None):   
     if custom_name == None:
         name = '/plot3d_'
     else: 
@@ -527,24 +524,29 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, erro
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
-    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    if not use_single_joint:
+        left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
-    #plot joints
-    for i, bone in enumerate(left_bone_connections):
-        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
-    for i, bone in enumerate(right_bone_connections):
-        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
+        #plot joints
+        for i, bone in enumerate(left_bone_connections):
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
+        for i, bone in enumerate(right_bone_connections):
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
 
-    for i, bone in enumerate(left_bone_connections):
-        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
-    for i, bone in enumerate(right_bone_connections):
-        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+        for i, bone in enumerate(left_bone_connections):
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
+        for i, bone in enumerate(right_bone_connections):
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+        ax.legend(handles=[plot1, plot1_r, plot2, plot2_r])
+    else:
+        plot1, = ax.plot(bones_GT[0,:], bones_GT[1,:], -bones_GT[2,:], c='xkcd:royal blue', marker='^')
+        plot2, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], -predicted_bones[2,:], c='xkcd:blood red', marker='^')
+        #ax.legend(handles=[plot1, plot2])
 
-    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r])
     
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
@@ -570,7 +572,7 @@ def plot_global_motion(pose_client, plot_loc, ind):
         file_name = plot_loc + '/global_plot_online_'+ str(ind) + '.png'
 
     fig = plt.figure(figsize=(4,4))
-    bone_connections, _, _ = model_settings(pose_client.model)
+    bone_connections, _, _, _ = pose_client.model_settings()
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     ax = fig.add_subplot(111, projection='3d')
     for frame_ind in range (0, len(plot_info), 3):
@@ -631,7 +633,7 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
     file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.png'
     
-    bone_connections, _, _ = model_settings(pose_client.model)
+    bone_connections, _, _, _ = pose_client.model_settings()
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     # fig = plt.figure( figsize=(12, 4))
@@ -746,21 +748,27 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
 
     #plot final frame human
-    for i, bone in enumerate(left_bone_connections):
-        plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
-    for i, bone in enumerate(right_bone_connections):
-        plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+    if not pose_client.USE_SINGLE_JOINT:
+        for i, bone in enumerate(left_bone_connections):
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+        for i, bone in enumerate(right_bone_connections):
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
 
-    for i, bone in enumerate(left_bone_connections):
-        plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
-    for i, bone in enumerate(right_bone_connections):
-        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
-    for i, bone in enumerate(middle_bone_connections):
-        ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+        for i, bone in enumerate(left_bone_connections):
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+        for i, bone in enumerate(right_bone_connections):
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+        ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+    else:
+        plot1, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], -predicted_bones[2,:], c='xkcd:blood red')
+        plot2, = ax.plot(bones_GT[0,:], bones_GT[1,:], -bones_GT[2,:], c='xkcd:royal blue')
+        #ax.legend(handles=[plot1,plot2])
 
-    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+
 
     #max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     #mid_x = (X.max()+X.min()) * 0.5
@@ -815,15 +823,15 @@ def vector3r_arr_to_dict(input):
         output[attribute] = getattr(input, attribute)
     return output
 
-def normalize_pose(pose_3d_input, joint_names, is_torch = True):
+def normalize_pose(pose_3d_input, hip_index, is_torch = True):
     if (is_torch):
-        hip_pos = pose_3d_input[:, joint_names.index('spine1')].unsqueeze(1)
+        hip_pos = pose_3d_input[:, hip_index].unsqueeze(1)
         relative_pos = torch.sub(pose_3d_input, hip_pos)
         max_z = torch.max(relative_pos[2,:])
         min_z = torch.min(relative_pos[2,:])
         result = (relative_pos)/(max_z - min_z)
     else:
-        hip_pos = pose_3d_input[:, joint_names.index('spine1')]
+        hip_pos = pose_3d_input[:, hip_index]
         relative_pos = pose_3d_input - hip_pos[:, np.newaxis]
         max_z = np.max(relative_pos[2,:])
         min_z = np.min(relative_pos[2,:])
@@ -878,36 +886,8 @@ def matrix_to_ellipse(matrix, center):
 
     return x,y,z
 
-def matrices_to_ellipses(covs, centers, model):
-    radii_list = np.zeros([len(covs), 3])
-    ellipses = []
-    for state_ind, cov in covs:
-        shaped_cov = shape_cov(cov, model, 0)
-        _, s, rotation = np.linalg.svd(shaped_cov)
-        radii = np.sqrt(s)
-        radii_list[state_ind, :] = radii[0:3]
-    max_radii = np.max(radii_list)
 
-    for state_ind, center in centers:
-        radii = radii_list[state_ind, :]/(0.3*max_radii)
-
-        # now carry on with EOL's answer
-        u = np.linspace(0.0, 2.0 * np.pi, 100)
-        v = np.linspace(0.0, np.pi, 100)
-        x = radii[0] * np.outer(np.cos(u), np.sin(v))
-        y = radii[1] * np.outer(np.sin(u), np.sin(v))
-        z = radii[2] * np.outer(np.ones_like(u), np.cos(v))
-        for i in range(len(x)):
-            for j in range(len(x)):
-                [x[i,j],y[i,j],z[i,j]] = np.dot([x[i,j],y[i,j],z[i,j]], rotation) + center
-        ellipses.append((x,y,z))
-    return ellipses
-
-
-
-def shape_cov(cov, model, frame_index):
-    _, joint_names, num_of_joints = model_settings(model)
-    hip_index = joint_names.index('spine1')
+def shape_cov(cov, hip_index, num_of_joints, frame_index):
     H = np.zeros([3,3])
     offset = hip_index + frame_index*3*num_of_joints
     H[:,0] = np.array([cov[offset, offset], cov[num_of_joints+offset, offset], cov[num_of_joints*2+offset, offset],])
@@ -915,8 +895,7 @@ def shape_cov(cov, model, frame_index):
     H[:,2] = np.array([cov[offset, num_of_joints*2+offset], cov[num_of_joints+offset, num_of_joints*2+offset], cov[num_of_joints*2+offset, num_of_joints*2+offset],])
     return H
 
-def shape_cov_ave_joints(cov, model):
-    _, _, num_of_joints = model_settings(model)
+def shape_cov_ave_joints(cov, num_of_joints):
     new_cov = np.cov([3,3])
     for i in range(3):
         for j in range(3):
@@ -924,11 +903,10 @@ def shape_cov_ave_joints(cov, model):
                 new_cov[i, j] = np.mean(small_cov.flatten())
     return new_cov
 
-def choose_frame_from_cov(cov, frame_index, model):
-    _, _, num_of_joints = model_settings(model)
+def choose_frame_from_cov(cov, frame_index, num_of_joints):
     return cov[frame_index*(3*num_of_joints):(frame_index+1)*(3*num_of_joints), frame_index*(3*num_of_joints):(frame_index+1)*(3*num_of_joints)]
 
-def shape_cov_hip(cov, model, frame_index):
+def shape_cov_hip(cov, frame_index):
     H = np.zeros([3,3])
     offset = frame_index*3
     H[:,0] = np.array([cov[offset, offset], cov[1+offset, offset], cov[2+offset, offset],])
@@ -936,17 +914,14 @@ def shape_cov_hip(cov, model, frame_index):
     H[:,2] = np.array([cov[offset, 2+offset], cov[1+offset, 2+offset], cov[2+offset, 2+offset],])
     return H
 
-def shape_cov_mini(cov, model, frame_index):
-    _, joint_names, _ = model_settings(model)
-    hip_index = joint_names.index('spine1')
+def shape_cov_mini(cov, hip_index, frame_index):
     H = np.zeros([3,3])
     H[:,0] = np.array([cov[hip_index, hip_index], cov[1+hip_index, hip_index], cov[2+hip_index, hip_index],])
     H[:,1] = np.array([cov[hip_index, 1+hip_index], cov[1+hip_index, 1+hip_index], cov[2+hip_index, 1+hip_index],])
     H[:,2] = np.array([cov[hip_index, 2+hip_index], cov[1+hip_index, 2+hip_index], cov[2+hip_index, 2+hip_index],])
     return H
 
-def shape_cov_general(cov, model, frame_index = 0):    
-    _, _, num_of_joints = model_settings(model)
+def shape_cov_general(cov, num_of_joints, frame_index = 0):    
     H = np.zeros([num_of_joints,3,3])
     for joint_ind in range(num_of_joints):
         x = frame_index*(3*num_of_joints)+joint_ind+(0*num_of_joints)
@@ -965,8 +940,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/ellipse_online_'+ str(ind) + '.png'
 
-    bone_connections, joint_names, _ = model_settings(pose_client.model)
-    hip_index = joint_names.index('spine1')
+    bone_connections, _, _, hip_index = pose_client.model_settings()
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     fig = plt.figure()
@@ -1049,10 +1023,7 @@ def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=True):
                     [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
 
 
-def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, potential_states, C_drone, R_drone, model, plot_loc, ind):
-    _, joint_names, _ = model_settings(model)
-    hip_index = joint_names.index('spine1')
-
+def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, potential_states, C_drone, R_drone, hip_index, plot_loc, ind):
     current_human_pos = current_human_pose[0:2, hip_index]
     future_human_pos =  future_human_pose[0:2, hip_index]
     gt_human_pos = gt_human_pose[0:2, hip_index]
@@ -1083,7 +1054,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = None):
+def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     if custom_name == None:
         name = '/potential_covs_'
     else: 
@@ -1110,7 +1081,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
     plt.suptitle("Covariance matrices for potential states")
     for ind in range(min(nrows*ncols, len(hessians))):
         hess = hessians[ind]
-        #shaped_hess = shape_cov_ave_joints(hess, model)
+        #shaped_hess = shape_cov_ave_joints(hess, num_of_joints)
         shaped_hess = hess
         ax = axes.flat[ind]
         im = ax.imshow(shaped_hess, cmap=cmap, norm=norm)
@@ -1133,8 +1104,7 @@ def plot_potential_hessians(hessians, linecount, plot_loc, model, custom_name = 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0, dpi=1000)
     plt.close(fig)
     
-def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, model):
-    bone_connections, joint_names, _ = model_settings(model)
+def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, bone_connections):
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     superimposed_plot_loc = plot_loc + "/potential_projections_" + str(linecount) + '.png'
@@ -1167,8 +1137,7 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, mode
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, model):
-    bone_connections, joint_names, _ = model_settings(model)
+def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_connections):
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     superimposed_plot_loc = plot_loc + "/potential_projections_noimage_" + str(linecount) + '.png'
@@ -1201,8 +1170,7 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, model):
     plt.close()
 
 def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
-    _, joint_names, _ = model_settings(potential_states_fetcher.model)
-    hip_index = joint_names.index('spine1')
+    hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
@@ -1244,14 +1212,12 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     if ind < 3:
         radii_list = np.zeros([len(covs), 3])
         for state_ind, cov in enumerate(covs):
-            shaped_cov = shape_cov(cov, potential_states_fetcher.model, FUTURE_POSE_INDEX)
+            shaped_cov = shape_cov(cov, hip_index, num_of_joints, FUTURE_POSE_INDEX)
             _, s, _ = np.linalg.svd(shaped_cov)
             radii = np.sqrt(s)
             radii_list[state_ind, :] = radii[0:3]
         global max_radii
         max_radii = np.max(radii_list)
-
-    #cov_ellipses = matrices_to_ellipses(covs, centers,  potential_states_fetcher.model)
 
     for state_ind, center in enumerate(centers):
         markersize=30
@@ -1260,7 +1226,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
             markersize=100
             text_color="r"
         if ellipses:
-            x, y, z = matrix_to_ellipse(matrix=shape_cov(covs[state_ind], potential_states_fetcher.model, FUTURE_POSE_INDEX), center=center)
+            x, y, z = matrix_to_ellipse(matrix=shape_cov(covs[state_ind], hip_index, num_of_joints, FUTURE_POSE_INDEX), center=center)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
             ax.text(center[0], center[1], center[2], str(state_ind), color=text_color)
             if top_down:

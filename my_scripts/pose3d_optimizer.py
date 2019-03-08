@@ -1,6 +1,6 @@
 from project_bones import take_bone_projection_pytorch, Projection_Client
 import torch as torch
-from helpers import model_settings, split_bone_connections, EPSILON, return_lift_bone_connections, euler_to_rotation_matrix, CAMERA_PITCH_OFFSET, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z
+from helpers import split_bone_connections, EPSILON, return_lift_bone_connections, euler_to_rotation_matrix, CAMERA_PITCH_OFFSET, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z
 import numpy as np 
 from math import pi
 from PoseEstimationClient import calculate_bone_lengths, calculate_bone_directions
@@ -40,7 +40,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
 
     def __init__(self, pose_client, projection_client):
         super(pose3d_calibration_parallel, self).__init__()
-        self.bone_connections, _, self.NUM_OF_JOINTS = model_settings(pose_client.model)
+        self.bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         left_bone_connections, right_bone_connections, _ = split_bone_connections(self.bone_connections)
         self.left_bone_connections = np.array(left_bone_connections)
         self.right_bone_connections = np.array(right_bone_connections)
@@ -80,12 +80,13 @@ class pose3d_calibration_parallel(torch.nn.Module):
 
 class pose3d_online_parallel(torch.nn.Module):
 
-    def __init__(self, pose_client, projection_client):
+    def __init__(self, pose_client, projection_client, future_proj):
         super(pose3d_online_parallel, self).__init__()
+        self.future_proj = future_proj
 
         self.projection_client = projection_client
 
-        bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
+        bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
@@ -94,13 +95,16 @@ class pose3d_online_parallel(torch.nn.Module):
         self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size+1,1)
         self.loss_dict = pose_client.loss_dict_online
         
-        self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
-
         self.energy_weights = pose_client.weights_online
-        self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
         self.smoothness_mode = pose_client.SMOOTHNESS_MODE
         self.use_lift_term = pose_client.USE_LIFT_TERM
+        self.use_bone_term = pose_client.USE_BONE_TERM
+        self.use_single_joint = pose_client.USE_SINGLE_JOINT
+
+        if self.use_lift_term and not self.use_single_joint:
+            self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
+            self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
         self.pltpts = {}
         for loss_key in self.loss_dict:
@@ -111,18 +115,21 @@ class pose3d_online_parallel(torch.nn.Module):
         self.m = list(range(1, self.window_size))
         self.m.append(0)
 
-
     def forward(self):
         output = {}
 
         #projection loss
-        projected_2d = self.projection_client.take_projection(self.pose3d[1:,:,:])
+        if not self.future_proj:
+            projected_2d = self.projection_client.take_projection(self.pose3d[1:,:,:])
+        else:
+            projected_2d = self.projection_client.take_projection(self.pose3d)
         output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
 
-        #bone length consistency 
-        length_of_bone = torch.sum(torch.pow(self.pose3d[:, :, self.bone_connections[:,0]] - self.pose3d[:, :, self.bone_connections[:,1]], 2), dim=1)
-        bonelosses = torch.pow((length_of_bone - self.bone_lengths),2)
-        output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+        if self.use_bone_term and not self.use_single_joint:
+            #bone length consistency 
+            length_of_bone = calculate_bone_lengths(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
+            bonelosses = torch.pow((length_of_bone - self.bone_lengths),2)
+            output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
         #smoothness term
         if self.smoothness_mode == 0:
@@ -137,8 +144,8 @@ class pose3d_online_parallel(torch.nn.Module):
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
 
-        #lift term        
-        if self.use_lift_term:
+        #lift term  
+        if not self.use_single_joint and self.use_lift_term:
             pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
             output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 
@@ -153,76 +160,104 @@ class pose3d_online_parallel(torch.nn.Module):
         pose3d_ = torch.from_numpy(pose3d_np).float()
         self.pose3d.data[:] = pose3d_.data[:]
 
-class pose3d_future_parallel(torch.nn.Module):
+###################################################
+################################################### 
+###################################################
 
-    def __init__(self, pose_client, projection_client):
-        super(pose3d_future_parallel, self).__init__()
+def project_trajectory(trajectory, window_size, number_of_traj_param):
+    pose3d = torch.zeros(window_size+1, trajectory.shape[1], trajectory.shape[2])
+    phase = (torch.arange(number_of_traj_param-1)%2).float() #change
+    freq = (torch.arange(number_of_traj_param-1)//2+1).float()
+    for t in range(window_size+1):
+        cos_term = torch.cos(freq*2*np.pi*t/window_size + phase*np.pi/2).unsqueeze(1).unsqueeze(2).repeat(1, trajectory.shape[1], trajectory.shape[2])
+        pose3d[t, :, :] = trajectory[0,:,:] + torch.sum(trajectory[1:,:,:]*cos_term, dim=0)
+    return pose3d
+
+class pose3d_online_parallel_traj(torch.nn.Module):
+
+    def __init__(self, pose_client, projection_client, future_proj):
+        super(pose3d_online_parallel_traj, self).__init__()
+        self.future_proj = future_proj
 
         self.projection_client = projection_client
+        self.num_of_traj_param = pose_client.NUMBER_OF_TRAJ_PARAM
 
-        bone_connections, self.joint_names, self.NUM_OF_JOINTS = model_settings(pose_client.model)
+        bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
-        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS), requires_grad=True)
+        self.result_shape = pose_client.result_shape
 
         self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size+1,1)
-        self.loss_dict = pose_client.loss_dict_future
+        self.loss_dict = pose_client.loss_dict_online
         
-        self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
+        self.energy_weights = pose_client.weights_online
 
-        self.smoothness_mode  = pose_client.SMOOTHNESS_MODE
+        self.smoothness_mode = pose_client.SMOOTHNESS_MODE
         self.use_lift_term = pose_client.USE_LIFT_TERM
+        self.use_bone_term = pose_client.USE_BONE_TERM
+        self.use_single_joint = pose_client.USE_SINGLE_JOINT
 
-        self.energy_weights = pose_client.weights_future
-        self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
+        if self.use_lift_term and not self.use_single_joint:
+            self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
+            self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
+
         self.pltpts = {}
+        for loss_key in self.loss_dict:
+            self.pltpts[loss_key] = []
 
         self.n = list(range(1, self.window_size+1))
         self.n.append(0)
         self.m = list(range(1, self.window_size))
         self.m.append(0)
 
-        for loss_key in self.loss_dict:
-            self.pltpts[loss_key] = []
-       
-
     def forward(self):
         output = {}
 
-        #projection loss
-        projected_2d = self.projection_client.take_projection(self.pose3d)
-        output["proj"] =  mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
+        pose3d_projected = project_trajectory(self.pose3d, self.window_size, self.num_of_traj_param)
 
-        #bone length consistency 
-        length_of_bone = calculate_bone_lengths(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
-        bonelosses = torch.pow((length_of_bone - self.bone_lengths),2)
-        output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+        #projection loss
+        if not self.future_proj:
+            projected_2d = self.projection_client.take_projection(pose3d_projected[1:,:,:])
+        else:
+            projected_2d = self.projection_client.take_projection(pose3d_projected)
+        output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
 
         #smoothness term
         if self.smoothness_mode == 0:
-            vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
+            vel_tensor = pose3d_projected[1:, :, :] - pose3d_projected[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], 3*self.NUM_OF_JOINTS)
         elif self.smoothness_mode == 1:
-            output["smooth"] = mse_loss(self.pose3d[1:,:,:], self.pose3d[:-1,:,:], 3*self.NUM_OF_JOINTS)
+            output["smooth"] = mse_loss(pose3d_projected[1:, :, :], pose3d_projected[:-1, :, :], 3*self.NUM_OF_JOINTS)
         elif self.smoothness_mode == 2:
-            vel_tensor = self.pose3d[:, :, :] - self.pose3d[self.n, :, :]
+            vel_tensor = pose3d_projected[:, :, :] - pose3d_projected[self.n, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], 3*self.NUM_OF_JOINTS)
         elif self.smoothness_mode == 3:
-            vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
+            vel_tensor = pose3d_projected[1:, :, :] - pose3d_projected[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
+        else:
+            output["smooth"] = 0
 
-        #lift term        
-        if self.use_lift_term:
-            pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
+
+        if self.use_bone_term and not self.use_single_joint:
+            #bone length consistency 
+            length_of_bone = torch.sum(torch.pow(pose3d_projected[:, :, self.bone_connections[:,0]] - pose3d_projected[:, :, self.bone_connections[:,1]], 2), dim=1)
+            bonelosses = torch.pow((length_of_bone - self.bone_lengths),2)
+            output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
+
+        #lift term  
+        if not self.use_single_joint and self.use_lift_term:
+            pose_est_directions = calculate_bone_directions(pose3d_projected, self.lift_bone_directions, batch=True)
             output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 
         overall_output = 0
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
+
         return overall_output
-    
+
     def init_pose3d(self, pose3d_np):
         pose3d_ = torch.from_numpy(pose3d_np).float()
         self.pose3d.data[:] = pose3d_.data[:]

@@ -1,7 +1,7 @@
-from helpers import model_settings, choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general
+from helpers import choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
-from determine_positions import objective_calib, objective_future
+from determine_positions import objective_calib, objective_online
 from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
 from random import randint
 from project_bones import take_potential_projection
@@ -23,8 +23,7 @@ def sample_states_spherical(psf, new_radius, new_theta, new_phi):
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
-        _, self.joint_names, self.number_of_joints = model_settings(pose_client.model)
-        self.hip_index = self.joint_names.index('spine1')
+        _, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
         self.minmax = active_parameters["MINMAX"]
         self.hessian_part = active_parameters["HESSIAN_PART"]
         self.uncertainty_calc_method = active_parameters["UNCERTAINTY_CALC_METHOD"]
@@ -59,6 +58,9 @@ class PotentialStatesFetcher(object):
         self.potential_hessians_normal = []
         self.potential_covs_normal = []
 
+        self.P_world = pose_client.P_world
+        self.optimized_traj = pose_client.optimized_traj
+
         self.current_state_ind = 0
         self.goal_state_ind =0
 
@@ -67,7 +69,7 @@ class PotentialStatesFetcher(object):
         if (pose_client.isCalibratingEnergy):
             self.objective = objective_calib
         else:
-            self.objective = objective_future
+            self.objective = objective_online
 
         self.error_list = np.zeros(self.number_of_samples)
 
@@ -369,18 +371,21 @@ class PotentialStatesFetcher(object):
 
         return goal_state
     
-    def find_hessians_for_potential_states(self, pose_client, P_world):
+    def find_hessians_for_potential_states(self, pose_client):
         for potential_state_ind, potential_state in enumerate(self.potential_states_try):
             self.objective.reset_future(pose_client, potential_state)
-            hess2 = self.objective.hessian(P_world)
+            if pose_client.USE_TRAJECTORY_BASIS:
+                hess2 = self.objective.hessian(self.optimized_traj)
+            else:
+                hess2 = self.objective.hessian(self.P_world)
             self.potential_hessians_normal.append(hess2)
 
             inv_hess2 = np.linalg.inv(hess2)
 
             if (self.hessian_part == 0):
-                self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.model))
+                self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.number_of_joints))
             elif (self.hessian_part == 1):
-                self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.model))
+                self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.numbe_of_joints))
             elif (self.hessian_part == 2):
                 self.potential_covs_normal.append(inv_hess2)
             else:
@@ -401,7 +406,13 @@ class PotentialStatesFetcher(object):
                 uncertainty_list.append(np.sum(s)) 
             elif self.uncertainty_calc_method == 2:
                 _, s, _ = np.linalg.svd(cov)
-                uncertainty_list.append(np.multiply(s)) 
+                import matplotlib.pyplot as plt
+                fig =  plt.figure()
+                print("largest three eigenvals", s[0], s[1], s[2])
+                plt.plot(s, marker="^")
+                plt.show()
+                plt.close()
+                uncertainty_list.append(s[0]*s[1]*s[2]) 
             elif self.uncertainty_calc_method == 3:
                 uncertainty_list.append(np.linalg.det(s))
                 #cov_shaped = shape_cov_general(cov, self.model, 0)
@@ -430,13 +441,12 @@ class PotentialStatesFetcher(object):
 
     def plot_everything(self, linecount, plot_loc, photo_loc):
         if not self.is_quiet:
-            plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, self.model, custom_name = "potential_covs_normal_")
-            plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, self.model, custom_name = "potential_hess_normal_")
-            #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.model, plot_loc, airsim_client.linecount)
-            #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.model)
-            #plot_potential_ellipses(pose_client.current_pose, pose_client.future_pose, pose_client.current_pose_GT, potential_states_fetcher, pose_client.model, plot_loc_, airsim_client.linecount)
+            plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, custom_name = "potential_covs_normal_")
+            plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
+            #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.hip_index, plot_loc, airsim_client.linecount)
+            #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.bone_connections)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
 
     def plot_projections(self, linecount, plot_loc):
-        plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.model)
+        plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.joint_names)

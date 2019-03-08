@@ -27,7 +27,13 @@ class PoseEstimationClient(object):
         self.method = param["METHOD"]
         self.model  = param["MODEL"]
         self.ftol = param["FTOL"]
+        self.USE_SINGLE_JOINT = param["USE_SINGLE_JOINT"]
         self.bone_connections, self.joint_names, self.num_of_joints = model_settings(self.model)
+        if self.USE_SINGLE_JOINT:
+            self.num_of_joints = 1
+            self.hip_index = 0
+        else:
+            self.hip_index = self.joint_names.index("spine1") #mpi only
 
         self.ONLINE_WINDOW_SIZE = param["ONLINE_WINDOW_SIZE"]
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
@@ -37,9 +43,13 @@ class PoseEstimationClient(object):
         self.init_pose_with_gt = param["INIT_POSE_WITH_GT"]
         self.noise_2d_std = param["NOISE_2D_STD"]
         self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
-        self.USE_SINGLE_JOINT = param["USE_SINGLE_JOINT"]
         self.SMOOTHNESS_MODE = param["SMOOTHNESS_MODE"]
         self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
+        self.USE_BONE_TERM = param["USE_BONE_TERM"]
+        self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
+        self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
+
+        self.optimized_traj = np.zeros([NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints])
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -76,13 +86,12 @@ class PoseEstimationClient(object):
             self.param_find_M = param["PARAM_FIND_M"]
 
         self.current_pose = np.zeros([3, self.num_of_joints])
-        self.future_pose = np.zeros([3, self.num_of_joints])
 
         self.prev_poseList_3d = []
         self.result_shape = [3, self.num_of_joints]
 
         if self.param_read_M:
-            self.M = read_M(self.model, "M_rel")
+            self.M = read_M(self.num_of_joints, "M_rel")
         else:
             self.M = np.eye(self.num_of_joints)
 
@@ -95,13 +104,18 @@ class PoseEstimationClient(object):
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
-        self.weights_future = param["WEIGHTS"]
 
         self.loss_dict_calib = ["proj"]
         if self.USE_SYMMETRY_TERM:  
             self.loss_dict_calib.append("sym")
-        self.loss_dict_online = ["proj", "smooth", "bone", "lift"]
-        self.loss_dict_future = ["proj", "smooth", "bone", "lift"]
+        self.loss_dict_online = ["proj"]
+        #if not self.USE_TRAJECTORY_BASIS:
+        self.loss_dict_online.append("smooth")
+        if not self.USE_SINGLE_JOINT:
+            if self.USE_BONE_TERM:
+                self.loss_dict_online.append("bone")
+            if self.USE_LIFT_TERM:
+                self.loss_dict_online.append("lift")
 
 #        self.cam_pitch = 0 #move to state
         self.middle_pose_GT_list = []
@@ -112,12 +126,15 @@ class PoseEstimationClient(object):
 
         self.noise_2d = 0
 
+    def model_settings(self):
+        return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
+
     def reset_crop(self, loop_mode):
         self.cropping_tool = Crop(loop_mode=loop_mode)
 
     def reset(self, plot_loc):
         if self.param_find_M:
-            M = find_M(self.online_res_list, self.model)
+            M = find_M(plot_info=self.online_res_list, joint_names=self.joint_names, num_of_joints=self.num_of_joints)
             #plot_matrix(M, plot_loc, 0, "M", "M")
         self.isCalibratingEnergy = True
         return 0   
@@ -168,7 +185,10 @@ class PoseEstimationClient(object):
         if self.isCalibratingEnergy:
             self.result_shape = [3, self.num_of_joints]
         else:
-            self.result_shape = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
+            if self.USE_TRAJECTORY_BASIS:
+                self.result_shape = [NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
+            else:
+                self.result_shape = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
 
     def rewind_step(self):
         self.middle_pose_GT_list.pop(0)

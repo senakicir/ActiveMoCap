@@ -39,14 +39,17 @@ if __name__ == "__main__":
     precalibration_length = 0
     init_pose_with_gt = True
     find_best_traj = True
-    noise_2d_std = 0
+    noise_2d_std = 3
     predefined_traj_len = 1
 
     use_symmetry_term = True
     use_single_joint = False
-    #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected
-    smoothness_mode = 0
-    use_lift_term = True
+    #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected, 4-none
+    smoothness_mode = 4
+    use_bone_term = True
+    use_lift_term = False
+    use_trajectory_basis = True
+    num_of_trajectory_param = 3
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len}
 
@@ -76,7 +79,7 @@ if __name__ == "__main__":
         weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
         weights = normalize_weights(weights_)
 
-        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_LIFT_TERM": use_lift_term}
+        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_LIFT_TERM": use_lift_term, "USE_BONE_TERM": use_bone_term, "USE_TRAJECTORY_BASIS": use_trajectory_basis, "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param}
         
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
         active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]

@@ -2,7 +2,7 @@ import cv2 as cv2
 from math import radians, cos, sin, pi, degrees, acos, sqrt
 import numpy as np
 import torch as torch
-from helpers import range_angle, model_settings, shape_cov, euler_to_rotation_matrix
+from helpers import range_angle, shape_cov, euler_to_rotation_matrix
 import time as time 
 from project_bones import take_potential_projection, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET
 import pdb 
@@ -33,14 +33,15 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 
 class State(object):
-    def __init__(self, model):
-        self.bone_connections, self.joint_names, self.num_of_joints = model_settings(model)
-
-        #shoulder_vector = positions_[R_SHOULDER_IND, :] - positions_[L_SHOULDER_IND, :]
-        #self.human_orientation = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
-        #self.human_rotation_speed = 0
+    def __init__(self, use_single_joint, model_settings):
+        self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = model_settings
         self.human_pos_est = np.array([0,0,0])
         self.human_pos_gt = np.array([0,0,0])
+        self.left_arm_ind = self.joint_names.index('left_arm')
+        self.right_arm_ind = self.joint_names.index('right_arm')
+        if use_single_joint:
+            self.left_arm_ind = 0
+            self.right_arm_ind = 0
 
         self.radius = SAFE_RADIUS#np.linalg.norm(projected_distance_vect[0:2,]) #to do
 
@@ -66,9 +67,10 @@ class State(object):
 
     def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est):
         self.bone_pos_gt =  bone_pos_gt
-        self.human_pos_gt = bone_pos_gt[:, self.joint_names.index('spine1')]
+        self.human_pos_gt = bone_pos_gt[:, self.hip_index]
 
-        shoulder_vector_gt = bone_pos_gt[:, self.joint_names.index('left_arm')] - bone_pos_gt[:, self.joint_names.index('right_arm')] 
+
+        shoulder_vector_gt = bone_pos_gt[:, self.left_arm_ind] - bone_pos_gt[:, self.right_arm_ind] 
         self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
         self.drone_orientation_gt = drone_orientation_gt
         self.drone_pos_gt = drone_pos_gt
@@ -84,9 +86,9 @@ class State(object):
 
     def update_human_info(self, bone_pos_est):
         self.bone_pos_est = bone_pos_est
-        shoulder_vector_gt = bone_pos_est[:, self.joint_names.index('left_arm')] - bone_pos_est[:, self.joint_names.index('right_arm')] 
+        shoulder_vector_gt = bone_pos_est[:, self.left_arm_ind] - bone_pos_est[:, self.right_arm_ind] 
         self.human_orientation_est = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
-        self.human_pos_est = bone_pos_est[:, self.joint_names.index('spine1')]
+        self.human_pos_est = bone_pos_est[:, self.hip_index]
 
     def get_goal_pos_yaw_pitch(self, goal_state):
         goal_pos = goal_state["position"]

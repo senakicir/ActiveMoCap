@@ -23,9 +23,10 @@ def get_client_gt_values(airsim_client, pose_client, X):
     drone_orientation_gt = np.array([X['droneOrient'].x_val, X['droneOrient'].y_val, X['droneOrient'].z_val])
 
     gt_str = "" 
-    bone_pos_gt = np.zeros([3, 21])
     DRONE_INITIAL_POS = airsim_client.DRONE_INITIAL_POS
     bone_ind = 0
+
+    bone_pos_gt = np.zeros([3, 21])
     for ind, bone_i in enumerate(attributes):
         if (bone_i != 'dronePos' and bone_i != 'droneOrient' and bone_i != 'humanPos'):
             bone_pos_gt[:, bone_ind] = np.array([X[bone_i].x_val, X[bone_i].y_val, -X[bone_i].z_val]) - DRONE_INITIAL_POS
@@ -33,12 +34,15 @@ def get_client_gt_values(airsim_client, pose_client, X):
             gt_str = gt_str + str(bone_pos_gt[0, bone_ind]) + '\t' + str(bone_pos_gt[1, bone_ind]) + '\t' +  str(bone_pos_gt[2, bone_ind]) + '\t'
             bone_ind += 1
 
-    if pose_client.model == "mpi":
+    if pose_client.USE_SINGLE_JOINT:
+        temp = bone_pos_gt[:, 0]
+        bone_pos_gt = temp[:, np.newaxis]
+    elif pose_client.model == "mpi":
         bone_pos_gt = rearrange_bones_to_mpi(bone_pos_gt)
 
     drone_pos_gt = np.array([X['dronePos'].x_val, X['dronePos'].y_val, -X['dronePos'].z_val])
     drone_pos_gt  = (drone_pos_gt - airsim_client.DRONE_INITIAL_POS)/100
-    drone_pos_gt = drone_pos_gt[:, np.newaxis]
+    drone_pos_gt = drone_pos_gt[:, np.newaxis]        
 
     return bone_pos_gt, drone_orientation_gt, drone_pos_gt, gt_str
 
@@ -118,7 +122,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     airsim_client.simPause(True)
 
     pose_client = PoseEstimationClient(energy_parameters,  Crop(loop_mode = loop_mode))
-    current_state = State(pose_client.model)
+    current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, model_settings=pose_client.model_settings())
     potential_states_fetcher = PotentialStatesFetcher(pose_client, active_parameters)
     
     file_manager.save_initial_drone_pos(airsim_client)
@@ -187,7 +191,7 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
         else:
             if (trajectory == 0):
                 potential_states_fetcher.get_potential_positions_really_spherical_future()
-                potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
+                potential_states_fetcher.find_hessians_for_potential_states(pose_client)
                 goal_state, _ = potential_states_fetcher.find_best_potential_state()
                 potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, photo_loc)
             if (trajectory == 1):
@@ -390,7 +394,7 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
             best_index = np.argmin(potential_states_fetcher.error_list)
             print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
 
-        potential_states_fetcher.find_hessians_for_potential_states(pose_client, pose_client.P_world)
+        potential_states_fetcher.find_hessians_for_potential_states(pose_client)
         if exp_ind < predefined_traj_len:
             goal_state = potential_states_fetcher.potential_states_try[exp_ind]
             potential_states_fetcher.goal_state_ind = exp_ind

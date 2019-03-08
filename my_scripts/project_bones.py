@@ -5,7 +5,6 @@ from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMER
 import pdb
 
 neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
-ones_tensor = (torch.ones([1, 15])*1.0)
 DEFAULT_TORSO_SIZE = 0.125
 
 C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]])
@@ -57,6 +56,7 @@ def take_bone_backprojection_pytorch(bone_pred, R_drone, C_drone, R_cam, joint_n
     return P_world
 
 def world_to_camera(R_drone, C_drone, P_world, R_cam):
+    ones_tensor = torch.ones([1, P_world.shape[1]])*1.0
     P_drone = torch.mm(torch.inverse(torch.cat((torch.cat((R_drone, C_drone), 1), neat_tensor), 0) ), torch.cat((P_world, ones_tensor), 0) )
     P_camera = torch.mm(torch.inverse(torch.cat((torch.cat((R_cam, C_cam_torch), 1), neat_tensor), 0) ), P_drone)
     P_camera = P_camera[0:3,:]
@@ -65,9 +65,7 @@ def world_to_camera(R_drone, C_drone, P_world, R_cam):
     return P_camera    
 
 def camera_to_world(R_drone, C_drone, R_cam, P_camera):
-    num_of_joints = P_camera.data.shape[1]
-
-    ones_tensor = torch.ones([1, num_of_joints])*1.0
+    ones_tensor = torch.ones([1, P_camera.shape[1]])*1.0
     P_camera = torch.mm(FLIP_X_Y_inv_torch, P_camera)
     P_camera = torch.cat((P_camera, ones_tensor),0)
     P_drone = torch.mm(torch.cat((R_cam, C_cam_torch),1), P_camera)
