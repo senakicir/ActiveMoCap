@@ -168,9 +168,38 @@ def project_trajectory(trajectory, window_size, number_of_traj_param):
     pose3d = torch.zeros(window_size+1, trajectory.shape[1], trajectory.shape[2])
     phase = (torch.arange(number_of_traj_param-1)%2).float() #change
     freq = (torch.arange(number_of_traj_param-1)//2+1).float()
+
+    #form trajectory basis vectors
+    cos_term = torch.zeros(window_size+1, number_of_traj_param-1)
     for t in range(window_size+1):
-        cos_term = torch.cos(freq*2*np.pi*t/window_size + phase*np.pi/2).unsqueeze(1).unsqueeze(2).repeat(1, trajectory.shape[1], trajectory.shape[2])
-        pose3d[t, :, :] = trajectory[0,:,:] + torch.sum(trajectory[1:,:,:]*cos_term, dim=0)
+        cos_term[t, :] = torch.cos(freq*2*np.pi*t/window_size + phase*np.pi/2) 
+'''
+    #plot for debugging 
+    import matplotlib.pyplot as plt
+    fig =  plt.figure()
+    for param in range(number_of_traj_param-1):
+        plt.plot(cos_term[:, param].numpy(), marker="^")
+    plt.show()
+    plt.close(fig)
+'''
+    #orthonormalization using GS method.
+    for param in range(number_of_traj_param-1):
+        if param == 0:
+            u_t = cos_term[:, param].clone()
+        else:
+            v_t = cos_term[:, param].clone()
+            u_t = v_t - (torch.dot(v_t, u_t)/torch.dot(u_t, u_t))*u_t
+        cos_term[:,param] = (u_t/torch.norm(u_t))
+   
+    '''fig = plt.figure()
+    for param in range(number_of_traj_param-1):
+        plt.plot(cos_term[:, param].numpy(), marker="^")
+    plt.show()
+    plt.close(fig)
+'''
+    for t in range(window_size+1):
+        pose3d[t, :, :] = trajectory[0,:,:] + torch.sum(trajectory[1:,:,:]*cos_term[t, :].unsqueeze(1).unsqueeze(2).repeat(1, trajectory.shape[1], trajectory.shape[2]), dim=0)
+
     return pose3d
 
 class pose3d_online_parallel_traj(torch.nn.Module):
@@ -236,9 +265,8 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         elif self.smoothness_mode == 3:
             vel_tensor = pose3d_projected[1:, :, :] - pose3d_projected[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
-        else:
+        elif self.smoothness_mode == 4:
             output["smooth"] = 0
-
 
         if self.use_bone_term and not self.use_single_joint:
             #bone length consistency 
@@ -247,7 +275,7 @@ class pose3d_online_parallel_traj(torch.nn.Module):
             output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
         #lift term  
-        if not self.use_single_joint and self.use_lift_term:
+        if self.use_lift_term and not self.use_single_joint:
             pose_est_directions = calculate_bone_directions(pose3d_projected, self.lift_bone_directions, batch=True)
             output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 

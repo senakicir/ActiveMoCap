@@ -410,7 +410,7 @@ class PotentialStatesFetcher(object):
                 fig =  plt.figure()
                 print("largest three eigenvals", s[0], s[1], s[2])
                 plt.plot(s, marker="^")
-                plt.show()
+                #plt.show()
                 plt.close()
                 uncertainty_list.append(s[0]*s[1]*s[2]) 
             elif self.uncertainty_calc_method == 3:

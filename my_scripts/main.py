@@ -39,17 +39,17 @@ if __name__ == "__main__":
     precalibration_length = 0
     init_pose_with_gt = True
     find_best_traj = True
-    noise_2d_std = 3
-    predefined_traj_len = 1
+    noise_2d_std = 5
+    predefined_traj_len = 0
 
-    use_symmetry_term = True
+    use_symmetry_term = False
     use_single_joint = False
     #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected, 4-none
     smoothness_mode = 4
     use_bone_term = True
     use_lift_term = False
     use_trajectory_basis = True
-    num_of_trajectory_param = 3
+    num_of_trajectory_param = 5
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len}
 

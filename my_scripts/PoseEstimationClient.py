@@ -49,7 +49,7 @@ class PoseEstimationClient(object):
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
 
-        self.optimized_traj = np.zeros([NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints])
+        self.optimized_traj = np.zeros([self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints])
 
         self.numpy_random = np.random.RandomState(param["SEED"])
         torch.manual_seed(param["SEED"])
@@ -186,7 +186,7 @@ class PoseEstimationClient(object):
             self.result_shape = [3, self.num_of_joints]
         else:
             if self.USE_TRAJECTORY_BASIS:
-                self.result_shape = [NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
+                self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
             else:
                 self.result_shape = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
 
