@@ -267,20 +267,17 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, current_st
     bone_connections, joint_names, _, hip_index = pose_client.model_settings()
 
     bone_2d, _, _, _ = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=False, is_torch=True, input_image=cropped_image, scales=scales)
-
-    R_drone = euler_to_rotation_matrix(drone_orientation_gt[0], drone_orientation_gt[1], drone_orientation_gt[2])
-    C_drone = drone_pos_gt
     
-    P_world = take_bone_backprojection(bone_2d, R_drone, C_drone, hip_index)
+    P_world = take_bone_backprojection(bone_2d, R_drone_gt, C_drone_gt, hip_index)
     error_3d = np.linalg.norm(bone_pos_3d_GT - P_world)
     pose_client.error_3d.append(error_3d)
 
     if (plot_loc != 0):
-        check, _, _ = take_bone_projection(P_world, R_drone, C_drone)
+        check, _, _ = take_bone_projection(P_world, R_drone_gt, C_drone_gt)
         superimpose_on_image([check], plot_loc, airsim_client.linecount, bone_connections, photo_loc)
         plot_human(bone_pos_3d_GT, P_world, plot_loc, airsim_client.linecount, bone_connections, error_3d)
 
-    plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone, "eval_time": 0, "f_string": ""}
+    plot_end = {"est": P_world, "GT": bone_pos_3d_GT, "drone": C_drone_gt, "eval_time": 0, "f_string": ""}
     pose_client.append_res(plot_end)
 
 

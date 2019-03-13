@@ -24,6 +24,8 @@ def calculate_bone_directions(bones, lift_bone_directions, batch):
 
 class PoseEstimationClient(object):
     def __init__(self, param, cropping_tool):
+        self.future_proj_mode = False
+
         self.modes = param["MODES"]
         self.method = param["METHOD"]
         self.model  = param["MODEL"]

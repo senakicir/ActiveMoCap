@@ -11,7 +11,7 @@ from PoseEstimationClient import *
 class PoseEstimationClient_Simulation(PoseEstimationClient):
     def __init__(self, param, cropping_tool, pose_client_general):
         PoseEstimationClient.__init__(self, param, cropping_tool)
-
+        self.future_proj_mode = True
         self.update_initial_param(pose_client_general)
         self.rewind_step()        
     
