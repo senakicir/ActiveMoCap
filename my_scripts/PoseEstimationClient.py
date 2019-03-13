@@ -201,6 +201,7 @@ class PoseEstimationClient(object):
             self.requiredEstimationData.append(self.thrownAway_requiredEstimationData)
 
         self.P_world = self.prev_P_world.copy()
+        self.P_world_gt = self.prev_P_world_gt.copy()
 
         error = self.error_3d.pop()
         self.error_2d.pop()
@@ -227,22 +228,27 @@ class PoseEstimationClient(object):
                 self.thrownAway_requiredEstimationData = self.requiredEstimationData.pop()
                 self.thrownAway_liftPoseList = self.liftPoseList.pop()
                 self.threw_Away = True
-        
 
-    def update3dPos(self, P_world):
+    def init3dPos_gt(self, bone_pos_gt):
+        self.P_world_gt = np.repeat(bone_pos_gt[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
+
+    def update3dPos(self, P_world, bone_pos_gt):
         self.prev_P_world = self.P_world.copy()
+        self.prev_p_world_gt = self.P_world_gt.copy()
 
         if (self.isCalibratingEnergy):
             self.current_pose = P_world.copy()
             self.middle_pose = P_world.copy()
             self.future_pose = P_world.copy()
             self.P_world = np.repeat(P_world[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
+            self.P_world_gt = np.repeat(bone_pos_gt[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
+
         else:
             self.current_pose =  P_world[CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.middle_pose = P_world[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
             self.future_pose =  P_world[FUTURE_POSE_INDEX, :,:].copy() #future pose
             self.P_world = P_world.copy()
-
+            self.P_world_gt = P_world_gt.copy()
         
     def update_middle_pose_GT(self, middle_pose):
         self.middle_pose_GT_list.insert(0, middle_pose)

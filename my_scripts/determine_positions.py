@@ -26,7 +26,7 @@ def adjust_with_M(M, pose, hip_index):
 def determine_all_positions(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
     if (pose_client.modes["mode_3d"] == 0):
         determine_3d_positions_all_GT(airsim_client, pose_client, current_state, plot_loc, photo_loc)
-    elif (pose_client.modes["mode_3d"] == 1):
+    elif (pose_client.modes["mode_3d"] == 1): 
         determine_3d_positions_backprojection(airsim_client, pose_client, current_state, plot_loc, photo_loc)
     elif (pose_client.modes["mode_3d"] == 3):
         determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc, photo_loc)
@@ -114,7 +114,7 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
         for _ in range(pose_client.ONLINE_WINDOW_SIZE):
             pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
         P_world = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE+1, axis=0)
-    pose_client.update3dPos(P_world)
+    pose_client.update3dPos(P_world, P_world.copy())
     if not pose_client.USE_SINGLE_JOINT:
         pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
     pose_client.future_pose = current_state.bone_pos_gt
@@ -217,11 +217,11 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         if (pose_client.isCalibratingEnergy):
             pose_client.update_bone_lengths(torch.from_numpy(P_world).float())
 
-        pose_client.update3dPos(P_world)
+        pose_client.update3dPos(P_world, bone_pos_3d_GT)
 
     #if the frame is the first frame, the pose is found through backprojection
     else:
-        pose_client.update3dPos(pre_pose_3d)
+        pose_client.update3dPos(pre_pose_3d, bone_pos_3d_GT)
         loss_dict = pose_client.loss_dict_calib
         func_eval_time = 0
         noisy_init_pose = pre_pose_3d
