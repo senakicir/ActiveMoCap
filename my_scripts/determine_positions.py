@@ -113,7 +113,7 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
     else:
         for _ in range(pose_client.ONLINE_WINDOW_SIZE):
             pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
-        P_world = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE+1, axis=0)
+        P_world = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
     pose_client.update3dPos(P_world, P_world.copy())
     if not pose_client.USE_SINGLE_JOINT:
         pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
@@ -163,68 +163,58 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
 
     #add current pose as initial pose. if first frame, take backprojection for initialization
-    if (airsim_client.linecount != 0):
-        pre_pose_3d = pose_client.P_world[FUTURE_POSE_INDEX, :, :].copy()
-    else:
-        if pose_client.init_pose_with_gt:
-            pre_pose_3d = bone_pos_3d_GT.copy()
-        else:
-            pre_pose_3d = take_bone_backprojection_pytorch(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, joint_names).numpy()
+    pose_client.set_initial_pose(airsim_client.linecount, bone_pos_3d_GT, bone_2d, R_drone_gt, C_drone_gt, R_cam_gt)
 
     #add information you need to your window
     pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
 
     final_loss = np.zeros([1,1])
-    result_shape = pose_client.result_shape
+    result_shape, result_size, loss_dict = pose_client.result_shape, pose_client.result_size, pose_client.loss_dict
+    pose3d_init_scrambled = pose_client.pose_3d_preoptimization.copy()
 
-    if (airsim_client.linecount > 0):
-        #calibration mode parameters
-        if (pose_client.isCalibratingEnergy): 
-            loss_dict = pose_client.loss_dict_calib
-            pose3d_init_scrambled = pre_pose_3d
-            #noise = pose_client.numpy_random.normal(0, 0.5, pose3d_init_scrambled.shape)
-            noisy_init_pose = pose3d_init_scrambled# + noise
-            result_size = result_shape[0]*result_shape[1]
-            pose3d_init = np.reshape(a = noisy_init_pose, newshape = [result_size,], order = "C")
-            objective = objective_calib
-            objective_jacobian =  objective_calib.jacobian
+   # if (airsim_client.linecount > 0):
+    #calibration mode parameters
+    if (pose_client.isCalibratingEnergy): 
+        #noise = pose_client.numpy_random.normal(0, 0.5, pose3d_init_scrambled.shape)
+        noisy_init_pose = pose3d_init_scrambled# + noise
+        pose3d_init = np.reshape(a = noisy_init_pose, newshape = [result_size,], order = "C")
+        objective = objective_calib
+        objective_jacobian =  objective_calib.jacobian
 
-        #online mode parameters
-        else:
-            loss_dict = pose_client.loss_dict_online
-            result_size = result_shape[0]*result_shape[1]*result_shape[2]
-            if pose_client.USE_TRAJECTORY_BASIS:
-                pose3d_init = pose_client.optimized_traj.copy()
-                pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size], order = "C")
-            else:
-                pose3d_init = pose_client.P_world.copy()
-                pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size,], order = "C")
-            objective = objective_online
-            objective_jacobian = objective_online.jacobian
-
-        objective.reset(pose_client)
-        start_time = time.time()
-        optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
-        func_eval_time = time.time() - start_time
-        print("least squares eval time", func_eval_time)
+    #online mode parameters
+    else:
         if pose_client.USE_TRAJECTORY_BASIS:
-            optimized_traj = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
-            P_world = project_trajectory(torch.from_numpy(optimized_traj).float(), pose_client.ONLINE_WINDOW_SIZE, pose_client.NUMBER_OF_TRAJ_PARAM).numpy()
-            pose_client.optimized_traj = optimized_traj
+            pose3d_init = pose_client.optimized_traj.copy()
+            pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size], order = "C")
         else:
-            P_world = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
+            pose3d_init = pose_client.P_world.copy()
+            pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size,], order = "C")
+        objective = objective_online
+        objective_jacobian = objective_online.jacobian
 
-        if (pose_client.isCalibratingEnergy):
-            pose_client.update_bone_lengths(torch.from_numpy(P_world).float())
+    objective.reset(pose_client)
+    start_time = time.time()
+    optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
+    func_eval_time = time.time() - start_time
+    print("least squares eval time", func_eval_time)
+    if pose_client.USE_TRAJECTORY_BASIS:
+        optimized_traj = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
+        P_world = project_trajectory(torch.from_numpy(optimized_traj).float(), pose_client.ONLINE_WINDOW_SIZE, pose_client.NUMBER_OF_TRAJ_PARAM).numpy()
+        pose_client.optimized_traj = optimized_traj
+    else:
+        P_world = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
 
-        pose_client.update3dPos(P_world, bone_pos_3d_GT)
+    if (pose_client.isCalibratingEnergy):
+        pose_client.update_bone_lengths(torch.from_numpy(P_world).float())
+
+    pose_client.update3dPos(P_world, bone_pos_3d_GT)
 
     #if the frame is the first frame, the pose is found through backprojection
-    else:
-        pose_client.update3dPos(pre_pose_3d, bone_pos_3d_GT)
-        loss_dict = pose_client.loss_dict_calib
-        func_eval_time = 0
-        noisy_init_pose = pre_pose_3d
+    #lse:
+     #   pose_client.update3dPos(pre_pose_3d, bone_pos_3d_GT)
+     #   loss_dict = pose_client.loss_dict_calib
+     #   func_eval_time = 0
+     #   noisy_init_pose = pre_pose_3d
 
     pose_client.error_2d.append(final_loss[0])
 

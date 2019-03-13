@@ -110,7 +110,6 @@ class Projection_Client(object):
         self.flip_x_y_tensor = (torch.cat((FLIP_X_Y_torch, torch.zeros(3,1)), dim=1)).repeat(self.window_size , 1, 1)
         self.camera_intrinsics = K_torch.repeat(self.window_size , 1,1)
 
-
     def reset_future(self, data_list, num_of_joints, R_cam_pot, R_drone_pot, C_drone_pot, potential_projected_est):
         self.num_of_joints = num_of_joints
         self.window_size = len(data_list)+1

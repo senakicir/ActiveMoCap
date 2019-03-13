@@ -85,7 +85,6 @@ class PoseEstimationClient(object):
 
         self.current_pose = np.zeros([3, self.num_of_joints])
 
-        self.prev_poseList_3d = []
         self.result_shape = [3, self.num_of_joints]
 
         if self.param_read_M:
@@ -188,19 +187,23 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
         self.result_size = np.array(self.result_shape).size
 
-    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, linecount, pose3d_lift = None):
+    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift = None):
         self.liftPoseList.insert(0, pose3d_lift)
         self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        self.pose_list_3d_gt.insert(0, pose_3d_gt)
+
         if self.isCalibratingEnergy:
             if linecount >= self.PRECALIBRATION_LENGTH:
-                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE:
+                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
                     self.requiredEstimationData.pop()
                     self.liftPoseList.pop()
-                    
+                    self.pose_list_3d_gt.pop()
+
         else:
             if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1):
                 self.requiredEstimationData.pop()
                 self.liftPoseList.pop()
+                self.pose_list_3d_gt.pop()
                 
     def update3dPos(self, optimized_poses):
         if (self.isCalibratingEnergy):
