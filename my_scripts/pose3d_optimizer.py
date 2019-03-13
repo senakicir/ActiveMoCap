@@ -92,7 +92,7 @@ class pose3d_online_parallel(torch.nn.Module):
 
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape), requires_grad=True)
 
-        self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size+1,1)
+        self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
         self.loss_dict = pose_client.loss_dict_online
         
         self.energy_weights = pose_client.weights_online
@@ -110,9 +110,9 @@ class pose3d_online_parallel(torch.nn.Module):
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
 
-        self.n = list(range(1, self.window_size+1))
+        self.n = list(range(1, self.window_size))
         self.n.append(0)
-        self.m = list(range(1, self.window_size))
+        self.m = list(range(1, self.window_size-1))
         self.m.append(0)
 
     def forward(self):
@@ -165,14 +165,14 @@ class pose3d_online_parallel(torch.nn.Module):
 ###################################################
 
 def project_trajectory(trajectory, window_size, number_of_traj_param):
-    pose3d = torch.zeros(window_size+1, trajectory.shape[1], trajectory.shape[2])
+    pose3d = torch.zeros(window_size, trajectory.shape[1], trajectory.shape[2])
     phase = (torch.arange(number_of_traj_param-1)%2).float() #change
     freq = (torch.arange(number_of_traj_param-1)//2+1).float()
 
     #form trajectory basis vectors
-    cos_term = torch.zeros(window_size+1, number_of_traj_param-1)
-    for t in range(window_size+1):
-        cos_term[t, :] = torch.cos(freq*2*np.pi*t/window_size + phase*np.pi/2) 
+    cos_term = torch.zeros(window_size, number_of_traj_param-1)
+    for t in range(window_size):
+        cos_term[t, :] = torch.cos(freq*2*np.pi*t/(window_size-1) + phase*np.pi/2) 
 '''
     #plot for debugging 
     import matplotlib.pyplot as plt
@@ -197,7 +197,7 @@ def project_trajectory(trajectory, window_size, number_of_traj_param):
     plt.show()
     plt.close(fig)
 '''
-    for t in range(window_size+1):
+    for t in range(window_size):
         pose3d[t, :, :] = trajectory[0,:,:] + torch.sum(trajectory[1:,:,:]*cos_term[t, :].unsqueeze(1).unsqueeze(2).repeat(1, trajectory.shape[1], trajectory.shape[2]), dim=0)
 
     return pose3d
@@ -218,7 +218,7 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS), requires_grad=True)
         self.result_shape = pose_client.result_shape
 
-        self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size+1,1)
+        self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
         self.loss_dict = pose_client.loss_dict_online
         
         self.energy_weights = pose_client.weights_online
@@ -236,7 +236,7 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
 
-        self.n = list(range(1, self.window_size+1))
+        self.n = list(range(1, self.window_size))
         self.n.append(0)
         self.m = list(range(1, self.window_size))
         self.m.append(0)

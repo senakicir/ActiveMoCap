@@ -1,6 +1,7 @@
 from helpers import * 
 from NonAirSimClient import *
 from PoseEstimationClient import *
+from PoseEstimationClient_Simulation import * 
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
@@ -141,7 +142,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     elif loop_mode == 1:
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == 2:
-        dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters["FIND_BEST_TRAJ"], parameters["PREDEFINED_TRAJ_LEN"])
+        pose_client_sim = PoseEstimationClient_Simulation(energy_parameters,  Crop(loop_mode = loop_mode), pose_client)
+        dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager, parameters["FIND_BEST_TRAJ"], parameters["PREDEFINED_TRAJ_LEN"])
 ################
 
     #calculate errors
@@ -339,8 +341,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
 
-def dome_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, find_best_traj=True, predefined_traj_len=1):
-
+def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager, find_best_traj=True, predefined_traj_len=1):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
     mode_2d = pose_client.modes["mode_2d"]
@@ -380,17 +381,19 @@ def dome_loop(current_state, pose_client, airsim_client, potential_states_fetche
 
         if find_best_traj: #/and exp_ind >= predefined_traj_len:
             for state_ind in range(len(potential_states_try)):
+                pose_client_sim.update_initial_param()
                 goal_state = potential_states_try[state_ind]
 
                 sim_pos = goal_state['position']
                 airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
                 current_state.cam_pitch = goal_state['pitch']
-                take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+                take_photo(airsim_client, pose_client_sim, current_state, file_manager.take_photo_loc)
                 photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-                pose_client.modes["mode_2d"]=0
-                determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-                potential_states_fetcher.error_list[state_ind] = pose_client.rewind_step()
+                determine_all_positions(airsim_client, pose_client_sim, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+                potential_states_fetcher.error_list[state_ind] = pose_client_sim.get_error()
+                pose_client_sim.rewind_step()
+
             best_index = np.argmin(potential_states_fetcher.error_list)
             print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
 

@@ -5,6 +5,7 @@ import numpy as np
 from crop import Crop
 from square_bounding_box import *
 from kalman_filters import *
+from project_bones import take_bone_backprojection_pytorch
 
 def calculate_bone_lengths(bones, bone_connections, batch):
     if batch:
@@ -62,11 +63,8 @@ class PoseEstimationClient(object):
         self.openpose_arm_error = 0
         self.openpose_leg_error = 0
 
-        self.P_world = np.zeros([self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints])
+        self.optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.liftPoseList = []
-        self.thrownAway_liftPoseList = None
-        self.thrownAway_requiredEstimationData = None
-        self.threw_Away = True
         
         self.boneLengths = torch.zeros([self.num_of_joints-1,1])
 
@@ -108,16 +106,13 @@ class PoseEstimationClient(object):
         self.loss_dict_calib = ["proj"]
         if self.USE_SYMMETRY_TERM:  
             self.loss_dict_calib.append("sym")
-        self.loss_dict_online = ["proj"]
-        #if not self.USE_TRAJECTORY_BASIS:
-        self.loss_dict_online.append("smooth")
+        self.loss_dict_online = ["proj", "smooth"]
         if not self.USE_SINGLE_JOINT:
             if self.USE_BONE_TERM:
                 self.loss_dict_online.append("bone")
             if self.USE_LIFT_TERM:
                 self.loss_dict_online.append("lift")
 
-#        self.cam_pitch = 0 #move to state
         self.middle_pose_GT_list = []
 
         self.f_string = ""
@@ -184,74 +179,57 @@ class PoseEstimationClient(object):
         self.isCalibratingEnergy = calibMode
         if self.isCalibratingEnergy:
             self.result_shape = [3, self.num_of_joints]
+            self.loss_dict = self.loss_dict_calib
         else:
+            self.loss_dict = self.loss_dict_online
             if self.USE_TRAJECTORY_BASIS:
                 self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
             else:
-                self.result_shape = [self.ONLINE_WINDOW_SIZE+1, 3, self.num_of_joints]
-
-    def rewind_step(self):
-        self.middle_pose_GT_list.pop(0)
-        middle_pose_error = self.middle_pose_error.pop()
-
-        self.requiredEstimationData.pop(0)
-        self.liftPoseList.pop(0)
-        if self.threw_Away:
-            self.liftPoseList.append(self.thrownAway_liftPoseList)
-            self.requiredEstimationData.append(self.thrownAway_requiredEstimationData)
-
-        self.P_world = self.prev_P_world.copy()
-        self.P_world_gt = self.prev_P_world_gt.copy()
-
-        error = self.error_3d.pop()
-        self.error_2d.pop()
-
-        if self.isCalibratingEnergy:
-            self.calib_res_list.pop()
-        else:
-            self.online_res_list.pop()
-        return error 
+                self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
+        self.result_size = np.array(self.result_shape).size
 
     def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, linecount, pose3d_lift = None):
-        self.threw_Away = False
         self.liftPoseList.insert(0, pose3d_lift)
         self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
         if self.isCalibratingEnergy:
             if linecount >= self.PRECALIBRATION_LENGTH:
                 while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE:
-                    self.thrownAway_requiredEstimationData = self.requiredEstimationData.pop()
-                    self.thrownAway_liftPoseList = self.liftPoseList.pop()
-                    self.threw_Away = True
-
+                    self.requiredEstimationData.pop()
+                    self.liftPoseList.pop()
+                    
         else:
-            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE):
-                self.thrownAway_requiredEstimationData = self.requiredEstimationData.pop()
-                self.thrownAway_liftPoseList = self.liftPoseList.pop()
-                self.threw_Away = True
-
-    def init3dPos_gt(self, bone_pos_gt):
-        self.P_world_gt = np.repeat(bone_pos_gt[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
-
-    def update3dPos(self, P_world, bone_pos_gt):
-        self.prev_P_world = self.P_world.copy()
-        self.prev_p_world_gt = self.P_world_gt.copy()
-
+            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1):
+                self.requiredEstimationData.pop()
+                self.liftPoseList.pop()
+                
+    def update3dPos(self, optimized_poses):
         if (self.isCalibratingEnergy):
-            self.current_pose = P_world.copy()
-            self.middle_pose = P_world.copy()
-            self.future_pose = P_world.copy()
-            self.P_world = np.repeat(P_world[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
-            self.P_world_gt = np.repeat(bone_pos_gt[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE+1, axis=0).copy()
-
+            self.current_pose = optimized_poses.copy()
+            self.middle_pose = optimized_poses.copy()
+            self.future_pose = optimized_poses.copy()
+            self.optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE, axis=0).copy()
         else:
-            self.current_pose =  P_world[CURRENT_POSE_INDEX, :,:].copy() #current pose
-            self.middle_pose = P_world[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
-            self.future_pose =  P_world[FUTURE_POSE_INDEX, :,:].copy() #future pose
-            self.P_world = P_world.copy()
-            self.P_world_gt = P_world_gt.copy()
+            self.current_pose =  optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
+            self.middle_pose = optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.future_pose =  optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
+            self.optimized_poses = optimized_poses.copy()
         
     def update_middle_pose_GT(self, middle_pose):
         self.middle_pose_GT_list.insert(0, middle_pose)
         if (len(self.middle_pose_GT_list) > MIDDLE_POSE_INDEX):
             self.middle_pose_GT_list.pop()
         return self.middle_pose_GT_list[-1]
+
+    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, R_drone_gt, C_drone_gt, R_cam_gt):
+        if (linecount != 0):
+            current_frame_init = self.future_pose.copy()
+        else:
+            if self.init_pose_with_gt:
+                current_frame_init = pose_3d_gt.copy()
+            else:
+                current_frame_init = take_bone_backprojection_pytorch(pose_2d, R_drone_gt, C_drone_gt, R_cam_gt, self.joint_names).numpy()
+        
+        if self.isCalibratingEnergy:
+            self.pose_3d_preoptimization = current_frame_init.copy()
+        else:
+            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
