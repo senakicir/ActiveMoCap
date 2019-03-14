@@ -1166,8 +1166,81 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_co
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False) 
 
+
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
+
+def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
+    hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
+    current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
+    
+    fig = plt.figure(figsize=(8,8))
+    ax_uncertainty = fig.add_subplot(221, projection='3d')
+    ax_error_overall = fig.add_subplot(222,  projection='3d') 
+    ax_error_current = fig.add_subplot(224,  projection='3d') 
+
+    potential_states = potential_states_fetcher.potential_states_go
+    uncertainty_list = potential_states_fetcher.uncertainty_list
+    overall_error_list = potential_states_fetcher.overall_error_list
+    current_error_list = potential_states_fetcher.current_error_list
+    cmap = cm.cool
+    norm_error_overall = colors.Normalize(vmin=(np.min(overall_error_list)), vmax=(np.max(overall_error_list)))
+    norm_error_current = colors.Normalize(vmin=(np.min(current_error_list)), vmax=(np.max(current_error_list)))
+    norm_uncertainty = colors.Normalize(vmin=(np.min(uncertainty_list)), vmax=(np.max(uncertainty_list)))
+
+    #for ax limits
+    X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
+    Y = np.array([current_human_pos[1], future_human_pos[1], gt_human_pos[1]])
+    Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
+
+    #plot ellipses
+    for state_ind, potential_state in enumerate(potential_states):
+        state_pos =  potential_state["position"]
+        center = np.copy(state_pos)
+        center[2] = -center[2]
+
+        X = np.concatenate([X, np.array([center[0]])])
+        Y = np.concatenate([Y, np.array([center[1]])])
+        Z = np.concatenate([Z, np.array([center[2]])])
+
+        markersize=30
+        text_color="b"
+        if (state_ind == potential_states_fetcher.goal_state_ind):
+            markersize=100
+            text_color="r"
+        plot5=ax_error_overall.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[overall_error_list[state_ind]], cmap=cmap, norm=norm_error_overall, s=markersize, alpha=1)
+        plot6=ax_error_current.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[current_error_list[state_ind]], cmap=cmap, norm=norm_error_current, s=markersize, alpha=1)
+        plot7=ax_uncertainty.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[uncertainty_list[state_ind]], cmap=cmap, norm=norm_uncertainty, s=markersize, alpha=1)
+
+    plt.colorbar(plot5, ax=ax_error_overall)#, shrink = 0.8)
+    plt.colorbar(plot6, ax=ax_error_current)#, shrink = 0.8)
+    plt.colorbar(plot7, ax=ax_uncertainty)#, shrink = 0.8)
+    
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+
+    titles = ["Error Overall", "Error Current","Uncertainty"]
+    for ind, ax in enumerate([ax_error_overall, ax_error_current, ax_uncertainty]):
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_title(titles[ind])
+        plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
+        plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
+        #ax.legend(handles=[plot1, plot2])
+
+    file_name = plot_loc + "/potential_errors_" + str(linecount) + ".png"
+    plt.savefig(file_name)
+    plt.close(fig)
+
 
 def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints

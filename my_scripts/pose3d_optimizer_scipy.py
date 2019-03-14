@@ -154,9 +154,9 @@ class pose3d_online_parallel_wrapper():
         projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
 
         if pose_client.USE_TRAJECTORY_BASIS:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, future_proj=pose_client.future_proj_mode)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, future_proj=True)
         else:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, future_proj=pose_client.future_proj_mode)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, future_proj=True)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape

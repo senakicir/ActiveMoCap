@@ -42,13 +42,13 @@ if __name__ == "__main__":
     noise_2d_std = 5
     predefined_traj_len = 0
 
-    use_symmetry_term = False
+    use_symmetry_term = True
     use_single_joint = False
     #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected, 4-none
-    smoothness_mode = 4
+    smoothness_mode = 0
     use_bone_term = True
     use_lift_term = False
-    use_trajectory_basis = True
+    use_trajectory_basis = False
     num_of_trajectory_param = 5
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len}

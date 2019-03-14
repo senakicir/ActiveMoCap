@@ -12,6 +12,7 @@ from scipy.optimize import least_squares
 import pdb
 import util as demo_util
 from PoseEstimationClient import *
+from PoseEstimationClient_Simulation import *
 
 #import openpose as openpose_module
 #import liftnet as liftnet_module
@@ -108,13 +109,13 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
 
     #add information you need to your window
     if pose_client.isCalibratingEnergy:
-        pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
-        P_world = bone_pos_3d_GT
+        pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+        optimized_poses_gt = bone_pos_3d_GT
     else:
         for _ in range(pose_client.ONLINE_WINDOW_SIZE):
-            pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
-        P_world = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
-    pose_client.update3dPos(P_world, P_world.copy())
+            pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+        optimized_poses_gt = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
+    pose_client.update3dPos(optimized_poses_gt)
     if not pose_client.USE_SINGLE_JOINT:
         pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
     pose_client.future_pose = current_state.bone_pos_gt
@@ -166,7 +167,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     pose_client.set_initial_pose(airsim_client.linecount, bone_pos_3d_GT, bone_2d, R_drone_gt, C_drone_gt, R_cam_gt)
 
     #add information you need to your window
-    pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, pose3d_lift_directions)
+    pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
 
     final_loss = np.zeros([1,1])
     result_shape, result_size, loss_dict = pose_client.result_shape, pose_client.result_size, pose_client.loss_dict
@@ -187,7 +188,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
             pose3d_init = pose_client.optimized_traj.copy()
             pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size], order = "C")
         else:
-            pose3d_init = pose_client.P_world.copy()
+            pose3d_init = pose_client.optimized_poses.copy()
             pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size,], order = "C")
         objective = objective_online
         objective_jacobian = objective_online.jacobian
@@ -199,19 +200,19 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     print("least squares eval time", func_eval_time)
     if pose_client.USE_TRAJECTORY_BASIS:
         optimized_traj = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
-        P_world = project_trajectory(torch.from_numpy(optimized_traj).float(), pose_client.ONLINE_WINDOW_SIZE, pose_client.NUMBER_OF_TRAJ_PARAM).numpy()
+        optimized_poses = project_trajectory(torch.from_numpy(optimized_traj).float(), pose_client.ONLINE_WINDOW_SIZE, pose_client.NUMBER_OF_TRAJ_PARAM).numpy()
         pose_client.optimized_traj = optimized_traj
     else:
-        P_world = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
+        optimized_poses = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
 
     if (pose_client.isCalibratingEnergy):
-        pose_client.update_bone_lengths(torch.from_numpy(P_world).float())
+        pose_client.update_bone_lengths(torch.from_numpy(optimized_poses).float())
 
-    pose_client.update3dPos(P_world, bone_pos_3d_GT)
+    pose_client.update3dPos(optimized_poses)
 
     #if the frame is the first frame, the pose is found through backprojection
     #lse:
-     #   pose_client.update3dPos(pre_pose_3d, bone_pos_3d_GT)
+     #   pose_client.update3dPos(pre_pose_3d)
      #   loss_dict = pose_client.loss_dict_calib
      #   func_eval_time = 0
      #   noisy_init_pose = pre_pose_3d
@@ -221,12 +222,11 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     adjusted_current_pose = adjust_with_M(pose_client.M, pose_client.current_pose, hip_index)
     #adjusted_future_pose = adjust_with_M(pose_client.M, pose_client.future_pose, hip_index)
     adjusted_middle_pose = adjust_with_M(pose_client.M, pose_client.middle_pose, hip_index)
-    middle_pose_GT = pose_client.update_middle_pose_GT(bone_pos_3d_GT)
     check, _ = take_bone_projection_pytorch(torch.from_numpy(pose_client.current_pose).float(), R_drone_gt, C_drone_gt, R_cam_gt)
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - adjusted_current_pose, axis=0))
-    middle_pose_error = np.mean(np.linalg.norm(middle_pose_GT - adjusted_middle_pose, axis=0))
+    middle_pose_error = np.mean(np.linalg.norm(pose_client.poses_3d_gt[MIDDLE_POSE_INDEX, :, :] - adjusted_middle_pose, axis=0))
 
     pose_client.error_3d.append(error_3d)
     pose_client.middle_pose_error.append(middle_pose_error)

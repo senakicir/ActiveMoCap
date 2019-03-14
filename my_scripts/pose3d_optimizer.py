@@ -173,15 +173,7 @@ def project_trajectory(trajectory, window_size, number_of_traj_param):
     cos_term = torch.zeros(window_size, number_of_traj_param-1)
     for t in range(window_size):
         cos_term[t, :] = torch.cos(freq*2*np.pi*t/(window_size-1) + phase*np.pi/2) 
-'''
-    #plot for debugging 
-    import matplotlib.pyplot as plt
-    fig =  plt.figure()
-    for param in range(number_of_traj_param-1):
-        plt.plot(cos_term[:, param].numpy(), marker="^")
-    plt.show()
-    plt.close(fig)
-'''
+
     #orthonormalization using GS method.
     for param in range(number_of_traj_param-1):
         if param == 0:
@@ -191,12 +183,6 @@ def project_trajectory(trajectory, window_size, number_of_traj_param):
             u_t = v_t - (torch.dot(v_t, u_t)/torch.dot(u_t, u_t))*u_t
         cos_term[:,param] = (u_t/torch.norm(u_t))
    
-    '''fig = plt.figure()
-    for param in range(number_of_traj_param-1):
-        plt.plot(cos_term[:, param].numpy(), marker="^")
-    plt.show()
-    plt.close(fig)
-'''
     for t in range(window_size):
         pose3d[t, :, :] = trajectory[0,:,:] + torch.sum(trajectory[1:,:,:]*cos_term[t, :].unsqueeze(1).unsqueeze(2).repeat(1, trajectory.shape[1], trajectory.shape[2]), dim=0)
 
