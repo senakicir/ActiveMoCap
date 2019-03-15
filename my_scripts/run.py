@@ -393,8 +393,8 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
                 potential_states_fetcher.overall_error_list[state_ind], potential_states_fetcher.current_error_list[state_ind] = pose_client_sim.get_error()
                 pose_client_sim.rewind_step()
 
-            best_index = np.argmin(potential_states_fetcher.error_list)
-            print("best index was", best_index, "with error", potential_states_fetcher.error_list[state_ind])
+            best_index = np.argmin(potential_states_fetcher.overall_error_list)
+            print("best index was", best_index, "with error", potential_states_fetcher.overall_error_list[state_ind])
 
         potential_states_fetcher.find_hessians_for_potential_states(pose_client)
         if exp_ind < predefined_traj_len:

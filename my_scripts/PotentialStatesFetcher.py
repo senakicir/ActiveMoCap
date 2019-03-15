@@ -1,4 +1,4 @@
-from helpers import choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general
+from helpers import choose_frame_from_cov, FUTURE_POSE_INDEX, MIDDLE_POSE_INDEX, plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_online
@@ -44,7 +44,9 @@ class PotentialStatesFetcher(object):
 
         self.number_of_samples = len(self.POSITION_GRID)
 
-        self.error_list = np.zeros(self.number_of_samples)
+        self.overall_error_list = np.zeros(self.number_of_samples)
+        self.current_error_list = np.zeros(self.number_of_samples)
+        self.uncertainty_list = []
 
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
@@ -58,7 +60,7 @@ class PotentialStatesFetcher(object):
         self.potential_hessians_normal = []
         self.potential_covs_normal = []
 
-        self.P_world = pose_client.P_world
+        self.optimized_poses = pose_client.optimized_poses
         self.optimized_traj = pose_client.optimized_traj
 
         self.current_state_ind = 0
@@ -71,7 +73,9 @@ class PotentialStatesFetcher(object):
         else:
             self.objective = objective_online
 
-        self.error_list = np.zeros(self.number_of_samples)
+        self.overall_error_list = np.zeros(self.number_of_samples)
+        self.current_error_list = np.zeros(self.number_of_samples)
+        self.uncertainty_list = []
 
     def get_potential_positions_really_spherical_future(self):
 
@@ -377,7 +381,7 @@ class PotentialStatesFetcher(object):
             if pose_client.USE_TRAJECTORY_BASIS:
                 hess2 = self.objective.hessian(self.optimized_traj)
             else:
-                hess2 = self.objective.hessian(self.P_world)
+                hess2 = self.objective.hessian(self.optimized_poses)
             self.potential_hessians_normal.append(hess2)
 
             inv_hess2 = np.linalg.inv(hess2)
@@ -429,6 +433,7 @@ class PotentialStatesFetcher(object):
         else:
             best_ind = uncertainty_list.index(max(uncertainty_list))
         self.goal_state_ind = best_ind
+        self.uncertainty_list = uncertainty_list.copy()
         print("uncertainty list var:", np.std(uncertainty_list), "uncertainty list min max", np.min(uncertainty_list), np.max(uncertainty_list), "best ind", best_ind)
         goal_state = self.potential_states_go[best_ind]
         return goal_state, best_ind
@@ -441,12 +446,13 @@ class PotentialStatesFetcher(object):
 
     def plot_everything(self, linecount, plot_loc, photo_loc):
         if not self.is_quiet:
-            plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, custom_name = "potential_covs_normal_")
-            plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
+            #plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, custom_name = "potential_covs_normal_")
+            #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.hip_index, plot_loc, airsim_client.linecount)
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.bone_connections)
-            plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
+            #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
+            plot_potential_errors(self, plot_loc, linecount)
 
     def plot_projections(self, linecount, plot_loc):
         plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.joint_names)

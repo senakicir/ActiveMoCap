@@ -63,7 +63,7 @@ if __name__ == "__main__":
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 20))
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
-    position_grid.append([radians(180), radians(0)])
+    #position_grid.append([radians(180), radians(0)])
 
     active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]

@@ -1185,6 +1185,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
     uncertainty_list = potential_states_fetcher.uncertainty_list
     overall_error_list = potential_states_fetcher.overall_error_list
     current_error_list = potential_states_fetcher.current_error_list
+    
     cmap = cm.cool
     norm_error_overall = colors.Normalize(vmin=(np.min(overall_error_list)), vmax=(np.max(overall_error_list)))
     norm_error_current = colors.Normalize(vmin=(np.min(current_error_list)), vmax=(np.max(current_error_list)))

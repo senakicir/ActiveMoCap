@@ -28,11 +28,14 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.init_online_res_list = pose_client_general.online_res_list.copy()
         self.init_processing_time = pose_client_general.processing_time.copy()
         self.init_middle_pose_GT_list = pose_client_general.middle_pose_GT_list.copy()
+        self.init_bone_lengths = pose_client_general.boneLengths.clone()
 
         self.init_error_3d = pose_client_general.error_3d.copy()
         self.init_error_2d = pose_client_general.error_2d.copy()
         self.isCalibratingEnergy = pose_client_general.isCalibratingEnergy
         self.result_shape, self.result_size, self.loss_dict = pose_client_general.result_shape, pose_client_general.result_size, pose_client_general.loss_dict
+
+        self.rewind_step()        
 
     def rewind_step(self):
         self.optimized_poses = self.init_optimized_poses.copy()
@@ -40,6 +43,7 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.requiredEstimationData = self.init_requiredEstimationData.copy()
         self.liftPoseList = self.init_liftPoseList.copy()
         self.poses_3d_gt = self.init_poses_3d_gt.copy()
+        self.boneLengths = self.init_bone_lengths.clone()
 
         self.middle_pose_error = self.init_middle_pose_error.copy()
         self.error_3d = self.init_error_3d.copy()
