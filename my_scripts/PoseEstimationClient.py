@@ -13,18 +13,15 @@ def calculate_bone_lengths(bones, bone_connections, batch):
     else:  
         return (torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))
 
-def calculate_bone_directions(bones, lift_bone_directions, batch):
-    if batch:
-        current_bone_vector = bones[1:, :, lift_bone_directions[:,0]] - bones[1:, :, lift_bone_directions[:,1]]
-        norm_bone_vector = (torch.norm(current_bone_vector, dim=1, keepdim=True)).repeat(1,3,1) #try without repeat
-    else:
-        current_bone_vector = bones[:, lift_bone_directions[:,0]] - bones[:, lift_bone_directions[:,1]]
-        norm_bone_vector = (torch.norm(current_bone_vector, dim=0, keepdim=True)).repeat(3,1) #try without repeat
-    return current_bone_vector/(norm_bone_vector+EPSILON)
+
+def add_2d_noise(pose_2d, noise_2d_std):
+    noise_2d = torch.normal(torch.zeros(pose_2d.shape), torch.ones(pose_2d.shape)*noise_2d_std)
+    pose_2d = pose_2d.clone() + noise_2d
+    return pose_2d 
 
 class PoseEstimationClient(object):
     def __init__(self, param, cropping_tool):
-        self.future_proj_mode = False
+        self.simulate_error_mode = False
 
         self.modes = param["MODES"]
         self.method = param["METHOD"]
@@ -69,8 +66,6 @@ class PoseEstimationClient(object):
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.liftPoseList = []
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
-        
-        
         self.boneLengths = torch.zeros([self.num_of_joints-1,1])
 
         self.requiredEstimationData = []
@@ -154,11 +149,6 @@ class PoseEstimationClient(object):
         else:
             self.online_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
 
-    def add_2d_noise(self, bone_2d):
-        self.noise_2d = torch.normal(torch.zeros(bone_2d.shape), torch.ones(bone_2d.shape)*self.noise_2d_std)
-        bone_2d = bone_2d.clone() + self.noise_2d
-        return bone_2d 
-
     def updateMeasurementCov(self, cov, curr_pose_ind, future_pose_ind):
         if  self.isCalibratingEnergy:
             curr_pose_ind = 0
@@ -196,9 +186,10 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
         self.result_size =  np.prod(np.array(self.result_shape))
 
-    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
+    def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
         self.liftPoseList.insert(0, pose3d_lift)
-        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
+
         temp = self.poses_3d_gt[:-1,:].copy() 
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()
         self.poses_3d_gt[1:,:] = temp.copy()

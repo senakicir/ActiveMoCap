@@ -45,7 +45,8 @@ class PotentialStatesFetcher(object):
         self.number_of_samples = len(self.POSITION_GRID)
 
         self.overall_error_list = np.zeros(self.number_of_samples)
-        self.current_error_list = np.zeros(self.number_of_samples)
+        self.future_error_list = np.zeros(self.number_of_samples)
+        self.error_std_list =  np.zeros(self.number_of_samples)
         self.uncertainty_list = []
 
     def reset(self, pose_client, current_state):
@@ -74,8 +75,9 @@ class PotentialStatesFetcher(object):
             self.objective = objective_online
 
         self.overall_error_list = np.zeros(self.number_of_samples)
-        self.current_error_list = np.zeros(self.number_of_samples)
+        self.future_error_list = np.zeros(self.number_of_samples)
         self.uncertainty_list = []
+        self.error_std_list =  np.zeros(self.number_of_samples)
 
     def get_potential_positions_really_spherical_future(self):
 
@@ -425,8 +427,10 @@ class PotentialStatesFetcher(object):
                 #    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
                 #    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
                 #uncertainty_list.append(np.mean(uncertainty_joints))
-            else:
-                print("chosen invalid uncertainty calc")
+            elif self.uncertainty_calc_method == 4:
+                pass
+        if self.uncertainty_calc_method == 4:
+            uncertainty_list = (np.random.permutation(np.arange(self.number_of_samples))).tolist()
 
         if (self.minmax):
             best_ind = uncertainty_list.index(min(uncertainty_list))

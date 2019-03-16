@@ -3,7 +3,8 @@ import torch as torch
 from helpers import split_bone_connections, EPSILON, return_lift_bone_connections, euler_to_rotation_matrix, CAMERA_PITCH_OFFSET, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z
 import numpy as np 
 from math import pi
-from PoseEstimationClient import calculate_bone_lengths, calculate_bone_directions
+from PoseEstimationClient import calculate_bone_lengths
+from Lift_Client import Lift_Client, calculate_bone_directions
 
 def mse_loss(input_1, input_2, N):
     return torch.sum(torch.pow((input_1 - input_2),2))/N
@@ -80,7 +81,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
 
 class pose3d_online_parallel(torch.nn.Module):
 
-    def __init__(self, pose_client, projection_client, future_proj):
+    def __init__(self, pose_client, projection_client, lift_client, future_proj):
         super(pose3d_online_parallel, self).__init__()
         self.future_proj = future_proj
 
@@ -103,7 +104,7 @@ class pose3d_online_parallel(torch.nn.Module):
         self.use_single_joint = pose_client.USE_SINGLE_JOINT
 
         if self.use_lift_term and not self.use_single_joint:
-            self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
+            self.pose3d_lift_directions = lift_client.pose3d_lift_directions
             self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
         self.pltpts = {}
@@ -146,7 +147,10 @@ class pose3d_online_parallel(torch.nn.Module):
 
         #lift term  
         if not self.use_single_joint and self.use_lift_term:
-            pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
+            if not self.future_proj:
+                pose_est_directions = calculate_bone_directions(self.pose3d[1:,:,:], self.lift_bone_directions, batch=True)
+            else:
+                pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
             output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
 
         overall_output = 0
@@ -190,7 +194,7 @@ def project_trajectory(trajectory, window_size, number_of_traj_param):
 
 class pose3d_online_parallel_traj(torch.nn.Module):
 
-    def __init__(self, pose_client, projection_client, future_proj):
+    def __init__(self, pose_client, projection_client, lift_client, future_proj):
         super(pose3d_online_parallel_traj, self).__init__()
         self.future_proj = future_proj
 
@@ -215,7 +219,7 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         self.use_single_joint = pose_client.USE_SINGLE_JOINT
 
         if self.use_lift_term and not self.use_single_joint:
-            self.pose3d_lift_directions = torch.stack(pose_client.liftPoseList).float()
+            self.pose3d_lift_directions = lift_client.pose3d_lift_directions
             self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
         self.pltpts = {}

@@ -11,10 +11,10 @@ from PoseEstimationClient import *
 class PoseEstimationClient_Simulation(PoseEstimationClient):
     def __init__(self, param, cropping_tool, pose_client_general):
         PoseEstimationClient.__init__(self, param, cropping_tool)
-        self.future_proj_mode = True
+        self.simulate_error_mode = True
         self.update_initial_param(pose_client_general)
         self.rewind_step()        
-        self.modes["mode_2d"]=0        
+        #self.modes["mode_2d"]=0        
     
     def update_initial_param(self, pose_client_general):
         self.init_optimized_poses = pose_client_general.optimized_poses.copy()
@@ -57,9 +57,9 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
 
 
 ###edit
-    def addNewFrame(self, pose_2d, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
+    def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
         self.liftPoseList.insert(0, pose3d_lift)
-        self.requiredEstimationData.insert(0, [pose_2d, R_drone, C_drone, R_cam])
+        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()
@@ -67,6 +67,9 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         
     def update3dPos(self, optimized_poses):
         self.optimized_poses = optimized_poses.copy()
+        self.future_pose = optimized_poses[FUTURE_POSE_INDEX, :, :]
+        self.current_pose = optimized_poses[CURRENT_POSE_INDEX, :, :]
+        self.middle_pose = optimized_poses[MIDDLE_POSE_INDEX, :, :]
         
     def update_middle_pose_GT(self, middle_pose):
         pass

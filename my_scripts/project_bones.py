@@ -90,7 +90,7 @@ def take_potential_projection(potential_state, future_pose):
     return proj.numpy()
 
 class Projection_Client(object):
-    def reset(self, data_list, num_of_joints):
+    def reset(self, data_list, num_of_joints, simulate_error_mode, noise_2d_std):
         self.num_of_joints = num_of_joints
         self.window_size = len(data_list)
         self.drone_transformation = torch.zeros(self.window_size , 4, 4)
@@ -99,7 +99,9 @@ class Projection_Client(object):
         queue_index = 0
         self.pose_2d_tensor = torch.zeros(self.window_size , 2, num_of_joints)
     
-        for bone_2d, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
+        for bone_2d, bone_2d_gt, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
+            if simulate_error_mode:
+                bone_2d = add_2d_noise(bone_2d_gt, noise_2d_std)
             self.pose_2d_tensor[queue_index, :, :] = (bone_2d.float()).clone()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
             self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )
@@ -122,7 +124,7 @@ class Projection_Client(object):
         self.camera_transformation[0, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_pot, C_cam_torch), dim=1), neat_tensor), dim=0) )
 
         queue_index = 1
-        for bone_2d, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
+        for bone_2d, _, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
             self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
             self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )

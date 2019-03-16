@@ -2,6 +2,7 @@ from helpers import *
 from project_bones import take_bone_projection_pytorch, Projection_Client, take_bone_projection_pytorch
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
+from Lift_Client import Lift_Client, calculate_bone_directions
 from torch.autograd import grad
 import pdb
 
@@ -77,14 +78,15 @@ class pose3d_calibration_parallel_wrapper():
         data_list = pose_client.requiredEstimationData
 
         projection_client = Projection_Client()
-        projection_client.reset(data_list, self.NUM_OF_JOINTS)
+        projection_client.reset(data_list, self.NUM_OF_JOINTS, pose_client.simulate_error_mode, pose_client.noise_2d_std)
+
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
-        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
+        self.bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
 
@@ -124,21 +126,27 @@ class pose3d_online_parallel_wrapper():
         _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
+        projection_client.reset(data_list, self.NUM_OF_JOINTS, pose_client.simulate_error_mode, pose_client.noise_2d_std)
 
-        projection_client.reset(data_list, self.NUM_OF_JOINTS)
-        
+        lift_client = Lift_Client()
+        if pose_client.USE_LIFT_TERM:
+            lift_list = pose_client.liftPoseList
+            lift_client.reset(lift_list)
+
         if pose_client.USE_TRAJECTORY_BASIS:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, future_proj=pose_client.future_proj_mode)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, lift_client, future_proj=pose_client.simulate_error_mode)
         else:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, future_proj=pose_client.future_proj_mode)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, future_proj=pose_client.simulate_error_mode)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
-        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
+        self.bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
         projection_client = Projection_Client()
+        lift_client = Lift_Client()
+
 
         #future state 
         yaw = potential_state["orientation"]
@@ -152,11 +160,15 @@ class pose3d_online_parallel_wrapper():
         potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
 
         projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
-
+        if pose_client.USE_LIFT_TERM:
+            lift_list = pose_client.liftPoseList
+            potential_pose3d_lift_directions = calculate_bone_directions(future_pose, np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 
+            lift_client.reset_future(lift_list, potential_pose3d_lift_directions)
+            
         if pose_client.USE_TRAJECTORY_BASIS:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, future_proj=True)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, lift_client, future_proj=True)
         else:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, future_proj=True)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, future_proj=True)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape

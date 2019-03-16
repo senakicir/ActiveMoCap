@@ -16,7 +16,7 @@ if __name__ == "__main__":
     loop_mode = 2
     #hessian method 0-future, 1- middle, 2-whole
     hessian_part = 2
-    #use trace: 0-sumeig 1-adddiag 2-multipeig 3-det
+    #use trace: 0-sumeig 1-adddiag 2-multipeig 3-det 4-random
     uncertainty_calc_method = 0
 
     minmax = True #True-min, False-max
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     precalibration_length = 0
     init_pose_with_gt = True
     find_best_traj = True
-    noise_2d_std = 5
+    noise_2d_std = 3
     predefined_traj_len = 0
 
     use_symmetry_term = True
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected, 4-none
     smoothness_mode = 0
     use_bone_term = True
-    use_lift_term = False
+    use_lift_term = True
     use_trajectory_basis = False
     num_of_trajectory_param = 5
 
