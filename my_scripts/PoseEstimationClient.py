@@ -4,7 +4,6 @@ import torch
 import numpy as np
 from crop import Crop
 from square_bounding_box import *
-from kalman_filters import *
 from project_bones import take_bone_backprojection_pytorch
 
 def calculate_bone_lengths(bones, bone_connections, batch):
@@ -13,11 +12,6 @@ def calculate_bone_lengths(bones, bone_connections, batch):
     else:  
         return (torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))
 
-
-def add_2d_noise(pose_2d, noise_2d_std):
-    noise_2d = torch.normal(torch.zeros(pose_2d.shape), torch.ones(pose_2d.shape)*noise_2d_std)
-    pose_2d = pose_2d.clone() + noise_2d
-    return pose_2d 
 
 class PoseEstimationClient(object):
     def __init__(self, param, cropping_tool):
@@ -122,7 +116,6 @@ class PoseEstimationClient(object):
         self.f_reconst_string = ""
         self.f_groundtruth_str = ""
 
-        self.noise_2d = 0
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index

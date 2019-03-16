@@ -13,7 +13,8 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         PoseEstimationClient.__init__(self, param, cropping_tool)
         self.simulate_error_mode = True
         self.update_initial_param(pose_client_general)
-        self.rewind_step()        
+        self.rewind_step()   
+        self.noise_2d_std = pose_client_general.noise_2d_std
         #self.modes["mode_2d"]=0        
     
     def update_initial_param(self, pose_client_general):

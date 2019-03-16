@@ -48,6 +48,7 @@ class PotentialStatesFetcher(object):
         self.future_error_list = np.zeros(self.number_of_samples)
         self.error_std_list =  np.zeros(self.number_of_samples)
         self.uncertainty_list = []
+        self.uncertainty_list_future = []
 
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
@@ -76,8 +77,11 @@ class PotentialStatesFetcher(object):
 
         self.overall_error_list = np.zeros(self.number_of_samples)
         self.future_error_list = np.zeros(self.number_of_samples)
+        self.future_error_std_list =  np.zeros(self.number_of_samples)
+        self.overall_error_std_list =  np.zeros(self.number_of_samples)
         self.uncertainty_list = []
-        self.error_std_list =  np.zeros(self.number_of_samples)
+        self.uncertainty_list_future = []
+
 
     def get_potential_positions_really_spherical_future(self):
 

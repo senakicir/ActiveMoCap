@@ -143,6 +143,11 @@ def normalize_weights(weights_):
         weights[loss_key] = weights_[loss_key]/weights_sum
     return weights
 
+def add_2d_noise(pose_2d, noise_2d_std):
+    noise_2d = torch.normal(torch.zeros(pose_2d.shape), torch.ones(pose_2d.shape)*noise_2d_std)
+    pose_2d = pose_2d.clone() + noise_2d
+    return pose_2d 
+
 def range_angle(angle, limit=360, is_radians = True):
     if is_radians:
         angle = degrees(angle)
@@ -1176,24 +1181,24 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
-    fig = plt.figure(figsize=(8,8))
-    ax_uncertainty = fig.add_subplot(221, projection='3d')
-    ax_error_overall = fig.add_subplot(222,  projection='3d') 
-    ax_error_future = fig.add_subplot(224,  projection='3d') 
-    ax_error_std = fig.add_subplot(223, projection='3d')
+    fig = plt.figure(figsize=(12,8))
 
     potential_states = potential_states_fetcher.potential_states_go
     uncertainty_list = potential_states_fetcher.uncertainty_list
+    uncertainty_list_future = potential_states_fetcher.uncertainty_list_future
     overall_error_list = potential_states_fetcher.overall_error_list
+    overall_std_list = potential_states_fetcher.overall_error_std_list 
     future_error_list = potential_states_fetcher.future_error_list
-    std_error_list = potential_states_fetcher.error_std_list
+    future_std_list = potential_states_fetcher.future_error_std_list
     
     cmap = cm.cool
-    norm_error_overall = colors.Normalize(vmin=(np.min(overall_error_list)), vmax=(np.max(overall_error_list)))
-    norm_error_future = colors.Normalize(vmin=(np.min(future_error_list)), vmax=(np.max(future_error_list)))
-    norm_uncertainty = colors.Normalize(vmin=(np.min(uncertainty_list)), vmax=(np.max(uncertainty_list)))
-    norm_error_std = colors.Normalize(vmin=(np.min(std_error_list)), vmax=(np.max(std_error_list)))
-    
+    norms = []
+    axes = []
+    titles = ["Uncertainty Overall", "Uncertainty Future", "Overall Err Mean", "Overall Err std", "Future Err Mean", "Future Err Std"]
+    lists = [uncertainty_list, uncertainty_list_future, overall_error_list, overall_std_list, future_error_list, future_std_list]
+    for ind, a_list in enumerate(lists):
+        norms.append(colors.Normalize(vmin=(np.min(a_list)), vmax=(np.max(a_list))))
+        axes.append(fig.add_subplot(2,3,ind+1, projection='3d'))
 
     #for ax limits
     X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
@@ -1215,25 +1220,17 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
         if (state_ind == potential_states_fetcher.goal_state_ind):
             markersize=100
             text_color="r"
-        plot5=ax_error_overall.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[overall_error_list[state_ind]], cmap=cmap, norm=norm_error_overall, s=markersize, alpha=1)
-        plot6=ax_error_future.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[future_error_list[state_ind]], cmap=cmap, norm=norm_error_future, s=markersize, alpha=1)
-        plot7=ax_uncertainty.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[uncertainty_list[state_ind]], cmap=cmap, norm=norm_uncertainty, s=markersize, alpha=1)
-        plot8=ax_error_std.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[std_error_list[state_ind]], cmap=cmap, norm=norm_error_std, s=markersize, alpha=1)
-
-
-    plt.colorbar(plot5, ax=ax_error_overall)#, shrink = 0.8)
-    plt.colorbar(plot6, ax=ax_error_future)#, shrink = 0.8)
-    plt.colorbar(plot7, ax=ax_uncertainty)#, shrink = 0.8)
-    plt.colorbar(plot8, ax=ax_error_std)
-    
+        for list_ind, a_list in enumerate(lists):
+            plot5=axes[list_ind].scatter([center[0]], [center[1]], [center[2]], marker='^', c=[a_list[state_ind]], cmap=cmap, norm=norms[list_ind], s=markersize, alpha=1)
+            if state_ind == 0:
+                plt.colorbar(plot5, ax=axes[list_ind])#, shrink = 0.8)    
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     mid_x = (X.max()+X.min()) * 0.5
     mid_y = (Y.max()+Y.min()) * 0.5
     mid_z = (Z.max()+Z.min()) * 0.5
 
-    titles = ["Error Overall", "Error Future","Uncertainty", "Error Future std"]
-    for ind, ax in enumerate([ax_error_overall, ax_error_future, ax_uncertainty, ax_error_std]):
+    for ind, ax in enumerate(axes):
         ax.set_xlim(mid_x - max_range, mid_x + max_range)
         ax.set_ylim(mid_y - max_range, mid_y + max_range)
         ax.set_zlim(mid_z - max_range, mid_z + max_range)

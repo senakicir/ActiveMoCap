@@ -41,7 +41,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
     if (mode_2d != 2):
         bone_2d = bone_2d_gt.clone()
         if (mode_2d == 1):
-            bone_2d = pose_client.add_2d_noise(bone_2d, pose_client.noise_2d_std)
+            bone_2d = add_2d_noise(bone_2d, pose_client.noise_2d_std)
         heatmaps_scales = 0
         poses_scales = 0
     else:            
@@ -53,7 +53,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
         leg_joints, _, _ = return_leg_joints()
         pose_client.openpose_arm_error = np.mean(np.linalg.norm(bone_2d_gt[:, arm_joints]-bone_2d[:, arm_joints], axis=0))
         pose_client.openpose_leg_error = np.mean(np.linalg.norm(bone_2d_gt[:, leg_joints]-bone_2d[:, leg_joints], axis=0))
-    return bone_2d, bone_2d_gt.clone()
+    return bone_2d, bone_2d_gt.clone(), heatmaps
 
 def find_2d_pose_gt(current_state, input_image, cropping_tool, return_heatmaps=True, is_torch=True):
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
@@ -96,7 +96,7 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
     cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
 
     #find 2d pose (using openpose or gt)
-    bone_2d, bone_2d_gt = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
+    bone_2d, bone_2d_gt, heatmap_2d = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
 
     #find relative 3d pose using liftnet or GT relative pose
     if pose_client.USE_LIFT_TERM and not pose_client.USE_SINGLE_JOINT:
@@ -107,6 +107,7 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
 
     #uncrop 2d pose
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
+    bone_2d_gt = pose_client.cropping_tool.uncrop_pose(bone_2d_gt)
 
     #add information you need to your window
     if pose_client.isCalibratingEnergy:
@@ -114,7 +115,7 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
         optimized_poses_gt = bone_pos_3d_GT
     else:
         for _ in range(pose_client.ONLINE_WINDOW_SIZE):
-            pose_client.addNewFrame(bone_2d, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+            pose_client.addNewFrame(bone_2d, bone_2d_gt, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
         optimized_poses_gt = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
     pose_client.update3dPos(optimized_poses_gt)
     if not pose_client.USE_SINGLE_JOINT:
@@ -133,7 +134,7 @@ def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc
     input_image = cv.imread(photo_loc)
     cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
     #save_image(cropped_image, airsim_client.linecount, plot_loc)
-    bone_2d, bone_2d_gt = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
+    bone_2d, bone_2d_gt, heatmap_2d = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
     #superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
 
@@ -152,7 +153,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
 
     #find 2d pose (using openpose or gt)
-    bone_2d, bone_2d_gt = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
+    bone_2d, bone_2d_gt, heatmap_2d = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
 
     #find relative 3d pose using liftnet or GT relative pose
     if not pose_client.USE_SINGLE_JOINT:
@@ -163,6 +164,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
 
     #uncrop 2d pose
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
+    bone_2d_gt = pose_client.cropping_tool.uncrop_pose(bone_2d_gt)
 
     #add current pose as initial pose. if first frame, take backprojection for initialization
     pose_client.set_initial_pose(airsim_client.linecount, bone_pos_3d_GT, bone_2d, R_drone_gt, C_drone_gt, R_cam_gt)

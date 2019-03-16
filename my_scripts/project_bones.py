@@ -1,7 +1,7 @@
 import torch as torch
 from math import pi, cos, sin, degrees
 import numpy as np
-from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, px, py, FOCAL_LENGTH, SIZE_X, SIZE_Y 
+from helpers import add_2d_noise, euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, px, py, FOCAL_LENGTH, SIZE_X, SIZE_Y 
 import pdb
 
 neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
@@ -101,8 +101,8 @@ class Projection_Client(object):
     
         for bone_2d, bone_2d_gt, R_drone_torch, C_drone_torch, R_cam_torch in data_list:
             if simulate_error_mode:
-                bone_2d = add_2d_noise(bone_2d_gt, noise_2d_std)
-            self.pose_2d_tensor[queue_index, :, :] = (bone_2d.float()).clone()
+                bone_2d = add_2d_noise(bone_2d_gt.float(), noise_2d_std)
+            self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
             self.drone_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_drone_torch, C_drone_torch), dim=1), neat_tensor), dim=0) )
             self.camera_transformation[queue_index, :, :]= torch.inverse(torch.cat((torch.cat((R_cam_torch, C_cam_torch), dim=1), neat_tensor), dim=0) )
 

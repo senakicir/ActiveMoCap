@@ -1,7 +1,7 @@
 from helpers import * 
 from NonAirSimClient import *
-from PoseEstimationClient import *
-from PoseEstimationClient_Simulation import * 
+from PoseEstimationClient import PoseEstimationClient
+from PoseEstimationClient_Simulation import PoseEstimationClient_Simulation
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
@@ -379,7 +379,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
             potential_states_try = potential_states_fetcher.dome_experiment()
 
         if find_best_traj: #/and exp_ind >= predefined_traj_len:
-            num_trials = 20
+            num_trials = 5
             pose_client_sim.update_initial_param(pose_client)
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
@@ -395,7 +395,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
                     determine_all_positions(airsim_client, pose_client_sim, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
                     frame_overall_error_list[trial_ind], frame_future_error_list[trial_ind] = pose_client_sim.get_error()
                     pose_client_sim.rewind_step()
-                potential_states_fetcher.overall_error_list[state_ind], potential_states_fetcher.future_error_list[state_ind], potential_states_fetcher.error_std_list[state_ind] = np.mean(frame_overall_error_list), np.mean(frame_future_error_list), np.std(frame_future_error_list)
+                potential_states_fetcher.overall_error_list[state_ind], potential_states_fetcher.future_error_list[state_ind], potential_states_fetcher.overall_error_std_list[state_ind], potential_states_fetcher.future_error_std_list[state_ind] = np.mean(frame_overall_error_list), np.mean(frame_future_error_list), np.std(frame_overall_error_list), np.std(frame_future_error_list)
 
             best_index = np.argmin(potential_states_fetcher.overall_error_list)
             print("best index was", best_index, "with error", potential_states_fetcher.overall_error_list[state_ind])
@@ -405,7 +405,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
             goal_state = potential_states_fetcher.potential_states_try[exp_ind]
             potential_states_fetcher.goal_state_ind = exp_ind
         else:
-            goal_state, _ = potential_states_fetcher.find_best_potential_state()
+            goal_state, _ = potential_states_fetcher.find_best_potential_state()    
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
 
         sim_pos = goal_state['position']
