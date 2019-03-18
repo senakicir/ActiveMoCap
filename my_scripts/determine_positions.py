@@ -41,7 +41,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
     if (mode_2d != 2):
         bone_2d = bone_2d_gt.clone()
         if (mode_2d == 1):
-            bone_2d = add_2d_noise(bone_2d, pose_client.noise_2d_std)
+            bone_2d = add_noise_to_pose(bone_2d, pose_client.noise_2d_std)
         heatmaps_scales = 0
         poses_scales = 0
     else:            

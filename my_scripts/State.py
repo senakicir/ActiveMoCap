@@ -65,13 +65,16 @@ class State(object):
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
 
-    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est):
-        self.bone_pos_gt =  bone_pos_gt
-        self.human_pos_gt = bone_pos_gt[:, self.hip_index]
+    def change_human_gt_info(self, bone_pos_gt_updated):
+        self.bone_pos_gt =  bone_pos_gt_updated.copy()
+        self.human_pos_gt = self.bone_pos_gt[:, self.hip_index]
 
-
-        shoulder_vector_gt = bone_pos_gt[:, self.left_arm_ind] - bone_pos_gt[:, self.right_arm_ind] 
+        shoulder_vector_gt = self.bone_pos_gt[:, self.left_arm_ind] - self.bone_pos_gt[:, self.right_arm_ind] 
         self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
+
+    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est):
+        self.change_human_gt_info(bone_pos_gt)
+        
         self.drone_orientation_gt = drone_orientation_gt
         self.drone_pos_gt = drone_pos_gt
 

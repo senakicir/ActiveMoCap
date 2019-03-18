@@ -143,7 +143,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == 2:
         pose_client_sim = PoseEstimationClient_Simulation(energy_parameters,  Crop(loop_mode = loop_mode), pose_client)
-        dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager, parameters["FIND_BEST_TRAJ"], parameters["PREDEFINED_TRAJ_LEN"])
+        dome_experiment_client = Dome_Experiment_Client(parameters)
+        dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager)
 ################
 
     #calculate errors

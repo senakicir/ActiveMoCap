@@ -143,7 +143,7 @@ def normalize_weights(weights_):
         weights[loss_key] = weights_[loss_key]/weights_sum
     return weights
 
-def add_2d_noise(pose_2d, noise_2d_std):
+def add_noise_to_pose(pose_2d, noise_2d_std):
     noise_2d = torch.normal(torch.zeros(pose_2d.shape), torch.ones(pose_2d.shape)*noise_2d_std)
     pose_2d = pose_2d.clone() + noise_2d
     return pose_2d 

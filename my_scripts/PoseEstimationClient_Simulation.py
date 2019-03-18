@@ -9,8 +9,8 @@ from project_bones import take_bone_backprojection_pytorch
 from PoseEstimationClient import *
 
 class PoseEstimationClient_Simulation(PoseEstimationClient):
-    def __init__(self, param, cropping_tool, pose_client_general):
-        PoseEstimationClient.__init__(self, param, cropping_tool)
+    def __init__(self, energy_param, cropping_tool, pose_client_general):
+        PoseEstimationClient.__init__(self, energy_param, cropping_tool)
         self.simulate_error_mode = True
         self.update_initial_param(pose_client_general)
         self.rewind_step()   
