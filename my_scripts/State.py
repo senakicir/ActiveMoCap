@@ -2,7 +2,7 @@ import cv2 as cv2
 from math import radians, cos, sin, pi, degrees, acos, sqrt
 import numpy as np
 import torch as torch
-from helpers import range_angle, shape_cov, euler_to_rotation_matrix
+from helpers import range_angle, shape_cov, euler_to_rotation_matrix, add_noise_to_pose
 import time as time 
 from project_bones import take_potential_projection, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET
 import pdb 
@@ -64,6 +64,7 @@ class State(object):
         self.drone_orientation_est = np.array([0,0,0])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
+
 
     def change_human_gt_info(self, bone_pos_gt_updated):
         self.bone_pos_gt =  bone_pos_gt_updated.copy()

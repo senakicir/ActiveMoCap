@@ -123,7 +123,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
 
-    pose_client = PoseEstimationClient(energy_parameters,  Crop(loop_mode = loop_mode))
+    pose_client = PoseEstimationClient(energy_parameters,  Crop(loop_mode = loop_mode), animation=file_manager.anim_num)
     current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, model_settings=pose_client.model_settings())
     potential_states_fetcher = PotentialStatesFetcher(pose_client, active_parameters)
     
@@ -143,9 +143,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     elif loop_mode == 1:
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == 2:
-        pose_client_sim = PoseEstimationClient_Simulation(energy_parameters,  Crop(loop_mode = loop_mode), pose_client)
-        dome_experiment_client = Dome_Experiment_Client(parameters)
-        dome_loop(current_state, pose_client, pose_client_sim, airsim_client, dome_experiment_client, potential_states_fetcher, file_manager)
+        pose_client_sim = PoseEstimationClient_Simulation(energy_parameters,  Crop(loop_mode = loop_mode), pose_client, parameters)
+        dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager)
 ################
 
     #calculate errors
@@ -343,13 +342,13 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
 
-def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, dome_experiment_client, potential_states_fetcher, file_manager):
+def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
     airsim_client.simPauseDrone(False)
 
     airsim_retrieve_gt(airsim_client, pose_client, current_state)
-    dome_experiment_client.init_3d_pose(current_state.bone_pos_gt)
+    pose_client_sim.init_3d_pose(current_state.bone_pos_gt)
     pose_client.future_pose = current_state.bone_pos_gt
     pose_client.current_pose = current_state.bone_pos_gt
 
@@ -363,6 +362,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, dome_e
     airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
     current_state.cam_pitch = goal_state['pitch']
     take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+
     photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 
     initialize_with_gt(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
@@ -377,33 +377,33 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, dome_e
             airsim_client.simPauseHuman(False)
             time.sleep(DELTA_T)
             airsim_client.simPauseHuman(True)
-            dome_experiment_client.adjust_3d_pose(current_state, pose_client)
+            pose_client_sim.update_internal_3d_pose()
 
             potential_states_fetcher.reset(pose_client, current_state)
             potential_states_try = potential_states_fetcher.dome_experiment()
 
-        if dome_experiment_client.find_best_traj: #/and exp_ind >= predefined_traj_len:
+        if pose_client_sim.find_best_traj: #/and exp_ind >= predefined_traj_len:
             pose_client_sim.update_initial_param(pose_client)
-            num_of_noise_trials = dome_experiment_client.num_of_noise_trials
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
                 sim_pos = goal_state['position']
                 airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
                 current_state.cam_pitch = goal_state['pitch']
-                for trial_ind in range(num_of_noise_trials):
+                for trial_ind in range(pose_client_sim.num_of_noise_trials):
                     take_photo(airsim_client, pose_client_sim, current_state, file_manager.take_photo_loc)
+                    airsim_client_sim.adjust_3d_pose(current_state, pose_client)
                     photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
                     determine_all_positions(airsim_client, pose_client_sim, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-                    dome_experiment_client.frame_overall_error_list[trial_ind], dome_experiment_client.frame_future_error_list[trial_ind] = pose_client_sim.get_error()
+                    pose_client.append_error(trial_ind)
                     pose_client_sim.rewind_step()
-                dome_experiment_client.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
+                pose_client_sim.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
 
             best_index = np.argmin(potential_states_fetcher.overall_error_list)
             print("best index was", best_index, "with error", potential_states_fetcher.overall_error_list[state_ind])
 
         potential_states_fetcher.find_hessians_for_potential_states(pose_client)
-        if exp_ind < dome_experiment_client.predefined_traj_len:
+        if exp_ind < pose_client_sim.predefined_traj_len:
             goal_state = potential_states_fetcher.potential_states_try[exp_ind]
             potential_states_fetcher.goal_state_ind = exp_ind
         else:
@@ -416,6 +416,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, dome_e
         current_state.cam_pitch = goal_state['pitch']
 
         take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+        pose_client_sim.adjust_3d_pose(current_state, pose_client)
         photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 
         determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)

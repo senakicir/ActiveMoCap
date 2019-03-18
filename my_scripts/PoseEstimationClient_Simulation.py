@@ -9,13 +9,23 @@ from project_bones import take_bone_backprojection_pytorch
 from PoseEstimationClient import *
 
 class PoseEstimationClient_Simulation(PoseEstimationClient):
-    def __init__(self, energy_param, cropping_tool, pose_client_general):
-        PoseEstimationClient.__init__(self, energy_param, cropping_tool)
+    def __init__(self, energy_param, cropping_tool, pose_client_general, general_param):
+        PoseEstimationClient.__init__(self, energy_param, cropping_tool, general_param["ANIMATION_NUM"))
         self.simulate_error_mode = True
         self.update_initial_param(pose_client_general)
         self.rewind_step()   
         self.noise_2d_std = pose_client_general.noise_2d_std
-        #self.modes["mode_2d"]=0        
+
+        self.find_best_traj = general_param["FIND_BEST_TRAJ"]
+        self.predefined_traj_len = general_param["PREDEFINED_TRAJ_LEN"]
+
+        self.prev_pose = 0
+        self.pose_noise_3d_std = general_param["POSE_NOISE_3D_STD"]
+        
+        self.num_of_noise_trials = general_param["NUM_OF_NOISE_TRIALS"]
+
+        self.frame_overall_error_list = np.zeros([self.num_of_noise_trials,])
+        self.frame_future_error_list =  np.zeros([self.num_of_noise_trials,])
     
     def update_initial_param(self, pose_client_general):
         self.init_optimized_poses = pose_client_general.optimized_poses.copy()
@@ -30,6 +40,7 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.init_processing_time = pose_client_general.processing_time.copy()
         self.init_middle_pose_GT_list = pose_client_general.middle_pose_GT_list.copy()
         self.init_bone_lengths = pose_client_general.boneLengths.clone()
+        self.init_multiple_bone_lengths = pose_client_general.multiple_bone_lengths.clone()
 
         self.init_error_3d = pose_client_general.error_3d.copy()
         self.init_error_2d = pose_client_general.error_2d.copy()
@@ -45,6 +56,7 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.liftPoseList = self.init_liftPoseList.copy()
         self.poses_3d_gt = self.init_poses_3d_gt.copy()
         self.boneLengths = self.init_bone_lengths.clone()
+        self.multiple_bone_lengths = self.init_multiple_bone_lengths.clone()
 
         self.middle_pose_error = self.init_middle_pose_error.copy()
         self.error_3d = self.init_error_3d.copy()
@@ -56,8 +68,6 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.error_3d = self.init_error_3d.copy()
         self.error_2d = self.init_error_2d.copy()
 
-
-###edit
     def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
         self.liftPoseList.insert(0, pose3d_lift)
         self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
@@ -78,7 +88,24 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
     def initialize_pose_3d(self, pose_3d_gt, calculating_future, linecount, pose_2d, R_drone_gt, C_drone_gt, R_cam_gt):
         self.pose_3d_preoptimization = self.optimized_poses.copy()
 
-    def get_error(self):
-        overall_error = np.mean(np.linalg.norm(self.optimized_poses - self.poses_3d_gt, axis=1))
-        current_error = np.mean(np.linalg.norm(self.optimized_poses[0,:,:] - self.poses_3d_gt[0,:,:], axis=0))
-        return overall_error, current_error
+    def append_error(self, trial_ind):
+        self.frame_overall_error_list[trial_ind]  = np.mean(np.linalg.norm(self.optimized_poses - self.poses_3d_gt, axis=1))
+        self.frame_future_error_list[trial_ind]  = np.mean(np.linalg.norm(self.optimized_poses[0,:,:] - self.poses_3d_gt[0,:,:], axis=0))     
+
+    def record_noise_experiment_statistics(self, psf, state_ind):
+        psf.overall_error_list[state_ind], psf.future_error_list[state_ind], psf.overall_error_std_list[state_ind], psf.future_error_std_list[state_ind] = np.mean(self.frame_overall_error_list), np.mean(self.frame_future_error_list), np.std(self.frame_overall_error_list), np.std(self.frame_future_error_list)
+
+    def init_3d_pose(self, pose):
+        if self.animation == "noise":
+            self.prev_pose = pose.copy()
+
+    def update_internal_3d_pose(self):
+        if self.animation == "noise":
+            self.prev_pose = add_noise_to_pose(torch.from_numpy(self.prev_pose).float(), self.pose_noise_3d_std).numpy()
+
+    def adjust_3d_pose(self, current_state, pose_client_general):
+        if self.animation == "noise":
+            current_state.change_human_gt_info(self.prev_pose)
+            self.update_bone_lengths(torch.from_numpy(self.prev_pose).float()) #this needs fixing~
+            pose_client_general.update_bone_lengths(torch.from_numpy(self.prev_pose).float())
+

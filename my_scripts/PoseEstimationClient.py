@@ -14,7 +14,7 @@ def calculate_bone_lengths(bones, bone_connections, batch):
 
 
 class PoseEstimationClient(object):
-    def __init__(self, param, cropping_tool):
+    def __init__(self, param, cropping_tool, animation):
         self.simulate_error_mode = False
 
         self.modes = param["MODES"]
@@ -61,6 +61,7 @@ class PoseEstimationClient(object):
         self.liftPoseList = []
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.boneLengths = torch.zeros([self.num_of_joints-1,1])
+        self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1, 1])
 
         self.requiredEstimationData = []
 
@@ -116,6 +117,8 @@ class PoseEstimationClient(object):
         self.f_reconst_string = ""
         self.f_groundtruth_str = ""
 
+        self.animation = animation
+
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
@@ -132,7 +135,11 @@ class PoseEstimationClient(object):
 
     def update_bone_lengths(self, bones):
         bone_connections = np.array(self.bone_connections)
-        self.boneLengths = calculate_bone_lengths(bones=bones, bone_connections=bone_connections, batch=False)
+        current_bone_lengths = calculate_bone_lengths(bones=bones, bone_connections=bone_connections, batch=False)
+        if self.animation == "noise":
+            self.multiple_bone_lengths = np.concatenate([current_bone_lengths[np.newaxis,:,:],self.multiple_bone_lengths[:-1,:,:]])
+        else:
+            self.boneLengths = current_bone_lengths
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])

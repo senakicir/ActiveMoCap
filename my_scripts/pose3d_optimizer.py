@@ -84,6 +84,7 @@ class pose3d_online_parallel(torch.nn.Module):
     def __init__(self, pose_client, projection_client, lift_client, future_proj):
         super(pose3d_online_parallel, self).__init__()
         self.future_proj = future_proj
+        self.animation = pose_client.animation
 
         self.projection_client = projection_client
 
@@ -93,7 +94,11 @@ class pose3d_online_parallel(torch.nn.Module):
 
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape), requires_grad=True)
 
-        self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
+        if pose_client.animation == "noise":
+            self.bone_lengths = pose_client.multiple_bone_lengths
+        else:
+            self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
+        
         self.loss_dict = pose_client.loss_dict_online
         
         self.energy_weights = pose_client.weights_online
@@ -207,8 +212,11 @@ class pose3d_online_parallel_traj(torch.nn.Module):
 
         self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS), requires_grad=True)
         self.result_shape = pose_client.result_shape
-
-        self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
+        if pose_client.animation == "noise":
+            self.bone_lengths = pose_client.multiple_bone_lengths
+        else:
+            self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
+        
         self.loss_dict = pose_client.loss_dict_online
         
         self.energy_weights = pose_client.weights_online
