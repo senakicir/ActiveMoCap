@@ -47,8 +47,9 @@ class PotentialStatesFetcher(object):
         self.overall_error_list = np.zeros(self.number_of_samples)
         self.future_error_list = np.zeros(self.number_of_samples)
         self.error_std_list =  np.zeros(self.number_of_samples)
-        self.uncertainty_list = []
+        self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
+        self.counter = 0 
 
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
@@ -60,7 +61,10 @@ class PotentialStatesFetcher(object):
         self.potential_states_try = []
         self.potential_states_go = []
         self.potential_hessians_normal = []
-        self.potential_covs_normal = []
+
+        self.potential_covs_future = []
+        self.potential_covs_middle = []
+        self.potential_covs_whole = []
 
         self.optimized_poses = pose_client.optimized_poses
         self.optimized_traj = pose_client.optimized_traj
@@ -79,7 +83,7 @@ class PotentialStatesFetcher(object):
         self.future_error_list = np.zeros(self.number_of_samples)
         self.future_error_std_list =  np.zeros(self.number_of_samples)
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
-        self.uncertainty_list = []
+        self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
 
 
@@ -382,6 +386,7 @@ class PotentialStatesFetcher(object):
         return goal_state
     
     def find_hessians_for_potential_states(self, pose_client):
+        self.counter += 1
         for potential_state_ind, potential_state in enumerate(self.potential_states_try):
             self.objective.reset_future(pose_client, potential_state)
             if pose_client.USE_TRAJECTORY_BASIS:
@@ -392,57 +397,85 @@ class PotentialStatesFetcher(object):
 
             inv_hess2 = np.linalg.inv(hess2)
 
-            if (self.hessian_part == 0):
-                self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.number_of_joints))
-            elif (self.hessian_part == 1):
-                self.potential_covs_normal.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.numbe_of_joints))
-            elif (self.hessian_part == 2):
-                self.potential_covs_normal.append(inv_hess2)
-            else:
-                print("chosen invalid hessian part")
-                self.potential_covs_normal.append(inv_hess2)
+
+            if self.counter ==5 :
+                #import IPython
+                #IPython.embed()
+
+                hess_modified = hess2.copy()
+                #for i in range(100,140):
+                #    print(hess2[i,i])
+                #    hess_modified[i,i] = 2
+                #hess_modified[235,10] = 2
+                hess_modified[100:140,100:140] = 2
+                inv_hess_modified = np.linalg.inv(hess_modified)
+
+                #import matplotlib.pyplot as plt
+                #fig = plt.figure()
+                #plt.subplot(131)
+                #im1 = plt.imshow(inv_hess2)
+                #plt.subplot(132)
+                #fig.colorbar(im1)
+                #im2 = plt.imshow(inv_hess_modified)
+                #plt.subplot(133)
+                #fig.colorbar(im2)
+                #im3 = plt.imshow(np.sqrt(np.abs(inv_hess2-inv_hess_modified)))
+                #fig.colorbar(im3)
+                #plt.show()
+                #plt.close()
+
+ 
+            self.potential_covs_future.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.number_of_joints))
+            self.potential_covs_middle.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.number_of_joints))
+            self.potential_covs_whole.append(inv_hess2)
 
             self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
-        return self.potential_covs_normal, self.potential_hessians_normal
+        return self.potential_covs_whole, self.potential_hessians_normal
 
     def find_best_potential_state(self):
-        uncertainty_list = []
-        for cov in self.potential_covs_normal:
-            if self.uncertainty_calc_method == 0:
-                _, s, _ = np.linalg.svd(cov)
-                uncertainty_list.append(np.sum(s)) 
-            elif self.uncertainty_calc_method == 1:
-                s = np.diag(cov)
-                uncertainty_list.append(np.sum(s)) 
-            elif self.uncertainty_calc_method == 2:
-                _, s, _ = np.linalg.svd(cov)
-                import matplotlib.pyplot as plt
-                fig =  plt.figure()
-                print("largest three eigenvals", s[0], s[1], s[2])
-                plt.plot(s, marker="^")
-                #plt.show()
-                plt.close()
-                uncertainty_list.append(s[0]*s[1]*s[2]) 
-            elif self.uncertainty_calc_method == 3:
-                uncertainty_list.append(np.linalg.det(s))
-                #cov_shaped = shape_cov_general(cov, self.model, 0)
-                #uncertainty_joints = np.zeros([self.number_of_joints,])
-                #for joint_ind in range(self.number_of_joints):
-                #    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
-                #    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
-                #uncertainty_list.append(np.mean(uncertainty_joints))
-            elif self.uncertainty_calc_method == 4:
-                pass
-        if self.uncertainty_calc_method == 4:
-            uncertainty_list = (np.random.permutation(np.arange(self.number_of_samples))).tolist()
+        for hessian_part_ind, covariances in enumerate([self.potential_covs_future, self.potential_covs_whole]):
+            uncertainty_list = []
+            for cov in covariances:
+                if self.uncertainty_calc_method == 0:
+                    _, s, _ = np.linalg.svd(cov)
+                    uncertainty_list.append(np.sum(s)) 
+                elif self.uncertainty_calc_method == 1:
+                    s = np.diag(cov)
+                    uncertainty_list.append(np.sum(s)) 
+                elif self.uncertainty_calc_method == 2:
+                    _, s, _ = np.linalg.svd(cov)
+                    uncertainty_list.append(s[0]*s[1]*s[2]) 
+                    #import matplotlib.pyplot as plt
+                    #fig =  plt.figure()
+                    #print("largest three eigenvals", s[0], s[1], s[2])
+                    #plt.plot(s, marker="^")
+                    #plt.show()
+                    #plt.close()
+                elif self.uncertainty_calc_method == 3:
+                    uncertainty_list.append(np.linalg.det(s))
+                    #cov_shaped = shape_cov_general(cov, self.model, 0)
+                    #uncertainty_joints = np.zeros([self.number_of_joints,])
+                    #for joint_ind in range(self.number_of_joints):
+                    #    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
+                    #    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
+                    #uncertainty_list.append(np.mean(uncertainty_joints))
+                #elif self.uncertainty_calc_method == 4:
+                  #  pass
+            #if self.uncertainty_calc_method == 4:
+             #   (uncertainty_lists[hessian_part_ind]) = (np.random.permutation(np.arange(self.number_of_samples))).tolist()
+            if hessian_part_ind == 0:
+                self.uncertainty_list_future = uncertainty_list.copy()
+                final_list = uncertainty_list.copy()
+            elif self.hessian_part == 2:
+                self.uncertainty_list_whole = uncertainty_list.copy()
+                final_list = uncertainty_list.copy()
 
         if (self.minmax):
-            best_ind = uncertainty_list.index(min(uncertainty_list))
+            best_ind = final_list.index(min(uncertainty_list))
         else:
-            best_ind = uncertainty_list.index(max(uncertainty_list))
+            best_ind = final_list.index(max(uncertainty_list))
         self.goal_state_ind = best_ind
-        self.uncertainty_list = uncertainty_list.copy()
-        print("uncertainty list var:", np.std(uncertainty_list), "uncertainty list min max", np.min(uncertainty_list), np.max(uncertainty_list), "best ind", best_ind)
+        print("uncertainty list var:", np.std(final_list), "uncertainty list min max", np.min(final_list), np.max(final_list), "best ind", best_ind)
         goal_state = self.potential_states_go[best_ind]
         return goal_state, best_ind
 

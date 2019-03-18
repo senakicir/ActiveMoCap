@@ -32,7 +32,7 @@ if __name__ == "__main__":
     param_find_M = False
     is_quiet = False
     
-    online_window_size = 6
+    online_window_size = 10
     calibration_length = 0
     calibration_window_size = 200
 
@@ -58,7 +58,8 @@ if __name__ == "__main__":
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
    
-    animations = {"02_01": len(SEED_LIST)}
+#animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
+    animations = {"05_08": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 20))

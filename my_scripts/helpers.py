@@ -21,7 +21,7 @@ from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos
 energy_mode = {1:True, 0:False}
 attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
-ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5}
+ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "noise":-1}
 
 bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [0, 4], [4, 5], [5, 6], [6, 20], #left leg
@@ -1181,10 +1181,10 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
-    fig = plt.figure(figsize=(12,8))
+    fig = plt.figure(figsize=(8,12))
 
     potential_states = potential_states_fetcher.potential_states_go
-    uncertainty_list = potential_states_fetcher.uncertainty_list
+    uncertainty_list_whole = potential_states_fetcher.uncertainty_list_whole
     uncertainty_list_future = potential_states_fetcher.uncertainty_list_future
     overall_error_list = potential_states_fetcher.overall_error_list
     overall_std_list = potential_states_fetcher.overall_error_std_list 
@@ -1194,11 +1194,11 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
     cmap = cm.cool
     norms = []
     axes = []
-    titles = ["Uncertainty Overall", "Uncertainty Future", "Overall Err Mean", "Overall Err std", "Future Err Mean", "Future Err Std"]
-    lists = [uncertainty_list, uncertainty_list_future, overall_error_list, overall_std_list, future_error_list, future_std_list]
+    titles = ["Uncertainty Overall", "Uncertainty Future", "Overall Err Mean", "Future Err Mean", "Overall Err std", "Future Err Std"]
+    lists = [uncertainty_list_whole, uncertainty_list_future, overall_error_list, future_error_list, overall_std_list, future_std_list]
     for ind, a_list in enumerate(lists):
         norms.append(colors.Normalize(vmin=(np.min(a_list)), vmax=(np.max(a_list))))
-        axes.append(fig.add_subplot(2,3,ind+1, projection='3d'))
+        axes.append(fig.add_subplot(3,2,ind+1, projection='3d'))
 
     #for ax limits
     X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
@@ -1263,7 +1263,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
         ax = fig.add_subplot(111, projection='3d')
 
     potential_states = potential_states_fetcher.potential_states_go
-    covs = potential_states_fetcher.potential_covs_normal
+    covs = potential_states_fetcher.potential_covs_whole
     if plot_errors:
         error_list = potential_states_fetcher.error_list
         cmap = cm.cool

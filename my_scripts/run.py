@@ -365,7 +365,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
     initialize_with_gt(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
     airsim_client.linecount += 1
 
-    for exp_ind in range(1, 50):        
+    for exp_ind in range(1, 100):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
@@ -379,7 +379,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
             potential_states_try = potential_states_fetcher.dome_experiment()
 
         if find_best_traj: #/and exp_ind >= predefined_traj_len:
-            num_trials = 5
+            num_trials = 50
             pose_client_sim.update_initial_param(pose_client)
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
