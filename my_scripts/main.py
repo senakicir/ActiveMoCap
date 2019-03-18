@@ -50,8 +50,10 @@ if __name__ == "__main__":
     use_lift_term = True
     use_trajectory_basis = False
     num_of_trajectory_param = 5
+    num_of_noise_trials = 10
+    pose_noise_3d_std = 0.5
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len}
+    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
