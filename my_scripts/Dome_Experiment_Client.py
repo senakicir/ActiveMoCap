@@ -21,9 +21,9 @@ class Dome_Experiment_Client(object):
 
     def adjust_3d_pose(self, current_state, pose_client):
         if self.anim_num == "noise":
-            self.prev_pose = add_noise_to_pose(self.prev_pose, self.pose_noise_3d_std)
+            self.prev_pose = add_noise_to_pose(torch.from_numpy(self.prev_pose).float(), self.pose_noise_3d_std).numpy()
             current_state.change_human_gt_info(self.prev_pose)
-            pose_client.update_bone_lengths(self.prev_pose)
+            pose_client.update_bone_lengths(torch.from_numpy(self.prev_pose).float())
         else:
             self.prev_pose = current_state.bone_pos_gt
 

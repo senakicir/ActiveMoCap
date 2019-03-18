@@ -61,7 +61,7 @@ if __name__ == "__main__":
     modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
    
 #animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
-    animations = {"05_08": len(SEED_LIST)}
+    animations = {"noise": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 20))
