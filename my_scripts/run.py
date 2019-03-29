@@ -8,7 +8,6 @@ from determine_positions import *
 from PotentialStatesFetcher import PotentialStatesFetcher
 from State import State, TOP_SPEED, TIME_HORIZON, DELTA_T
 from file_manager import FileManager
-from Dome_Experiment_Client import Dome_Experiment_Client
 import copy
 
 import pprint
@@ -155,7 +154,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     simple_plot(pose_client.processing_time, file_manager.estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
     if (pose_client.modes["mode_3d"] == 3):
         simple_plot(pose_client.error_2d, file_manager.estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
-    simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], file_manager.estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
+    #simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], file_manager.estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
     #simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="online_error_3d", x_label="Frames", y_label="Error")
     
     print('End it!')
@@ -368,7 +367,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
     initialize_with_gt(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
     airsim_client.linecount += 1
 
-    for exp_ind in range(1, 100):        
+    for exp_ind in range(1, 25):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
@@ -392,10 +391,10 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
                 current_state.cam_pitch = goal_state['pitch']
                 for trial_ind in range(pose_client_sim.num_of_noise_trials):
                     take_photo(airsim_client, pose_client_sim, current_state, file_manager.take_photo_loc)
-                    airsim_client_sim.adjust_3d_pose(current_state, pose_client)
+                    pose_client_sim.adjust_3d_pose(current_state, pose_client)
                     photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
                     determine_all_positions(airsim_client, pose_client_sim, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
-                    pose_client.append_error(trial_ind)
+                    pose_client_sim.append_error(trial_ind)
                     pose_client_sim.rewind_step()
                 pose_client_sim.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
 
@@ -408,6 +407,9 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
             potential_states_fetcher.goal_state_ind = exp_ind
         else:
             goal_state, _ = potential_states_fetcher.find_best_potential_state()    
+        if pose_client_sim.find_best_traj:
+            pose_client_sim.find_correlations(potential_states_fetcher)
+            plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
 
         sim_pos = goal_state['position']

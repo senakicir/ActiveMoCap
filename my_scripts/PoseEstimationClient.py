@@ -60,8 +60,8 @@ class PoseEstimationClient(object):
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.liftPoseList = []
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
-        self.boneLengths = torch.zeros([self.num_of_joints-1,1])
-        self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1, 1])
+        self.boneLengths = torch.zeros([self.num_of_joints-1])
+        self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1])
 
         self.requiredEstimationData = []
 
@@ -119,7 +119,6 @@ class PoseEstimationClient(object):
 
         self.animation = animation
 
-
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
 
@@ -136,8 +135,9 @@ class PoseEstimationClient(object):
     def update_bone_lengths(self, bones):
         bone_connections = np.array(self.bone_connections)
         current_bone_lengths = calculate_bone_lengths(bones=bones, bone_connections=bone_connections, batch=False)
+       
         if self.animation == "noise":
-            self.multiple_bone_lengths = np.concatenate([current_bone_lengths[np.newaxis,:,:],self.multiple_bone_lengths[:-1,:,:]])
+            self.multiple_bone_lengths = torch.cat((current_bone_lengths.unsqueeze(0),self.multiple_bone_lengths[:-1,:]), dim=0)
         else:
             self.boneLengths = current_bone_lengths
 

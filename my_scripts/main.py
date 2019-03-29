@@ -32,7 +32,7 @@ if __name__ == "__main__":
     param_find_M = False
     is_quiet = False
     
-    online_window_size = 10
+    online_window_size = 6
     calibration_length = 0
     calibration_window_size = 200
 
@@ -45,13 +45,13 @@ if __name__ == "__main__":
     use_symmetry_term = True
     use_single_joint = False
     #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected, 4-none
-    smoothness_mode = 0
-    use_bone_term = True
-    use_lift_term = True
-    use_trajectory_basis = False
+    smoothness_mode = 4
+    #use_bone_term = True
+    #use_lift_term = False
+    use_trajectory_basis = True
     num_of_trajectory_param = 5
-    num_of_noise_trials = 10
-    pose_noise_3d_std = 0.2
+    num_of_noise_trials = 20
+    pose_noise_3d_std = 0.1
 
     parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
 
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
    
-#animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
+    #animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
     animations = {"noise": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
@@ -70,8 +70,9 @@ if __name__ == "__main__":
 
     active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
-    num_of_experiments = 1#len(WOBBLE_FREQ_LIST)
-
+    
+    lift_bone_term_grid = [[True, False],[True, True]]
+    num_of_experiments = len(lift_bone_term_grid)
     for experiment_ind in range(num_of_experiments):
 
         file_names, folder_names, f_notes_name, _ = reset_all_folders(animations, base_folder)
@@ -80,10 +81,11 @@ if __name__ == "__main__":
         parameters["FOLDER_NAMES"] = folder_names
         
         weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
-        weights = normalize_weights(weights_)
 
-        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_LIFT_TERM": use_lift_term, "USE_BONE_TERM": use_bone_term, "USE_TRAJECTORY_BASIS": use_trajectory_basis, "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param}
-        
+        energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis, "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param}
+        energy_parameters["USE_LIFT_TERM"] = lift_bone_term_grid[experiment_ind][0]
+        energy_parameters["USE_BONE_TERM"] = lift_bone_term_grid[experiment_ind][1]
+
         active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
         active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
         active_parameters["Z_POS"] = Z_POS_LIST[0]
@@ -96,11 +98,10 @@ if __name__ == "__main__":
         #if (use_airsim):
         for animation in animations:
             for ind in range(animations[animation]):
-                key = str(animation) + "_" + str(ind)
                 parameters["ANIMATION_NUM"]=  animation
-                parameters["EXPERIMENT_NAME"] = key
-                parameters["TEST_SET_NAME"]= ""
                 energy_parameters["SEED"] = SEED_LIST[ind]
+                parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
+                parameters["TEST_SET_NAME"]= ""
                 errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
                 many_runs_last.append(errors["ave_3d_err"] )
                 many_runs_middle.append(errors["middle_3d_err"] )

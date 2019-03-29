@@ -273,9 +273,13 @@ class pose3d_online_parallel_traj(torch.nn.Module):
             output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
         #lift term  
-        if self.use_lift_term and not self.use_single_joint:
-            pose_est_directions = calculate_bone_directions(pose3d_projected, self.lift_bone_directions, batch=True)
+        if not self.use_single_joint and self.use_lift_term:
+            if not self.future_proj:
+                pose_est_directions = calculate_bone_directions(pose3d_projected[1:,:,:], self.lift_bone_directions, batch=True)
+            else:
+                pose_est_directions = calculate_bone_directions(pose3d_projected, self.lift_bone_directions, batch=True)
             output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
+
 
         overall_output = 0
         for loss_key in self.loss_dict:

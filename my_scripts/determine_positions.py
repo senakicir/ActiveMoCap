@@ -116,10 +116,11 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
     else:
         for _ in range(pose_client.ONLINE_WINDOW_SIZE):
             pose_client.addNewFrame(bone_2d, bone_2d_gt, R_drone_gt, C_drone_gt, R_cam_gt, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+            if not pose_client.USE_SINGLE_JOINT:
+                pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
         optimized_poses_gt = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
+      
     pose_client.update3dPos(optimized_poses_gt)
-    if not pose_client.USE_SINGLE_JOINT:
-        pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
     pose_client.future_pose = current_state.bone_pos_gt
     pose_client.current_pose = current_state.bone_pos_gt
     

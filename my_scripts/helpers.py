@@ -143,10 +143,10 @@ def normalize_weights(weights_):
         weights[loss_key] = weights_[loss_key]/weights_sum
     return weights
 
-def add_noise_to_pose(pose_2d, noise_2d_std):
-    noise_2d = torch.normal(torch.zeros(pose_2d.shape), torch.ones(pose_2d.shape)*noise_2d_std)
-    pose_2d = pose_2d.clone() + noise_2d
-    return pose_2d 
+def add_noise_to_pose(pose, noise_std):
+    noise = torch.normal(torch.zeros(pose.shape), torch.ones(pose.shape)*noise_std).float()
+    pose = pose.float().clone() + noise
+    return pose 
 
 def range_angle(angle, limit=360, is_radians = True):
     if is_radians:
@@ -1194,7 +1194,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
     cmap = cm.cool
     norms = []
     axes = []
-    titles = ["Uncertainty Overall", "Uncertainty Future", "Overall Err Mean", "Future Err Mean", "Overall Err std", "Future Err Std"]
+    titles = ["Overall Uncertainty", "Future Uncertainty", "Overall Error Mean", "Future Error Mean", "Overall Error Std", "Future Error Std"]
     lists = [uncertainty_list_whole, uncertainty_list_future, overall_error_list, future_error_list, overall_std_list, future_std_list]
     for ind, a_list in enumerate(lists):
         norms.append(colors.Normalize(vmin=(np.min(a_list)), vmax=(np.max(a_list))))
@@ -1351,3 +1351,17 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
+
+def plot_correlations(pose_client, linecount, plot_loc):
+    fig = plt.figure()
+    ax_current = fig.add_subplot(121)
+    ax_future = fig.add_subplot(122)
+
+    corr = [pose_client.correlation_current, pose_client.correlation_future]
+    for ind, ax in enumerate([ax_current, ax_future]):
+        ax.plot(corr[ind], marker="^")
+        point_text = 'Mean: {0:.4f}, Std:{1:.4f}'.format(np.mean(corr[ind]), np.std(corr[ind]))
+        ax.text(0.02, 0.9, point_text, fontsize=14, transform=ax.transAxes)
+
+    corr_plot_loc = plot_loc +'/correlations_' + str(linecount) + '.png'
+    plt.savefig(corr_plot_loc, bbox_inches='tight', pad_inches=0)
