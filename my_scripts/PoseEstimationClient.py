@@ -112,11 +112,6 @@ class PoseEstimationClient(object):
                 self.loss_dict_online.append("lift")
         self.loss_dict = {}
 
-
-        self.f_string = ""
-        self.f_reconst_string = ""
-        self.f_groundtruth_str = ""
-
         self.animation = animation
 
     def model_settings(self):
@@ -143,7 +138,6 @@ class PoseEstimationClient(object):
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])
-        self.f_string = new_res["f_string"]
         if self.isCalibratingEnergy:
             self.calib_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
         else:

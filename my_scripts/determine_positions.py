@@ -25,13 +25,13 @@ def adjust_with_M(M, pose, hip_index):
     root_pose = pose[:, hip_index]
     return np.dot(pose - root_pose[:, np.newaxis], M)+root_pose[:, np.newaxis]
 
-def determine_all_positions(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
+def determine_positions(airsim_client, pose_client, current_state, file_manager):
     if (pose_client.modes["mode_3d"] == 0):
-        determine_3d_positions_all_GT(airsim_client, pose_client, current_state, plot_loc, photo_loc)
+        determine_3d_positions_all_GT(airsim_client, pose_client, current_state, file_manager)
     elif (pose_client.modes["mode_3d"] == 1): 
-        determine_3d_positions_backprojection(airsim_client, pose_client, current_state, plot_loc, photo_loc)
+        determine_3d_positions_backprojection(airsim_client, pose_client, current_state, file_manager)
     elif (pose_client.modes["mode_3d"] == 3):
-        determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc, photo_loc)
+        determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, file_manager)
     current_state.update_human_info(pose_client.current_pose)
 
 def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_torch = True, input_image = 0,  scales = [1]):
@@ -88,7 +88,8 @@ def determine_relative_3d_pose(mode_lift, current_state, bone_2d, cropped_image,
         pose3d_relative = camera_to_world(R_drone_gt, C_drone_gt, R_cam_gt, pose3d_lift.cpu())
     return pose3d_relative
 
-def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
+def initialize_with_gt(airsim_client, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints, _ = pose_client.model_settings()
     
@@ -128,7 +129,8 @@ def initialize_with_gt(airsim_client, pose_client, current_state, plot_loc = 0, 
         pose_client.optimized_traj[0,:,:] = current_state.bone_pos_gt.copy()
 
 
-def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
+def determine_openpose_error(airsim_client, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
     bone_pos_3d_GT, _, C_drone_gt, _ = current_state.get_frame_parameters()
     bone_connections, _, num_of_joints, _ =  pose_client.model_settings()
 
@@ -146,7 +148,8 @@ def determine_openpose_error(airsim_client, pose_client, current_state, plot_loc
     pose_client.append_res(plot_end)
     pose_client.f_reconst_string = "" 
 
-def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, plot_loc=0, photo_loc=0):
+def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
 
@@ -266,7 +269,8 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
         reconstruction_str += str(adjusted_current_pose[0,i]) + "\t" + str(adjusted_current_pose[1,i]) + "\t" + str(adjusted_current_pose[2,i]) + "\t"
     pose_client.f_reconst_string = reconstruction_str
 
-def determine_3d_positions_backprojection(airsim_client, pose_client, current_state, plot_loc = 0, photo_loc = 0):
+def determine_3d_positions_backprojection(airsim_client, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, joint_names, _, hip_index = pose_client.model_settings()
 
@@ -285,7 +289,8 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, current_st
     pose_client.append_res(plot_end)
 
 
-def determine_3d_positions_all_GT(airsim_client, pose_client, current_state, plot_loc, photo_loc):
+def determine_3d_positions_all_GT(airsim_client, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints, _ =  pose_client.model_settings()
 

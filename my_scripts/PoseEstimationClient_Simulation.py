@@ -7,10 +7,11 @@ from square_bounding_box import *
 from kalman_filters import *
 from project_bones import take_bone_backprojection_pytorch
 from PoseEstimationClient import *
+from scipy.stats import pearsonr
 
 class PoseEstimationClient_Simulation(PoseEstimationClient):
     def __init__(self, energy_param, cropping_tool, pose_client_general, general_param):
-        PoseEstimationClient.__init__(self, energy_param, cropping_tool, general_param["ANIMATION_NUM"))
+        PoseEstimationClient.__init__(self, energy_param, cropping_tool, general_param["ANIMATION_NUM"])
         self.simulate_error_mode = True
         self.update_initial_param(pose_client_general)
         self.rewind_step()   
@@ -26,6 +27,9 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
 
         self.frame_overall_error_list = np.zeros([self.num_of_noise_trials,])
         self.frame_future_error_list =  np.zeros([self.num_of_noise_trials,])
+
+        self.correlation_current = []
+        self.correlation_future = []
     
     def update_initial_param(self, pose_client_general):
         self.init_optimized_poses = pose_client_general.optimized_poses.copy()
@@ -69,7 +73,7 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.error_2d = self.init_error_2d.copy()
 
     def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
-        self.liftPoseList.insert(0, pose3d_lift)
+        self.liftPoseList.insert(0, pose3d_lift.float())
         self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
@@ -94,6 +98,17 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
 
     def record_noise_experiment_statistics(self, psf, state_ind):
         psf.overall_error_list[state_ind], psf.future_error_list[state_ind], psf.overall_error_std_list[state_ind], psf.future_error_std_list[state_ind] = np.mean(self.frame_overall_error_list), np.mean(self.frame_future_error_list), np.std(self.frame_overall_error_list), np.std(self.frame_future_error_list)
+
+    def find_correlations(self, psf):
+        overall_uncertainty_arr = np.array(psf.uncertainty_list_whole)
+        norm_overall_uncertainty = (overall_uncertainty_arr-np.min(overall_uncertainty_arr))/(np.max(overall_uncertainty_arr)-np.min(overall_uncertainty_arr))
+        norm_overall_error = (psf.overall_error_list-np.min(psf.overall_error_list))/(np.max(psf.overall_error_list)-np.min(psf.overall_error_list))
+        self.correlation_current.append(pearsonr(norm_overall_uncertainty, norm_overall_error)[0])
+
+        future_uncertainty_arr = np.array(psf.uncertainty_list_future)
+        norm_future_uncertainty = (future_uncertainty_arr-np.min(future_uncertainty_arr))/(np.max(future_uncertainty_arr)-np.min(future_uncertainty_arr))
+        norm_future_error = (psf.future_error_list-np.min(psf.future_error_list))/(np.max(psf.future_error_list)-np.min(psf.future_error_list))
+        self.correlation_future.append(pearsonr(norm_future_uncertainty, norm_future_error)[0])
 
     def init_3d_pose(self, pose):
         if self.animation == "noise":

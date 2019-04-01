@@ -47,7 +47,7 @@ def get_client_gt_values(airsim_client, pose_client, X):
 
     return bone_pos_gt, drone_orientation_gt, drone_pos_gt, gt_str
 
-def airsim_retrieve_gt(airsim_client, pose_client, current_state):
+def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     airsim_client.simPauseDrone(False)
     time.sleep(0.1)
     response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
@@ -62,17 +62,17 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state):
     #drone_pos_est = estimated_state.position
     drone_pos_est = 0
 
-    pose_client.f_groundtruth_str = gt_str
+    file_manager.f_groundtruth_str = gt_str
     current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est)
 
     return response.image_data_uint8
 
-def take_photo(airsim_client, pose_client, current_state, image_folder_loc):
+def take_photo(airsim_client, pose_client, current_state, file_manager):
     if USE_AIRSIM:
-        photo = airsim_retrieve_gt(airsim_client, pose_client, current_state)
-        loc = image_folder_loc + '/img_' + str(airsim_client.linecount) + '.png'
+        photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+        loc = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount) + '.png'
         airsim.write_file(os.path.normpath(loc), photo)
-        loc_rem = image_folder_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
+        loc_rem = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
         if os.path.isfile(loc_rem):
             os.remove(loc_rem)
     else:
@@ -173,13 +173,13 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
             #if k == 27:
             #    break        
 
-        photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
+        photo_loc = file_manager.get_photo_loc(airsim_client.linecount)
 
-        take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
+        take_photo(airsim_client, pose_client, current_state, file_manager)
 
         determine_calibration_mode(airsim_client, pose_client)
 
-        determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+        determine_positions(airsim_client, pose_client, current_state, file_manager)
 
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
@@ -248,13 +248,13 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
 
 def precalibration(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     airsim_client.simPauseHuman(True)
-    airsim_retrieve_gt(airsim_client, pose_client, current_state)
+    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
 
     for _ in range(pose_client.PRECALIBRATION_LENGTH):
-        photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-        take_photo(airsim_client, pose_client, current_state, file_manager.take_photo_loc)
+        photo_loc = file_manager.get_photo_loc(airsim_client.linecount)
+        take_photo(airsim_client, pose_client, current_state, file_manager)
 
-        determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+        determine_positions(airsim_client, pose_client, current_state, file_manager)
 
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
@@ -302,12 +302,12 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
         print("Animation:", animation)
         time.sleep(1)
         for _ in range(150): 
-            airsim_retrieve_gt(airsim_client, pose_client, current_state)
+            airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
             potential_states_fetcher.reset(pose_client, current_state)
             potential_states_fetcher.dome_experiment()
 
             for sample_ind in range(potential_states_fetcher.number_of_samples):
-                photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
+                photo_loc = file_manager.get_photo_loc(airsim_client.linecount)
                 goal_state = potential_states_fetcher.potential_states_try[sample_ind]
 
                 sim_pos = goal_state['position']
@@ -317,10 +317,10 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
                 current_state.cam_pitch = goal_state['pitch']
                 
-                take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+                take_photo(airsim_client, pose_client, current_state, file_manager)
                 airsim_client.simPauseDrone(True)
                 
-                determine_openpose_error(airsim_client, pose_client, current_state, plot_loc = file_manager.plot_loc, photo_loc = photo_loc)
+                determine_openpose_error(airsim_client, pose_client, current_state, file_manager)
 
                 #SAVE ALL VALUES OF THIS SIMULATION
                 file_manager.append_openpose_error(pose_client.openpose_error, pose_client.openpose_arm_error,  pose_client.openpose_leg_error)
@@ -346,7 +346,7 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
     print("experiment began at:", date_time_name)
     airsim_client.simPauseDrone(False)
 
-    airsim_retrieve_gt(airsim_client, pose_client, current_state)
+    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     pose_client_sim.init_3d_pose(current_state.bone_pos_gt)
     pose_client.future_pose = current_state.bone_pos_gt
     pose_client.current_pose = current_state.bone_pos_gt
@@ -360,11 +360,9 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
     airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state["orientation"])), True)
     airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
     current_state.cam_pitch = goal_state['pitch']
-    take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+    take_photo(airsim_client, pose_client, current_state, file_manager)
 
-    photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-
-    initialize_with_gt(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+    initialize_with_gt(airsim_client, pose_client, current_state, file_manager)
     airsim_client.linecount += 1
 
     for exp_ind in range(1, 25):        
@@ -390,10 +388,9 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
                 current_state.cam_pitch = goal_state['pitch']
                 for trial_ind in range(pose_client_sim.num_of_noise_trials):
-                    take_photo(airsim_client, pose_client_sim, current_state, file_manager.take_photo_loc)
+                    take_photo(airsim_client, pose_client_sim, current_state, file_manager)
                     pose_client_sim.adjust_3d_pose(current_state, pose_client)
-                    photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
-                    determine_all_positions(airsim_client, pose_client_sim, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+                    determine_positions(airsim_client, pose_client_sim, current_state, file_manager)
                     pose_client_sim.append_error(trial_ind)
                     pose_client_sim.rewind_step()
                 pose_client_sim.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
@@ -417,11 +414,10 @@ def dome_loop(current_state, pose_client, pose_client_sim, airsim_client, potent
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state['pitch'], 0, 0))
         current_state.cam_pitch = goal_state['pitch']
 
-        take_photo(airsim_client, pose_client, current_state,  file_manager.take_photo_loc)
+        take_photo(airsim_client, pose_client, current_state, file_manager)
         pose_client_sim.adjust_3d_pose(current_state, pose_client)
-        photo_loc = file_manager.get_photo_loc(airsim_client.linecount, USE_AIRSIM)
 
-        determine_all_positions(airsim_client, pose_client, current_state, plot_loc=file_manager.plot_loc, photo_loc=photo_loc)
+        determine_positions(airsim_client, pose_client, current_state, file_manager)
 
         airsim_client.linecount += 1
         plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
