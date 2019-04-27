@@ -436,13 +436,13 @@ class PotentialStatesFetcher(object):
         for hessian_part_ind, covariances in enumerate([self.potential_covs_future, self.potential_covs_whole]):
             uncertainty_list = []
             for cov in covariances:
-                if self.uncertainty_calc_method == 0:
+                if self.uncertainty_calc_method == "sum_eig":
                     _, s, _ = np.linalg.svd(cov)
                     uncertainty_list.append(np.sum(s)) 
-                elif self.uncertainty_calc_method == 1:
+                elif self.uncertainty_calc_method == "add_diag":
                     s = np.diag(cov)
                     uncertainty_list.append(np.sum(s)) 
-                elif self.uncertainty_calc_method == 2:
+                elif self.uncertainty_calc_method == "multip_eig":
                     _, s, _ = np.linalg.svd(cov)
                     uncertainty_list.append(s[0]*s[1]*s[2]) 
                     #import matplotlib.pyplot as plt
@@ -451,7 +451,7 @@ class PotentialStatesFetcher(object):
                     #plt.plot(s, marker="^")
                     #plt.show()
                     #plt.close()
-                elif self.uncertainty_calc_method == 3:
+                elif self.uncertainty_calc_method == "determinant":
                     uncertainty_list.append(np.linalg.det(s))
                     #cov_shaped = shape_cov_general(cov, self.model, 0)
                     #uncertainty_joints = np.zeros([self.number_of_joints,])
@@ -461,12 +461,12 @@ class PotentialStatesFetcher(object):
                     #uncertainty_list.append(np.mean(uncertainty_joints))
                 #elif self.uncertainty_calc_method == 4:
                   #  pass
-            #if self.uncertainty_calc_method == 4:
+            #if self.uncertainty_calc_method == "random":
              #   (uncertainty_lists[hessian_part_ind]) = (np.random.permutation(np.arange(self.number_of_samples))).tolist()
             if hessian_part_ind == 0:
                 self.uncertainty_list_future = uncertainty_list.copy()
                 final_list = uncertainty_list.copy()
-            elif self.hessian_part == 2:
+            elif self.hessian_part == "whole":
                 self.uncertainty_list_whole = uncertainty_list.copy()
                 final_list = uncertainty_list.copy()
 

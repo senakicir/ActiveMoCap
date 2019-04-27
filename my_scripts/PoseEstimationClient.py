@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from crop import Crop
 from square_bounding_box import *
-from project_bones import take_bone_backprojection_pytorch
+from project_bones import take_bone_backprojection_pytorch, Projection_Client
 
 def calculate_bone_lengths(bones, bone_connections, batch):
     if batch:
@@ -114,6 +114,9 @@ class PoseEstimationClient(object):
 
         self.animation = animation
 
+        self.projection_client = Projection_Client()
+
+
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
 
@@ -183,6 +186,25 @@ class PoseEstimationClient(object):
     def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
         self.liftPoseList.insert(0, pose3d_lift)
         self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
+
+        temp = self.poses_3d_gt[:-1,:].copy() 
+        self.poses_3d_gt[0,:] = pose_3d_gt.copy()
+        self.poses_3d_gt[1:,:] = temp.copy()
+        
+        if self.isCalibratingEnergy:
+            if linecount >= self.PRECALIBRATION_LENGTH:
+                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
+                    self.requiredEstimationData.pop()
+                    self.liftPoseList.pop()
+
+        else:
+            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1):
+                self.requiredEstimationData.pop()
+                self.liftPoseList.pop()
+
+    def addNewFrame_extrinsics(self, pose_2d, pose_2d_gt, transform, linecount, pose_3d_gt, pose3d_lift):
+        self.liftPoseList.insert(0, pose3d_lift)
+        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, transform])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()

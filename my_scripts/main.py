@@ -8,16 +8,17 @@ if __name__ == "__main__":
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
     
-    use_airsim = True
+    #simulation mode = "use_airsim", "drone_flight_data"
+    simulation_mode = "use_airsim"
     base_folder = "/Users/kicirogl/Documents/temp_main"
-    #trajectory = 0-active, 1-rotation baseline, 2-random, 3-constant angle, 4-wobbly rotation, 5-updown, 6-leftright
-    trajectory = 0
-    #loop_mode = 0-normal sim, 1-openpose, 2-dome
-    loop_mode = 2
-    #hessian method 0-future, 1- middle, 2-whole
-    hessian_part = 2
-    #use trace: 0-sumeig 1-adddiag 2-multipeig 3-det 4-random
-    uncertainty_calc_method = 0
+    #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright
+    trajectory = "active"
+    #loop_mode = 0-normal, 1-openpose, 2-teleport
+    loop_mode = "teleport"
+    #hessian_part: 0-future, 1-middle, 2-whole
+    hessian_part = "whole"
+    #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-random
+    uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
     SEED_LIST = [41]#, 5, 2, 12, 1995]
@@ -44,16 +45,16 @@ if __name__ == "__main__":
 
     use_symmetry_term = True
     use_single_joint = False
-    #smoothness_mode: 0-velocity, 1-position, 2-all connected, 3-onlyveloconnected, 4-none
-    smoothness_mode = 4
+    #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
+    smoothness_mode = "velocity"
     #use_bone_term = True
     #use_lift_term = False
-    use_trajectory_basis = True
+    use_trajectory_basis = False
     num_of_trajectory_param = 5
-    num_of_noise_trials = 20
+    num_of_noise_trials = 30
     pose_noise_3d_std = 0.1
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "USE_AIRSIM": use_airsim, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
+    parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
@@ -61,7 +62,7 @@ if __name__ == "__main__":
     modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
    
     #animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
-    animations = {"noise": len(SEED_LIST)}
+    animations = {"02_01": len(SEED_LIST)}
 
     theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 20))
@@ -71,7 +72,7 @@ if __name__ == "__main__":
     active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     
-    lift_bone_term_grid = [[True, False],[True, True]]
+    lift_bone_term_grid = [[False, True],[True, True], [True, False], [False, False]]
     num_of_experiments = len(lift_bone_term_grid)
     for experiment_ind in range(num_of_experiments):
 
@@ -80,7 +81,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_ =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
+        weights =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
 
         energy_parameters = {"ONLINE_WINDOW_SIZE": online_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3, "WEIGHTS": weights, "INIT_POSE_WITH_GT": init_pose_with_gt, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis, "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param}
         energy_parameters["USE_LIFT_TERM"] = lift_bone_term_grid[experiment_ind][0]

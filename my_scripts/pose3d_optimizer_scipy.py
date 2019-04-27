@@ -77,7 +77,7 @@ class pose3d_calibration_parallel_wrapper():
         
         data_list = pose_client.requiredEstimationData
 
-        projection_client = Projection_Client()
+        projection_client = pose_client.projection_client
         projection_client.reset(data_list, self.NUM_OF_JOINTS, pose_client.simulate_error_mode, pose_client.noise_2d_std)
 
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
@@ -88,7 +88,7 @@ class pose3d_calibration_parallel_wrapper():
     def reset_future(self, pose_client, potential_state):
         self.bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
-        projection_client = Projection_Client()
+        projection_client = pose_client.projection_client
 
         #future state 
         yaw = potential_state["orientation"]

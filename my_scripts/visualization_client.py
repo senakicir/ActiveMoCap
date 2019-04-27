@@ -1,11 +1,5 @@
-import setup_path 
-import airsim
-
-import shutil
-import skimage.io
 import numpy as np
 import torch as torch
-from pandas import read_csv
 
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -13,274 +7,131 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
-import time, os
-import cv2
-from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos
+from PoseEstimationClient import PoseEstimationClient
 
-TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
-ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "noise":-1}
+class VisualizationClient(object):
+    def __init__(self, pose_client):
+        self.bone_connections, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
+        plt.figure()
+        plt.close()
 
-bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
-              [0, 4], [4, 5], [5, 6], [6, 20], #left leg
-              [0, 7], [7, 8], [8, 9], [9, 10], #middle
-              [8, 14], [14, 15], [15, 16], [16, 17], #left arm
-              [8, 11], [11, 12], [12, 13], [13, 18]] #right arm
+    ##add functions here as you call them
+    #################
+    def plot_potential_ellipses(self, psf, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
+        current_human_pos = psf.current_human_pos[:, self.hip_index]
+        future_human_pos =  psf.future_human_pos[:, self.hip_index]
+        gt_human_pos = psf.human_GT[:, self.hip_index]
+        
+        if top_down:
+            fig = plt.figure(figsize=(8,4))
+            ax = fig.add_subplot(121, projection='3d')
+            ax_top_down = fig.add_subplot(122) 
+        else:
+            fig = plt.figure(figsize=(4,4))
+            ax = fig.add_subplot(111, projection='3d')
 
-joint_indices_h36m=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
-joint_names_h36m = ['hip','right_up_leg','right_leg','right_foot','left_up_leg','left_leg', 'left_foot','spine1','neck', 'head', 'head_top', 'left_arm','left_forearm','left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip', 'right_foot_tip', 'left_foot_tip']
+        potential_states = psf.potential_states_go
+        covs = psf.potential_covs_whole
+        if plot_errors:
+            error_list = psf.error_list
+            cmap = cm.cool
+            norm = colors.Normalize(vmin=(np.min(error_list)), vmax=(np.max(error_list)))
 
-bones_mpi = [[0, 1], [14, 1], #middle
-            [1, 2], [2, 3], [3, 4], #right arm
-            [1, 5], [5, 6], [6, 7],  #left arm
-            [14, 8], [8, 9], [9, 10], #right leg
-            [14, 11], [11, 12], [12, 13]] #left leg
-joint_names_mpi = ['head','neck','right_arm','right_forearm','right_hand','left_arm', 'left_forearm','left_hand','right_up_leg','right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1']
+        #plot the people
+        plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='^', label="current human pos")
+        plot2, = ax.plot([future_human_pos[0]], [future_human_pos[1]], [-future_human_pos[2]], c='xkcd:royal blue', marker='^', label="future human pos")
+        plot3, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='^', label="GT current human pos")
 
-EPSILON = 0.00000001
+        #for ax limits
+        X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
+        Y = np.array([current_human_pos[1], future_human_pos[1], gt_human_pos[1]])
+        Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
 
-SIZE_X = 1024
-SIZE_Y = 576
-FOCAL_LENGTH = SIZE_X/2
-px = SIZE_X/2
-py = SIZE_Y/2
-CAMERA_OFFSET_X = 45/100
-CAMERA_OFFSET_Y = 0
-CAMERA_OFFSET_Z = 0#-4.92
-CAMERA_ROLL_OFFSET = 0
-CAMERA_PITCH_OFFSET = 0
-CAMERA_YAW_OFFSET = 0
-FRAME_START_OPTIMIZING = 5
+        #plot ellipses
+        centers = []
+        for state_ind, potential_state in enumerate(potential_states):
+            state_pos =  potential_state["position"]
+            center = np.copy(state_pos)
+            center[2] = -center[2]
+            centers.append(center)
+        
+        if ind < 3:
+            radii_list = np.zeros([len(covs), 3])
+            for state_ind, cov in enumerate(covs):
+                shaped_cov = shape_cov(cov, self.hip_index, self.num_of_joints, FUTURE_POSE_INDEX)
+                _, s, _ = np.linalg.svd(shaped_cov)
+                radii = np.sqrt(s)
+                radii_list[state_ind, :] = radii[0:3]
+            global max_radii
+            max_radii = np.max(radii_list)
 
-CURRENT_POSE_INDEX = 1
-FUTURE_POSE_INDEX = 0
-MIDDLE_POSE_INDEX = 3
-
-plt.figure()
-plt.close()
-
-max_radii = 1
-
-def find_bone_map():
-    bones_map_to_mpi = []
-    for ind, value in enumerate(joint_names_mpi):
-        bones_map_to_mpi.append(joint_names_h36m.index(value))
-    return bones_map_to_mpi
-
-bones_map_to_mpi = find_bone_map()
-
-def rearrange_bones_to_mpi(bones_unarranged, is_torch = True):
-    if (is_torch):
-        bones_rearranged = torch.zeros(3, 15)
-        bones_rearranged = bones_unarranged[:, bones_map_to_mpi]
-    else:
-        bones_rearranged = np.zeros([3,15])
-        bones_rearranged = bones_unarranged[:, bones_map_to_mpi]
-    return bones_rearranged
-
-def split_bone_connections(bone_connections):
-    if (bone_connections == bones_h36m):
-        left_bone_connections = [[8, 14], [14, 15], [15, 16], [16, 17], [0, 4], [4, 5], [5, 6], [6, 20]]
-        right_bone_connections = [[8, 11], [11, 12], [12, 13], [13, 18], [0, 1], [1, 2], [2, 3], [3, 19]]
-        middle_bone_connections = [[0, 7], [7, 8], [8, 9], [9, 10]]
-    elif (bone_connections == bones_mpi):
-        left_bone_connections = [[1, 5], [5, 6], [6, 7],[14, 11], [11, 12], [12, 13]]
-        right_bone_connections = [[1, 2], [2, 3], [3, 4], [14, 8], [8, 9], [9, 10]]
-        middle_bone_connections = [[0, 1], [14, 1]]
-    return left_bone_connections, right_bone_connections, middle_bone_connections
-
-additional_directions = [[4, 10], [7,13], [3,9], [6, 12], [14,3], [14, 6]]
-lift_bone_directions = bones_mpi + additional_directions
-
-def return_lift_bone_connections(bone_connections):
-    if (bone_connections == bones_mpi):
-        return lift_bone_directions
-    elif (bone_connections == bones_h36m):
-        #todo
-        return lift_bone_directions
-
-def return_arm_connection(bone_connections):
-    if (bone_connections == bones_h36m):
-        left_arm_connections = [[8, 14], [14, 15], [15, 16], [16, 17]]
-        right_arm_connections = [[8, 11], [11, 12], [12, 13], [13, 18]]
-    elif (bone_connections == bones_mpi):
-        left_arm_connections = [[1, 5], [5, 6], [6, 7]]
-        right_arm_connections = [[1, 2], [2, 3], [3, 4]]
-    return right_arm_connections, left_arm_connections
-
-def return_arm_joints(model="mpi"):
-    if (model == "mpi"):
-        arm_joints = [5,6,7,2,3,4]
-        left_arm_joints = [5, 6, 7]
-        right_arm_joints = [2, 3, 4]
-    return arm_joints, right_arm_joints, left_arm_joints
-
-def return_leg_joints(model="mpi"):
-    if (model == "mpi"):
-        leg_joints = [11,12,13,8,9,10]
-        left_leg_joints = [11, 12, 13]
-        right_leg_joints = [8, 9, 10]
-    return leg_joints, right_leg_joints, left_leg_joints
-
-def model_settings(model):
-    if (model == "mpi"):
-        bone_connections = bones_mpi
-        joint_names = joint_names_mpi
-        num_of_joints = 15
-    else:
-        bone_connections = bones_h36m
-        joint_names = joint_names_h36m
-        num_of_joints = 21
-    return bone_connections, joint_names, num_of_joints
+        for state_ind, center in enumerate(centers):
+            markersize=30
+            text_color="b"
+            if (state_ind == psf.goal_state_ind):
+                markersize=100
+                text_color="r"
+            if ellipses:
+                x, y, z = matrix_to_ellipse(matrix=shape_cov(covs[state_ind], hip_index, num_of_joints, FUTURE_POSE_INDEX), center=center)
+                ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
+                ax.text(center[0], center[1], center[2], str(state_ind), color=text_color)
+                if top_down:
+                    ax_top_down.plot(x,y)
+                    ax_top_down.text(center[0], center[1], str(state_ind), color=text_color)
+            else:
+                if plot_errors:
+                    ax.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[error_list[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
+                    point_text = '{0:d}:{1:.4f}'.format(state_ind, error_list[state_ind])
+                    ax.text(center[0], center[1], center[2], point_text, color="b")
+                else:
+                    ax.plot([center[0]], [center[1]], [center[2]], marker='^', c=text_color, markersize=markersize)
+                    ax.text(center[0], center[1], center[2], str(state_ind))
+                    if top_down:
+                        ax_top_down.text(center[0], center[1], str(state_ind))
 
 
-def normalize_weights(weights_):    
-    weights = {}
-    weights_sum = sum(weights_.values())
-    for loss_key in weights_:
-        weights[loss_key] = weights_[loss_key]/weights_sum
-    return weights
+            X = np.concatenate([X, np.array([center[0]])])
+            Y = np.concatenate([Y, np.array([center[1]])])
+            Z = np.concatenate([Z, np.array([center[2]])])
 
-def add_noise_to_pose(pose, noise_std):
-    noise = torch.normal(torch.zeros(pose.shape), torch.ones(pose.shape)*noise_std).float()
-    pose = pose.float().clone() + noise
-    return pose 
+        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+        mid_x = (X.max()+X.min()) * 0.5
+        mid_y = (Y.max()+Y.min()) * 0.5
+        mid_z = (Z.max()+Z.min()) * 0.5
+        ax.set_xlim(mid_x - max_range, mid_x + max_range)
+        ax.set_ylim(mid_y - max_range, mid_y + max_range)
+        ax.set_zlim(mid_z - max_range, mid_z + max_range)
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
 
-def range_angle(angle, limit=360, is_radians = True):
-    if is_radians:
-        angle = degrees(angle)
-    if angle > limit:
-        angle = angle - 360
-    elif angle < limit-360:
-        angle = angle + 360
-    if is_radians:
-        angle = radians(angle)
-    return angle
+        if top_down:
+            ax_top_down.set_xlim(mid_x - max_range*2, mid_x + max_range*2)
+            ax_top_down.set_ylim(mid_y - max_range*2, mid_y + max_range*2)
+            ax_top_down.set_xlabel('X')
+            ax_top_down.set_ylabel('Y')
 
-def save_bone_positions_2(index, bones, f_output):
-    bones = [ v for v in bones.values() ]
-    line = str(index)
-    for i in range(0, len(bones)):
-        line = line+'\t'+str(bones[i][b'x_val'])+'\t'+str(bones[i][b'y_val'])+'\t'+str(bones[i][b'z_val'])
-    line = line+'\n'
-    f_output.write(line)
+        ax.legend(handles=[plot1, plot2, plot3])
 
-def do_nothing(x):
-    pass
+        file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
+        plt.savefig(file_name)
+        plt.close(fig)
 
-def find_M(plot_info, hip_index, num_of_joints):
-    p_GT = np.zeros([3*len(plot_info),num_of_joints])
-    p_est = np.zeros([3*len(plot_info),num_of_joints])
-    for frame_ind, frame_plot_info in enumerate(plot_info):
-        predicted_bones = frame_plot_info["est"]
-        bones_GT = frame_plot_info["GT"]
-        root_GT = bones_GT[:,hip_index]
-        root_est = predicted_bones[:,hip_index]
-        p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT-root_GT[:, np.newaxis]
-        p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones-root_est[:, np.newaxis]
+    def plot_correlations(self, pose_client, linecount, plot_loc):
+        fig = plt.figure()
+        ax_current = fig.add_subplot(121)
+        ax_future = fig.add_subplot(122)
 
+        corr = [pose_client.correlation_current, pose_client.correlation_future]
+        for ind, ax in enumerate([ax_current, ax_future]):
+            ax.plot(corr[ind], marker="^")
+            point_text = 'Mean: {0:.4f}, Std:{1:.4f}'.format(np.mean(corr[ind]), np.std(corr[ind]))
+            ax.text(0.02, 0.9, point_text, fontsize=14, transform=ax.transAxes)
 
-    #remove spine row from both arrays
-    p_est = np.delete(p_est, hip_index, 1)
-    p_GT = np.delete(p_GT, hip_index, 1)
-    filename = "M_rel.txt"
-    
-    X = np.linalg.inv(np.dot(p_est.T, p_est))
-    M = np.dot(np.dot(X, p_est.T), p_GT)
+        corr_plot_loc = plot_loc +'/correlations_' + str(linecount) + '.png'
+        plt.savefig(corr_plot_loc, bbox_inches='tight', pad_inches=0)
 
-    M = np.insert(M, hip_index, 0, axis=1)
-    M = np.insert(M, hip_index, 0, axis=0)
-    M[hip_index, hip_index] = 1
-
-    M_file = open(filename, 'w')
-    M_str = ""
-    for i in range(0, num_of_joints):
-        for j in range(0, num_of_joints):
-            M_str += str(M[i,j]) + "\t"
-        if (i != num_of_joints-1):
-            M_str += "\n"
-    M_file.write(M_str)
-
-    return M
-
-def read_M(num_of_joints, name = "M_rel"):
-    filename = name+".txt"
-    if os.path.exists(filename):
-        X = read_csv(filename, sep='\t', header=None).ix[:,:].values.astype('float')     
-        return X[:,0:num_of_joints]
-    else:
-        return np.eye(num_of_joints)
-
-def move_M(destination_folder):
-    os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
-
-def reset_all_folders(animation_list, base = ""):
-    if (base == ""):
-        base = "temp_main"
-    if (base == "grid_search"):
-        base = "grid_search"
-
-    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
-    folder_names = [base, base + '/' + date_time_name]
-    main_folder_name = base + '/' + date_time_name
-
-    for a_folder_name in folder_names:
-        if not os.path.exists(a_folder_name):
-            os.makedirs(a_folder_name)
-    
-    file_names = {}
-    folder_names = {}
-    for animation in animation_list:
-        sub_folder_name = main_folder_name + "/" + str(animation)
-        for ind in range(animation_list[animation]):
-            experiment_folder_name = sub_folder_name + "/" + str(ind)
-            if not os.path.exists(experiment_folder_name):
-                os.makedirs(experiment_folder_name)
-            key = str(animation) + "_" + str(ind)
-            folder_names[key] = {"images": experiment_folder_name + '/images', "estimates": experiment_folder_name + '/estimates', "superimposed_images":  experiment_folder_name + '/superimposed_images'}
-            for a_folder_name in folder_names[key].values():
-                if not os.path.exists(a_folder_name):
-                    os.makedirs(a_folder_name)
-            file_names[key] = {"f_error": experiment_folder_name +  '/error.txt', 
-                "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', 
-                "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', 
-                "f_uncertainty": experiment_folder_name +  '/uncertainty.txt', 
-                "f_drone_pos": experiment_folder_name +  '/drone_pos.txt', 
-                "f_initial_drone_pos": experiment_folder_name +  '/initial_drone_pos.txt', 
-                "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', 
-                "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  
-                "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt'}
-
-    f_notes_name = main_folder_name + "/notes.txt"
-    return file_names, folder_names, f_notes_name, date_time_name
-
-def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
-    f_notes = open(f_notes_name, 'w')
-    notes_str = "General Parameters:\n"
-    for key, value in parameters.items():
-        if (key !=  "FILE_NAMES" and key != "FOLDER_NAMES"):
-            notes_str += str(key) + " : " + str(value)
-            notes_str += '\n'
-
-    notes_str += '\nEnergy Parameters:\n'
-    for key, value in energy_parameters.items():
-        notes_str += str(key) + " : " + str(value)
-        notes_str += '\n'
-
-    notes_str += '\nActive motion Parameters:\n'
-    for key, value in active_parameters.items():
-        notes_str += str(key) + " : " + str(value)
-        notes_str += '\n'
-
-    f_notes.write(notes_str)
-    f_notes.close()
-
-def append_error_notes(f_notes_name, err_1, err_2):
-    f_notes = open(f_notes_name, 'a')
-    notes_str = "\n---\nResults:\n"
-    notes_str += "last frame error: ave:" + str(np.mean(np.array(err_1), axis=0)) + '\tstd:' + str(np.std(np.array(err_1), axis=0)) +"\n"
-    notes_str += "mid frame error: ave:" + str(np.mean(np.array(err_2), axis=0)) + '\tstd:' + str(np.std(np.array(err_2), axis=0)) +"\n"
-    f_notes.write(notes_str)
-    f_notes.close()
+    #################
 
 def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name):
     #PLOT STUFF HERE AT THE END OF SIMULATION

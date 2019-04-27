@@ -4,7 +4,7 @@ import numpy as np
 import torch as torch
 from helpers import range_angle, shape_cov, euler_to_rotation_matrix, add_noise_to_pose
 import time as time 
-from project_bones import take_potential_projection, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET
+from project_bones import take_potential_projection, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor, C_cam_torch
 import pdb 
 
 #constants
@@ -58,13 +58,14 @@ class State(object):
         self.human_pos_gt = np.zeros([3,])
         self.bone_pos_gt = np.zeros([3, self.num_of_joints])
 
+        self.drone_translation_matrix = 0 
+
         self.drone_pos_est = np.zeros([3,])
         self.human_pos_est = np.zeros([3,])
         self.human_orientation_est = np.zeros([3,])
         self.drone_orientation_est = np.array([0,0,0])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
-
 
     def change_human_gt_info(self, bone_pos_gt_updated):
         self.bone_pos_gt =  bone_pos_gt_updated.copy()
@@ -84,6 +85,25 @@ class State(object):
         self.R_cam_gt = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, self.cam_pitch+pi/2, CAMERA_YAW_OFFSET)
 
         self.drone_pos_est = drone_pos_est
+
+        #form drone translation matrix (similar to dataset)
+        drone_transformation = torch.cat((torch.cat((R_drone_gt, C_drone_gt), dim=1), neat_tensor), dim=0)
+        camera_transformation = torch.cat((torch.cat((R_cam_gt, C_cam_torch), dim=1), neat_tensor), dim=0) 
+        self.drone_transformation_matrix = drone_transformation@camera_transformation
+        self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
+
+    def store_frame_transformation_matrix_joint_gt(self, bone_pos_gt, drone_transformation_matrix):
+        self.change_human_gt_info(bone_pos_gt)
+
+        self.R_drone_gt = torch.zeros([3,3])
+        self.C_drone_gt = torch.zeros([3,1])
+        self.R_cam_gt = torch.zeros([3,3])
+
+        self.drone_orientation_gt = np.zeros([3,])
+        self.drone_pos_gt = np.zeros([3,])
+
+        self.drone_transformation_matrix = drone_transformation_matrix.clone()
+        self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
         return self.bone_pos_gt, self.R_drone_gt, self.C_drone_gt, self.R_cam_gt

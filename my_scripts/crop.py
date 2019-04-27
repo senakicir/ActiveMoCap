@@ -7,9 +7,8 @@ import pdb
 crop_alpha = 0.5
 STABLE_FRAME = 20
 
-class Crop:
-
-    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y], loop_mode = 0):
+class Crop (object):
+    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y], loop_mode = "normal"):
         self.old_bbox = bbox_init
         self.bbox = bbox_init
         self.image_bounds = [0,0]
@@ -18,23 +17,14 @@ class Crop:
         self.bounding_box_margin = 3
         self.unstable = True
 
-        if loop_mode != 0:
+        if loop_mode != "normal":
             self.unstable = False
             global crop_alpha
             crop_alpha = 1
             self.bbox = [SIZE_X//2-135,SIZE_Y//2-135,270,270]
             self.bounding_box_margin = 3
 
-    def crop(self, image, linecount):
-        if linecount >= STABLE_FRAME:
-            self.unstable = False
-
-        if self.unstable:
-            print("unstable, will not crop")
-            return image, [1]
-        
-        self.update_bbox_margin(1)
-
+    def crop_function(self, image):
         orig_image_width = image.shape[1]
         orig_image_height = image.shape[0]
 
@@ -75,7 +65,19 @@ class Crop:
         crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,
                                                                             img_min_x:img_max_x,
                                                                             :]
+        return crop_frame
 
+    def crop(self, image, linecount):
+        if linecount >= STABLE_FRAME:
+            self.unstable = False
+
+        if self.unstable:
+            print("unstable, will not crop")
+            return image, [1]
+        else:
+            self.update_bbox_margin(1)
+            crop_frame = crop_function(self, image)
+        
         self.scales = [0.75, 1, 1.25, 1.5,]
 
         return crop_frame, self.scales
@@ -104,3 +106,10 @@ class Crop:
         pose_2d[1,:] = pose_2d[1,:] - self.image_bounds[1]
         return pose_2d
     
+class SimpleCrop (Crop):
+    def __init__(self, pose_2d):
+        Crop.__init__(self)
+        self.bounding_box_calculator = BoundingBox(margin=1)
+        self.bbox = self.bounding_box_calculator.get_bounding_box(pose_2d)     
+        global crop_alpha
+        crop_alpha = 1

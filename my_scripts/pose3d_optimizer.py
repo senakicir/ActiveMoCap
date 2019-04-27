@@ -138,15 +138,15 @@ class pose3d_online_parallel(torch.nn.Module):
             output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
 
         #smoothness term
-        if self.smoothness_mode == 0:
+        if self.smoothness_mode == "velocity":
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 1:
+        elif self.smoothness_mode == "position":
             output["smooth"] = mse_loss(self.pose3d[1:, :, :], self.pose3d[:-1, :, :], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 2:
+        elif self.smoothness_mode == "all_connected":
             vel_tensor = self.pose3d[:, :, :] - self.pose3d[self.n, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 3:
+        elif self.smoothness_mode == "only_velo_connected":
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
 
@@ -252,18 +252,18 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
 
         #smoothness term
-        if self.smoothness_mode == 0:
+        if self.smoothness_mode == "velocity":
             vel_tensor = pose3d_projected[1:, :, :] - pose3d_projected[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 1:
+        elif self.smoothness_mode == "position":
             output["smooth"] = mse_loss(pose3d_projected[1:, :, :], pose3d_projected[:-1, :, :], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 2:
+        elif self.smoothness_mode == "all_connected":
             vel_tensor = pose3d_projected[:, :, :] - pose3d_projected[self.n, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 3:
+        elif self.smoothness_mode == "only_velo_connected":
             vel_tensor = pose3d_projected[1:, :, :] - pose3d_projected[:-1, :, :]
             output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], 3*self.NUM_OF_JOINTS)
-        elif self.smoothness_mode == 4:
+        elif self.smoothness_mode == "none":
             output["smooth"] = 0
 
         if self.use_bone_term and not self.use_single_joint:
