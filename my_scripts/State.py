@@ -106,7 +106,7 @@ class State(object):
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
-        return self.bone_pos_gt, self.R_drone_gt, self.C_drone_gt, self.R_cam_gt
+        return self.bone_pos_gt, self.inv_drone_transformation_matrix
 
     def update_human_info(self, bone_pos_est):
         self.bone_pos_est = bone_pos_est

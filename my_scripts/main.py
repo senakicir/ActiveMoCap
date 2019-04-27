@@ -59,7 +59,7 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":0}
+    modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt"}
    
     #animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
     animations = {"02_01": len(SEED_LIST)}

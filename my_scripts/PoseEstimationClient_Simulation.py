@@ -72,9 +72,9 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.error_3d = self.init_error_3d.copy()
         self.error_2d = self.init_error_2d.copy()
 
-    def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
+    def addNewFrame(self, pose_2d, pose_2d_gt, inv_transformation_matrix, linecount, pose_3d_gt, pose3d_lift):
         self.liftPoseList.insert(0, pose3d_lift.float())
-        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
+        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, inv_transformation_matrix])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()
@@ -89,7 +89,7 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
     def update_middle_pose_GT(self, middle_pose):
         pass
 
-    def initialize_pose_3d(self, pose_3d_gt, calculating_future, linecount, pose_2d, R_drone_gt, C_drone_gt, R_cam_gt):
+    def initialize_pose_3d(self, pose_3d_gt, calculating_future, linecount, pose_2d, inv_transformation_matrix):
         self.pose_3d_preoptimization = self.optimized_poses.copy()
 
     def append_error(self, trial_ind):

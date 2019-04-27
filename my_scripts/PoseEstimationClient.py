@@ -183,28 +183,9 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
         self.result_size =  np.prod(np.array(self.result_shape))
 
-    def addNewFrame(self, pose_2d, pose_2d_gt, R_drone, C_drone, R_cam, linecount, pose_3d_gt, pose3d_lift):
+    def addNewFrame(self, pose_2d, pose_2d_gt, inv_transformation_matrix, linecount, pose_3d_gt, pose3d_lift):
         self.liftPoseList.insert(0, pose3d_lift)
-        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, R_drone, C_drone, R_cam])
-
-        temp = self.poses_3d_gt[:-1,:].copy() 
-        self.poses_3d_gt[0,:] = pose_3d_gt.copy()
-        self.poses_3d_gt[1:,:] = temp.copy()
-        
-        if self.isCalibratingEnergy:
-            if linecount >= self.PRECALIBRATION_LENGTH:
-                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
-                    self.requiredEstimationData.pop()
-                    self.liftPoseList.pop()
-
-        else:
-            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1):
-                self.requiredEstimationData.pop()
-                self.liftPoseList.pop()
-
-    def addNewFrame_extrinsics(self, pose_2d, pose_2d_gt, transform, linecount, pose_3d_gt, pose3d_lift):
-        self.liftPoseList.insert(0, pose3d_lift)
-        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, transform])
+        self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, inv_transformation_matrix])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()
@@ -239,14 +220,14 @@ class PoseEstimationClient(object):
             self.middle_pose_GT_list.pop()
         return self.middle_pose_GT_list[-1]
 
-    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, R_drone_gt, C_drone_gt, R_cam_gt):
+    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
         if (linecount != 0):
             current_frame_init = self.future_pose.copy()
         else:
             if self.init_pose_with_gt:
                 current_frame_init = pose_3d_gt.copy()
             else:
-                current_frame_init = take_bone_backprojection_pytorch(pose_2d, R_drone_gt, C_drone_gt, R_cam_gt, self.joint_names).numpy()
+                current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
         
         if self.isCalibratingEnergy:
             self.pose_3d_preoptimization = current_frame_init.copy()
