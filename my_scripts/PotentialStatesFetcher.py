@@ -4,8 +4,9 @@ from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_online
 from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
 from random import randint
-from project_bones import take_potential_projection
+from project_bones import Projection_Client, C_cam_torch, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
 import time as time
+import torch
 
 def sample_states_spherical(psf, new_radius, new_theta, new_phi):
     new_yaw = new_phi  + psf.human_orientation_GT
@@ -16,10 +17,28 @@ def sample_states_spherical(psf, new_radius, new_theta, new_phi):
 
     _, new_phi_go = find_current_polar_info(drone_pos, psf.human_GT[:, psf.hip_index]) #used to be norm_pos_go
 
-    goal_state = {"position":np.copy(drone_pos), "orientation": new_phi_go+pi, "pitch": new_theta+pi/2}
+    goal_state = PotentialState(position=drone_pos.copy(), orientation=new_phi_go+pi, pitch=new_theta+pi/2)
 
     psf.potential_states_try.append(goal_state)
     psf.potential_states_go.append(goal_state)
+
+class PotentialState(object):
+    def __init__(self, position, orientation, pitch):
+        self.position = position
+        self.orientation = orientation
+        self.pitch = pitch
+
+        self.potential_C_drone = torch.from_numpy(self.position[:, np.newaxis]).float()
+        self.potential_R_drone = euler_to_rotation_matrix(0,0,self.orientation, returnTensor=True)
+        self.potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, self.pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor=True)
+
+        drone_transformation = torch.cat((torch.cat((self.potential_R_drone, self.potential_C_drone), dim=1), neat_tensor), dim=0)
+        camera_transformation = torch.cat((torch.cat((self.potential_R_cam, C_cam_torch), dim=1), neat_tensor), dim=0) 
+        self.inv_transformation_matrix = torch.inverse(drone_transformation@camera_transformation)
+
+    def get_goal_pos_yaw_pitch(self, curr_drone_orientation):
+        desired_yaw_deg = find_delta_yaw((curr_drone_orientation)[2],  self.orientation)
+        return self.position , desired_yaw_deg, self.pitch   
 
 class PotentialStatesFetcher(object):
     def __init__(self, pose_client, active_parameters):
@@ -145,12 +164,12 @@ class PotentialStatesFetcher(object):
                 new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
                 new_pitch = pi/2 -new_theta
                 _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-                self.potential_states_try.append({"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch})
+                self.potential_states_try.append(PotentialState(position=norm_pos.copy(), orientation=new_phi+pi, pitch=new_pitch))
 
                 new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
                 new_pitch_go = pi/2 -new_theta_go
                 _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-                self.potential_states_go.append({"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go})
+                self.potential_states_go.append(PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go))
                 ind += 1
 
     def go_there(self, dir = "u"):
@@ -185,7 +204,7 @@ class PotentialStatesFetcher(object):
         new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch_go = pi/2 -new_theta_go
         _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go}
+        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go)
         return goal_state    
 
     def constant_rotation_baseline_future(self):
@@ -213,7 +232,7 @@ class PotentialStatesFetcher(object):
         new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch = pi/2 -new_theta
         _, new_phi = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
+        goal_state = PotentialState(position=norm_pos.copy(), orientation=new_phi+pi, pitch=new_pitch)
 
         return goal_state
 
@@ -236,7 +255,7 @@ class PotentialStatesFetcher(object):
         new_theta_go = acos((pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch_go = pi/2 -new_theta_go
         _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go}
+        goal_state = PotentialState(position=pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go)
         return goal_state
 
     def dome_experiment(self):
@@ -277,7 +296,7 @@ class PotentialStatesFetcher(object):
         new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch_go = pi/2 -new_theta_go
         _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index]) #used to be norm_pos_go
-        goal_state = {"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go}
+        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go)
         return goal_state
 
     def left_right_baseline(self):
@@ -313,7 +332,7 @@ class PotentialStatesFetcher(object):
         new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch_go = pi/2 -new_theta_go
         _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go}
+        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go)
         return goal_state
 
     def wobbly_baseline(self):
@@ -356,7 +375,7 @@ class PotentialStatesFetcher(object):
         new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch_go = pi/2 -new_theta_go
         _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos_go), "orientation": new_phi_go+pi, "pitch": new_pitch_go}
+        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go)
 
         return goal_state
 
@@ -381,7 +400,7 @@ class PotentialStatesFetcher(object):
         new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
         new_pitch = pi/2 -new_theta
         _, new_phi = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = {"position":np.copy(norm_pos), "orientation": new_phi+pi, "pitch": new_pitch}
+        goal_state = PotentialState(position=norm_pos.copy(), orientation=new_phi+pi, pitch=new_pitch)
 
         return goal_state
     
@@ -398,17 +417,17 @@ class PotentialStatesFetcher(object):
             inv_hess2 = np.linalg.inv(hess2)
 
 
-            if self.counter ==5 :
+            #if self.counter ==5 :
                 #import IPython
                 #IPython.embed()
 
-                hess_modified = hess2.copy()
+                #hess_modified = hess2.copy()
                 #for i in range(100,140):
                 #    print(hess2[i,i])
                 #    hess_modified[i,i] = 2
                 #hess_modified[235,10] = 2
-                hess_modified[100:140,100:140] = 2
-                inv_hess_modified = np.linalg.inv(hess_modified)
+                #hess_modified[100:140,100:140] = 2
+                #inv_hess_modified = np.linalg.inv(hess_modified)
 
                 #import matplotlib.pyplot as plt
                 #fig = plt.figure()
@@ -423,13 +442,13 @@ class PotentialStatesFetcher(object):
                 #fig.colorbar(im3)
                 #plt.show()
                 #plt.close()
-
  
             self.potential_covs_future.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.number_of_joints))
             self.potential_covs_middle.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.number_of_joints))
             self.potential_covs_whole.append(inv_hess2)
 
-            self.potential_pose2d_list.append(take_potential_projection(potential_state, self.future_human_pos)) #sloppy
+            future_pose = torch.from_numpy(self.future_human_pos).float() 
+            self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
         return self.potential_covs_whole, self.potential_hessians_normal
 
     def find_best_potential_state(self):

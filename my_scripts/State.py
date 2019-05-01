@@ -4,7 +4,7 @@ import numpy as np
 import torch as torch
 from helpers import range_angle, shape_cov, euler_to_rotation_matrix, add_noise_to_pose
 import time as time 
-from project_bones import take_potential_projection, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor, C_cam_torch
+from project_bones import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor, C_cam_torch
 import pdb 
 
 #constants
@@ -87,8 +87,8 @@ class State(object):
         self.drone_pos_est = drone_pos_est
 
         #form drone translation matrix (similar to dataset)
-        drone_transformation = torch.cat((torch.cat((R_drone_gt, C_drone_gt), dim=1), neat_tensor), dim=0)
-        camera_transformation = torch.cat((torch.cat((R_cam_gt, C_cam_torch), dim=1), neat_tensor), dim=0) 
+        drone_transformation = torch.cat((torch.cat((self.R_drone_gt, self.C_drone_gt), dim=1), neat_tensor), dim=0)
+        camera_transformation = torch.cat((torch.cat((self.R_cam_gt, C_cam_torch), dim=1), neat_tensor), dim=0) 
         self.drone_transformation_matrix = drone_transformation@camera_transformation
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
@@ -106,20 +106,13 @@ class State(object):
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
-        return self.bone_pos_gt, self.inv_drone_transformation_matrix
+        return self.bone_pos_gt, self.inv_drone_transformation_matrix, self.drone_transformation_matrix
 
     def update_human_info(self, bone_pos_est):
         self.bone_pos_est = bone_pos_est
         shoulder_vector_gt = bone_pos_est[:, self.left_arm_ind] - bone_pos_est[:, self.right_arm_ind] 
         self.human_orientation_est = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
         self.human_pos_est = bone_pos_est[:, self.hip_index]
-
-    def get_goal_pos_yaw_pitch(self, goal_state):
-        goal_pos = goal_state["position"]
-        goal_yaw = goal_state["orientation"]
-        cam_pitch = goal_state["pitch"]
-        desired_yaw_deg = find_delta_yaw((self.drone_orientation_gt)[2],  goal_yaw)
-        return goal_pos , desired_yaw_deg, cam_pitch   
 
     def get_required_pitch(self):
         new_radius = np.linalg.norm(self.drone_pos_gt - self.human_pos_est)

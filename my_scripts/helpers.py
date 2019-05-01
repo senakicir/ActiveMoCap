@@ -827,7 +827,7 @@ def plot_2d_projection(pose, plot_loc, ind, bone_connections, custom_name="proj_
 
 def vector3r_arr_to_dict(input):
     output = dict()
-    for attribute in attributes:
+    for attribute in airsim.attributes:
         output[attribute] = getattr(input, attribute)
     return output
 
@@ -1046,8 +1046,8 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
 
     #plot potential states
     for state_ind, potential_state in enumerate(potential_states):
-        yaw = potential_state["orientation"]
-        state_pos =  potential_state["position"]
+        yaw = potential_state.orientation
+        state_pos =  potential_state.position
         plot4, = plt.plot([float(state_pos[0] - (cos(yaw)*0.5)/2), float(state_pos[0] + (cos(yaw)*0.5)/2)], [float(state_pos[1] - (sin(yaw)*0.5)/2), float(state_pos[1] + (sin(yaw)*0.5)/2)], c='xkcd:hot pink', label="potential state")
         plt.text(state_pos[0], state_pos[1], str(state_ind))
     
@@ -1210,7 +1210,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
 
     #plot ellipses
     for state_ind, potential_state in enumerate(potential_states):
-        state_pos =  potential_state["position"]
+        state_pos =  potential_state.position
         center = np.copy(state_pos)
         center[2] = -center[2]
 
@@ -1285,7 +1285,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     #plot ellipses
     centers = []
     for state_ind, potential_state in enumerate(potential_states):
-        state_pos =  potential_state["position"]
+        state_pos =  potential_state.position
         center = np.copy(state_pos)
         center[2] = -center[2]
         centers.append(center)

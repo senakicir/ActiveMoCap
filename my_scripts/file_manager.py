@@ -8,7 +8,7 @@ class FileManager(object):
 
         self.file_names = parameters["FILE_NAMES"]
         self.folder_names = parameters["FOLDER_NAMES"]
-        self.use_airsim = parameters["USE_AIRSIM"]
+        self.simulation_mode = parameters["SIMULATION_MODE"]
         self.loop_mode = parameters["LOOP_MODE"]
 
         self.foldernames_anim = self.folder_names[self.experiment_name]
@@ -35,8 +35,8 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
-    def get_nonairsim_client_names(self):
-        return 'test_sets/'+self.test_set_name+'/groundtruth.txt', 'test_sets/'+self.test_set_name+'/a_flight.txt'
+    def get_filenames(self):
+        return "" #TODO #'test_sets/'+self.test_set_name+'/groundtruth.txt', 'test_sets/'+self.test_set_name+'/a_flight.txt'
 
     #def save_simulation_values(self, airsim_client):
     #    f_output_str = str(airsim_client.linecount)+ '\t' + self.f_string + '\n'
@@ -53,7 +53,7 @@ class FileManager(object):
         self.f_initial_drone_pos.write(initial_drone_pos_str + '\n')
 
     def get_photo_loc(self, linecount):
-        if (self.use_airsim):
+        if (self.simulation_mode == "use_airsim"):
             photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + '.png'
         else:
             photo_loc = 'test_sets/'+self.test_set_name+'/images/img_' + str(linecount) + '.png'
@@ -111,10 +111,10 @@ class FileManager(object):
 
         f_drone_pos_str = ""
         for i in range(3):
-            f_drone_pos_str += str(drone_pos[i]) + '\t'
+            f_drone_pos_str += str(drone_pos[i].item()) + '\t'
         for i in range(3):
             for j in range(3):
-                f_drone_pos_str += str(drone_orient[i][j]) + '\t'
+                f_drone_pos_str += str(drone_orient[i][j].item()) + '\t'
         self.f_drone_pos.write(str(linecount)+ '\t' + f_drone_pos_str + '\n')
 
     def write_error_values(self, errors, linecount):

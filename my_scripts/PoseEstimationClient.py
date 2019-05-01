@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from crop import Crop
 from square_bounding_box import *
-from project_bones import take_bone_backprojection_pytorch, Projection_Client
+from project_bones import Projection_Client
 
 def calculate_bone_lengths(bones, bone_connections, batch):
     if batch:
@@ -114,7 +114,7 @@ class PoseEstimationClient(object):
 
         self.animation = animation
 
-        self.projection_client = Projection_Client()
+        self.projection_client = Projection_Client(num_of_joints=self.num_of_joints)
 
 
     def model_settings(self):

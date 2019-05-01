@@ -1,5 +1,5 @@
 from helpers import * 
-from project_bones import take_bone_projection_pytorch, Projection_Client, take_bone_projection_pytorch
+from project_bones import Projection_Client
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
 from Lift_Client import Lift_Client, calculate_bone_directions
@@ -72,13 +72,11 @@ class pose3d_calibration_parallel_wrapper():
     def __init__(self):
         self.pytorch_objective = 0
 
-    def reset(self, pose_client):
-        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
-        
+    def reset(self, pose_client):        
         data_list = pose_client.requiredEstimationData
 
         projection_client = pose_client.projection_client
-        projection_client.reset(data_list, self.NUM_OF_JOINTS, pose_client.simulate_error_mode, pose_client.noise_2d_std)
+        projection_client.reset(data_list, pose_client.simulate_error_mode, pose_client.noise_2d_std)
 
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
@@ -86,22 +84,14 @@ class pose3d_calibration_parallel_wrapper():
         self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
 
         #future state 
-        yaw = potential_state["orientation"]
-        C_drone =  potential_state["position"].copy()
-        potential_pitch = potential_state["pitch"]
         future_pose = torch.from_numpy(pose_client.future_pose).float()
 
-        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor=True)
-        potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
-        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
-        potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
-
-        projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
+        potential_projected_est, _ = projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix)
+        projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}
@@ -123,10 +113,9 @@ class pose3d_calibration_parallel_wrapper():
 class pose3d_online_parallel_wrapper():
 
     def reset(self, pose_client):
-        _, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
         data_list = pose_client.requiredEstimationData
-        projection_client = Projection_Client()
-        projection_client.reset(data_list, self.NUM_OF_JOINTS, pose_client.simulate_error_mode, pose_client.noise_2d_std)
+        projection_client = pose_client.projection_client
+        projection_client.reset(data_list, pose_client.simulate_error_mode, pose_client.noise_2d_std)
 
         lift_client = Lift_Client()
         if pose_client.USE_LIFT_TERM:
@@ -142,24 +131,16 @@ class pose3d_online_parallel_wrapper():
         self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
-        self.bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
+        self.bone_connections, _, _, _ = pose_client.model_settings()
+        
         data_list = pose_client.requiredEstimationData
-        projection_client = Projection_Client()
+        projection_client = pose_client.projection_client
         lift_client = Lift_Client()
-
-
-        #future state 
-        yaw = potential_state["orientation"]
-        C_drone =  potential_state["position"].copy()
-        potential_pitch = potential_state["pitch"]
         future_pose = torch.from_numpy(pose_client.future_pose).float()
 
-        potential_R_cam = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, potential_pitch+pi/2, CAMERA_YAW_OFFSET, returnTensor = True)
-        potential_R_drone = euler_to_rotation_matrix(0, 0, yaw, returnTensor = True)
-        potential_C_drone = torch.from_numpy(C_drone[:, np.newaxis]).float()
-        potential_projected_est, _ = take_bone_projection_pytorch(future_pose, potential_R_drone, potential_C_drone, potential_R_cam)
-
-        projection_client.reset_future(data_list, self.NUM_OF_JOINTS, potential_R_cam, potential_R_drone, potential_C_drone, potential_projected_est)
+        potential_projected_est, _ = projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix)
+        projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
+        
         if pose_client.USE_LIFT_TERM:
             lift_list = pose_client.liftPoseList
             potential_pose3d_lift_directions = calculate_bone_directions(future_pose, np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 

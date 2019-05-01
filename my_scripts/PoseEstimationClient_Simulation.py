@@ -5,7 +5,7 @@ import numpy as np
 from crop import Crop
 from square_bounding_box import *
 from kalman_filters import *
-from project_bones import take_bone_backprojection_pytorch
+from project_bones import Projection_Client
 from PoseEstimationClient import *
 from scipy.stats import pearsonr
 

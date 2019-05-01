@@ -76,7 +76,7 @@ class Crop (object):
             return image, [1]
         else:
             self.update_bbox_margin(1)
-            crop_frame = crop_function(self, image)
+            crop_frame = self.crop_function(image)
         
         self.scales = [0.75, 1, 1.25, 1.5,]
 

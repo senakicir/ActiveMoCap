@@ -15,8 +15,8 @@ from PoseEstimationClient import *
 from PoseEstimationClient_Simulation import *
 from Lift_Client import calculate_bone_directions
 
-import openpose as openpose_module
-import liftnet as liftnet_module
+#import openpose as openpose_module
+#import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -25,11 +25,11 @@ def adjust_with_M(M, pose, hip_index):
     root_pose = pose[:, hip_index]
     return np.dot(pose - root_pose[:, np.newaxis], M)+root_pose[:, np.newaxis]
 
-def determine_positions(airsim_client, pose_client, current_state, file_manager):
+def determine_positions(linecount, pose_client, current_state, file_manager):
     if (pose_client.modes["mode_3d"] == "gt"):
-        determine_3d_positions_all_GT(airsim_client, pose_client, current_state, file_manager)
+        determine_3d_positions_all_GT(linecount, pose_client, current_state, file_manager)
     elif (pose_client.modes["mode_3d"] == "scipy"):
-        determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, file_manager)
+        determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager)
     else:
         print("error! you removed this")
     current_state.update_human_info(pose_client.current_pose)
@@ -56,7 +56,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, is_
 def find_2d_pose_gt(projection_client, current_state, input_image, cropping_tool, return_heatmaps=True, is_torch=True):
     bone_pos_3d_GT, inv_transformation_matrix, _ = current_state.get_frame_parameters()
 
-    pose_2d_torch, heatmaps = projection_client.take_single_projection(torch.from_numpy(bone_pos_3d_GT).float(), inv_transformation_matrix)
+    pose_2d_torch = projection_client.take_single_projection(torch.from_numpy(bone_pos_3d_GT).float(), inv_transformation_matrix)
     
     pose_2d = pose_2d_torch.detach()
     pose_2d = cropping_tool.crop_pose(pose_2d)
@@ -82,21 +82,21 @@ def find_lifted_pose(pose_2d, cropped_image, heatmap_2d):
 def determine_relative_3d_pose(mode_lift, projection_client, current_state, pose_2d, cropped_image, heatmap_2d):
     bone_pos_3d_GT, _, transformation_matrix = current_state.get_frame_parameters()
 
-    if (mode_lift == 0):
+    if (mode_lift == 'gt'):
         pose3d_relative = torch.from_numpy(bone_pos_3d_GT).clone()
 
-    elif (mode_lift  == 1):
+    elif (mode_lift  == 'lift'):
         pose3d_lift = find_lifted_pose(pose_2d, cropped_image, heatmap_2d)
         pose3d_relative = projection_client.camera_to_world(pose3d_lift.cpu(), transformation_matrix)
     return pose3d_relative
 
-def initialize_with_gt(airsim_client, pose_client, current_state, file_manager):
-    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
+def initialize_with_gt(linecount, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(linecount)
     bone_pos_3d_GT, inv_transformation_matrix, _ = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints, _ = pose_client.model_settings()
     
     input_image = cv.imread(photo_loc)
-    cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+    cropped_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
 
     #find 2d pose (using openpose or gt)
     bone_2d, bone_2d_gt, heatmap_2d = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
@@ -114,11 +114,11 @@ def initialize_with_gt(airsim_client, pose_client, current_state, file_manager):
 
     #add information you need to your window
     if pose_client.isCalibratingEnergy:
-        pose_client.addNewFrame(bone_2d, bone_2d_gt, inv_transformation_matrix, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+        pose_client.addNewFrame(bone_2d, bone_2d_gt, inv_transformation_matrix, linecount, bone_pos_3d_GT, pose3d_lift_directions)
         optimized_poses_gt = bone_pos_3d_GT
     else:
         for _ in range(pose_client.ONLINE_WINDOW_SIZE):
-            pose_client.addNewFrame(bone_2d, bone_2d_gt, inv_transformation_matrix, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+            pose_client.addNewFrame(bone_2d, bone_2d_gt, inv_transformation_matrix, linecount, bone_pos_3d_GT, pose3d_lift_directions)
             if not pose_client.USE_SINGLE_JOINT:
                 pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
         optimized_poses_gt = np.repeat(bone_pos_3d_GT[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
@@ -131,17 +131,17 @@ def initialize_with_gt(airsim_client, pose_client, current_state, file_manager):
         pose_client.optimized_traj[0,:,:] = current_state.bone_pos_gt.copy()
 
 
-def determine_openpose_error(airsim_client, pose_client, current_state, file_manager):
-    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
+def determine_openpose_error(linecount, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(linecount)
     bone_pos_3d_GT, inv_transformation_matrix, _ = current_state.get_frame_parameters()
     bone_connections, _, num_of_joints, _ =  pose_client.model_settings()
 
     input_image = cv.imread(photo_loc)
-    cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
-    #save_image(cropped_image, airsim_client.linecount, plot_loc)
+    cropped_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
+    #save_image(cropped_image, linecount, plot_loc)
     bone_2d, bone_2d_gt, heatmap_2d = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
     bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
-    #superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
+    #superimpose_on_image(bone_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
 
     pose_client.future_pose = bone_pos_3d_GT
     pose_client.current_pose = bone_pos_3d_GT
@@ -149,13 +149,13 @@ def determine_openpose_error(airsim_client, pose_client, current_state, file_man
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": current_state.C_drone_gt, "eval_time": 0}
     pose_client.append_res(plot_end)
 
-def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_state, file_manager):
-    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
+def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(linecount)
     bone_pos_3d_GT, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
 
     input_image = cv.imread(photo_loc)
-    cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+    cropped_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
 
     #find 2d pose (using openpose or gt)
     bone_2d, bone_2d_gt, heatmap_2d = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=True, is_torch=True, input_image=cropped_image, scales=scales)
@@ -172,16 +172,16 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     bone_2d_gt = pose_client.cropping_tool.uncrop_pose(bone_2d_gt)
 
     #add current pose as initial pose. if first frame, take backprojection for initialization
-    pose_client.set_initial_pose(airsim_client.linecount, bone_pos_3d_GT, bone_2d, transformation_matrix)
+    pose_client.set_initial_pose(linecount, bone_pos_3d_GT, bone_2d, transformation_matrix)
 
     #add information you need to your window
-    pose_client.addNewFrame(bone_2d, bone_2d_gt, inv_transformation_matrix, airsim_client.linecount, bone_pos_3d_GT, pose3d_lift_directions)
+    pose_client.addNewFrame(bone_2d, bone_2d_gt, inv_transformation_matrix, linecount, bone_pos_3d_GT, pose3d_lift_directions)
 
     final_loss = np.zeros([1,1])
     result_shape, result_size, loss_dict = pose_client.result_shape, pose_client.result_size, pose_client.loss_dict
     pose3d_init_scrambled = pose_client.pose_3d_preoptimization.copy()
 
-   # if (airsim_client.linecount > 0):
+   # if (linecount > 0):
     #calibration mode parameters
     if (pose_client.isCalibratingEnergy): 
         #noise = pose_client.numpy_random.normal(0, 0.5, pose3d_init_scrambled.shape)
@@ -230,7 +230,7 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     adjusted_current_pose = adjust_with_M(pose_client.M, pose_client.current_pose, hip_index)
     #adjusted_future_pose = adjust_with_M(pose_client.M, pose_client.future_pose, hip_index)
     adjusted_middle_pose = adjust_with_M(pose_client.M, pose_client.middle_pose, hip_index)
-    check, _ = pose_client.projection_client.take_single_projection(torch.from_numpy(pose_client.current_pose).float(), inv_transformation_matrix)
+    check = pose_client.projection_client.take_single_projection(torch.from_numpy(pose_client.current_pose).float(), inv_transformation_matrix)
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - adjusted_current_pose, axis=0))
@@ -242,33 +242,33 @@ def determine_3d_positions_energy_scipy(airsim_client, pose_client, current_stat
     ave_middle_error =  sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
 
     if (plot_loc != 0 and not pose_client.quiet and not pose_client.simulate_error_mode): 
-        #superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.numpy())
-        #superimpose_on_image(bone_2d.numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
+        #superimpose_on_image(bone_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.numpy())
+        superimpose_on_image(bone_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
 
-        #plot_2d_projection(check, plot_loc, airsim_client.linecount, bone_connections, custom_name="proj_2d")
+        plot_2d_projection(check.numpy(), plot_loc, linecount, bone_connections, custom_name="proj_2d")
 
-        plot_human(bone_pos_3d_GT, adjusted_current_pose, plot_loc, airsim_client.linecount, bone_connections, pose_client.USE_SINGLE_JOINT, error_3d, additional_text = ave_error)
-        #plot_human(bone_pos_3d_GT, noisy_init_pose, plot_loc, airsim_client.linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
+        plot_human(bone_pos_3d_GT, adjusted_current_pose, plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, error_3d, additional_text = ave_error)
+        #plot_human(bone_pos_3d_GT, noisy_init_pose, plot_loc, linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
 
-        #save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
+        #save_heatmaps(heatmap_2d, linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
         if (not pose_client.isCalibratingEnergy and not pose_client.simulate_error_mode):
-            plot_human(bone_pos_3d_GT, adjusted_current_pose, plot_loc, airsim_client.linecount-MIDDLE_POSE_INDEX+1, bone_connections, pose_client.USE_SINGLE_JOINT, middle_pose_error, custom_name="middle_pose_", label_names = ["GT", "Estimate"], additional_text = ave_middle_error)
-            #plot_human(adjusted_current_pose, adjusted_future_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
+            plot_human(bone_pos_3d_GT, adjusted_current_pose, plot_loc, linecount-MIDDLE_POSE_INDEX+1, bone_connections, pose_client.USE_SINGLE_JOINT, middle_pose_error, custom_name="middle_pose_", label_names = ["GT", "Estimate"], additional_text = ave_middle_error)
+            #plot_human(adjusted_current_pose, adjusted_future_pose, plot_loc, linecount, bone_connections, error_3d, custom_name="future_plot_", label_names = ["current", "future"])
             #pose3d_lift_normalized, _ = normalize_pose(pose3d_lift, hip_index, is_torch=False)
             #bone_pos_3d_GT_normalized, _ = normalize_pose(bone_pos_3d_GT, hip_index, is_torch=False)
             #adjusted_current_pose_normalized, _ = normalize_pose(adjusted_current_pose, hip_index, is_torch=False)
-            #plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
-            #plot_human(pose3d_lift_normalized, adjusted_current_pose_normalized, plot_loc, airsim_client.linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
-            #plot_optimization_losses(objective.pltpts, plot_loc, airsim_client.linecount, loss_dict)
+            #plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
+            #plot_human(pose3d_lift_normalized, adjusted_current_pose_normalized, plot_loc, linecount, bone_connections, error_3d, custom_name="lift_res_2_", label_names = ["LiftNet", "Estimate"])
+            #plot_optimization_losses(objective.pltpts, plot_loc, linecount, loss_dict)
 
     plot_end = {"est": adjusted_current_pose, "GT": bone_pos_3d_GT, "drone": current_state.C_drone_gt, "eval_time": func_eval_time}
     pose_client.append_res(plot_end)
-    file_manager.write_reconstruction_values(adjusted_current_pose, bone_pos_3d_GT, current_state.C_drone_gt, current_state.R_drone_gt, airsim_client.linecount, num_of_joints)
+    file_manager.write_reconstruction_values(adjusted_current_pose, bone_pos_3d_GT, current_state.C_drone_gt, current_state.R_drone_gt, linecount, num_of_joints)
 
-def determine_3d_positions_backprojection(airsim_client, pose_client, current_state, file_manager):
-    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
+def determine_3d_positions_backprojection(linecount, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(linecount)
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, _, num_of_joints, hip_index = pose_client.model_settings()
 
@@ -280,22 +280,22 @@ def determine_3d_positions_backprojection(airsim_client, pose_client, current_st
 
     if (plot_loc != 0):
         check, _, _ = take_bone_projection(backprojected_3d_pose, R_drone_gt, C_drone_gt)
-        superimpose_on_image([check], plot_loc, airsim_client.linecount, bone_connections, photo_loc)
-        plot_human(bone_pos_3d_GT, backprojected_3d_pose, plot_loc, airsim_client.linecount, bone_connections, error_3d)
+        superimpose_on_image([check], plot_loc, linecount, bone_connections, photo_loc)
+        plot_human(bone_pos_3d_GT, backprojected_3d_pose, plot_loc, linecount, bone_connections, error_3d)
 
     plot_end = {"est": backprojected_3d_pose, "GT": bone_pos_3d_GT, "drone": C_drone_gt, "eval_time": 0}
     pose_client.append_res(plot_end)
-    file_manager.write_reconstruction_values(backprojected_3d_pose, bone_pos_3d_GT, C_drone_gt, R_drone_gt, airsim_client.linecount, num_of_joints)
+    file_manager.write_reconstruction_values(backprojected_3d_pose, bone_pos_3d_GT, C_drone_gt, R_drone_gt, linecount, num_of_joints)
 
-def determine_3d_positions_all_GT(airsim_client, pose_client, current_state, file_manager):
-    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(airsim_client.linecount)
+def determine_3d_positions_all_GT(linecount, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc(linecount)
     bone_pos_3d_GT, R_drone_gt, C_drone_gt, R_cam_gt = current_state.get_frame_parameters()
     bone_connections, joint_names, num_of_joints, _ =  pose_client.model_settings()
 
-    if (pose_client.modes["mode_2d"] == 2):
+    if (pose_client.modes["mode_2d"] == 'openpose'):
         input_image = cv.imread(photo_loc) 
 
-        cropped_image, scales = pose_client.cropping_tool.crop(input_image, airsim_client.linecount)
+        cropped_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
                
         #find 2d pose (using openpose or gt)
         bone_2d, _, _, _ = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=False, is_torch=True, input_image=cropped_image, scales=scales)
@@ -304,15 +304,15 @@ def determine_3d_positions_all_GT(airsim_client, pose_client, current_state, fil
         bone_2d = pose_client.cropping_tool.uncrop_pose(bone_2d)
 
         if (not pose_client.quiet):
-            superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_")
-            save_image(cropped_image, airsim_client.linecount, plot_loc, custom_name="cropped_img_")
-            save_heatmaps(heatmap_2d, airsim_client.linecount, plot_loc)
-            #save_heatmaps(heatmaps_scales.cpu().numpy(), airsim_client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
+            superimpose_on_image(bone_2d.cpu().numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="gt_")
+            save_image(cropped_image, linecount, plot_loc, custom_name="cropped_img_")
+            save_heatmaps(heatmap_2d, linecount, plot_loc)
+            #save_heatmaps(heatmaps_scales.cpu().numpy(), linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
 
-    elif (pose_client.modes["mode_2d"] == 0):
+    elif (pose_client.modes["mode_2d"] == 'gt'):
         bone_2d, heatmap_2d, _, _ = determine_2d_positions(pose_client, False, False, unreal_positions, bone_pos_3d_GT, photo_loc, 0)
         if not pose_client.quiet:
-            superimpose_on_image(bone_2d, plot_loc, airsim_client.linecount, bone_connections, photo_loc, custom_name="gt_", scale = -1)
+            superimpose_on_image(bone_2d, plot_loc, linecount, bone_connections, photo_loc, custom_name="gt_", scale = -1)
 
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": C_drone.cpu().numpy(), "eval_time": 0}
     pose_client.append_res(plot_end)
