@@ -10,8 +10,8 @@ from PoseEstimationClient import *
 from scipy.stats import pearsonr
 
 class PoseEstimationClient_Simulation(PoseEstimationClient):
-    def __init__(self, energy_param, cropping_tool, pose_client_general, general_param):
-        PoseEstimationClient.__init__(self, energy_param, cropping_tool, general_param["ANIMATION_NUM"])
+    def __init__(self, energy_param, simulation_mode, cropping_tool, pose_client_general, general_param, intrinsics_focal, intrinsics_px, intrinsics_py):
+        PoseEstimationClient.__init__(self, energy_param, simulation_mode, cropping_tool, general_param["ANIMATION_NUM"], intrinsics_focal, intrinsics_px, intrinsics_py)
         self.simulate_error_mode = True
         self.update_initial_param(pose_client_general)
         self.rewind_step()   
@@ -80,12 +80,19 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()
         self.poses_3d_gt[1:,:] = temp.copy()
         
+    #STH FISHY PAY ATTENTION TO THIS FUNCTION. IT REPEATS IN THE OG
     def update3dPos(self, optimized_poses):
-        self.optimized_poses = optimized_poses.copy()
-        self.future_pose = optimized_poses[FUTURE_POSE_INDEX, :, :]
-        self.current_pose = optimized_poses[CURRENT_POSE_INDEX, :, :]
-        self.middle_pose = optimized_poses[MIDDLE_POSE_INDEX, :, :]
-        
+        if (self.isCalibratingEnergy):
+            self.current_pose = optimized_poses.copy()
+            self.middle_pose = optimized_poses.copy()
+            self.future_pose = optimized_poses.copy()
+            self.optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE, axis=0).copy()
+        else:
+            self.current_pose =  optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
+            self.middle_pose = optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.future_pose =  optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
+            self.optimized_poses = optimized_poses.copy()
+
     def update_middle_pose_GT(self, middle_pose):
         pass
 

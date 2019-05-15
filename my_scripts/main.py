@@ -9,8 +9,9 @@ if __name__ == "__main__":
     use_trackbar = False
     
     #simulation mode = "use_airsim", "drone_flight_data"
-    simulation_mode = "use_airsim"
-    base_folder = "/Users/kicirogl/Documents/temp_main"
+    simulation_mode = "drone_flight_data"
+    #base_folder = "/Users/kicirogl/Documents/temp_main"
+    base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright
     trajectory = "active"
     #loop_mode = 0-normal, 1-openpose, 2-teleport
@@ -34,8 +35,8 @@ if __name__ == "__main__":
     is_quiet = False
     
     online_window_size = 6
-    calibration_length = 0
-    calibration_window_size = 200
+    calibration_length = 200
+    calibration_window_size = 6
 
     precalibration_length = 0
     init_pose_with_gt = True
@@ -51,7 +52,7 @@ if __name__ == "__main__":
     #use_lift_term = False
     use_trajectory_basis = False
     num_of_trajectory_param = 5
-    num_of_noise_trials = 30
+    num_of_noise_trials = 5
     pose_noise_3d_std = 0.1
 
     parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}

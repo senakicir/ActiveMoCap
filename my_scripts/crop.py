@@ -109,7 +109,8 @@ class Crop (object):
 class SimpleCrop (Crop):
     def __init__(self, pose_2d):
         Crop.__init__(self)
-        self.bounding_box_calculator = BoundingBox(margin=1)
+        self.bounding_box_calculator = BoundingBox(margin=0.5)
         self.bbox = self.bounding_box_calculator.get_bounding_box(pose_2d)     
         global crop_alpha
         crop_alpha = 1
+        self.unstable = False

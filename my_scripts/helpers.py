@@ -40,16 +40,13 @@ EPSILON = 0.00000001
 
 SIZE_X = 1024
 SIZE_Y = 576
-FOCAL_LENGTH = SIZE_X/2
-px = SIZE_X/2
-py = SIZE_Y/2
+
 CAMERA_OFFSET_X = 45/100
 CAMERA_OFFSET_Y = 0
 CAMERA_OFFSET_Z = 0#-4.92
 CAMERA_ROLL_OFFSET = 0
 CAMERA_PITCH_OFFSET = 0
 CAMERA_YAW_OFFSET = 0
-FRAME_START_OPTIMIZING = 5
 
 CURRENT_POSE_INDEX = 1
 FUTURE_POSE_INDEX = 0
@@ -212,6 +209,27 @@ def read_M(num_of_joints, name = "M_rel"):
 
 def move_M(destination_folder):
     os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
+
+def drone_flight_filenames():
+    date_time_name = '2019-05-15-18-13'
+    mode = "ransac"
+
+    main_dir = "/cvlabdata2/home/kicirogl/ActiveDrone/drone_flight/2019_02_isinsu/video_1_full_framerate_2_trial_2"
+    input_image_dir = main_dir
+    general_output_folder = main_dir + "/drone_flight_dataset/" 
+    gt_folder_dir = general_output_folder + date_time_name + "_" + mode + '/'
+    openpose_liftnet_image_dir = general_output_folder + "openpose_liftnet_images"
+
+    drone_flight_filenames = {"input_image_dir": input_image_dir, 
+            "openpose_liftnet_image_dir": openpose_liftnet_image_dir, 
+            "gt_folder_dir": gt_folder_dir,
+            "f_drone_pos_reoriented": gt_folder_dir + "drone_pos_reoriented.txt", 
+            "f_groundtruth_reoriented": gt_folder_dir + "groundtruth_reoriented.txt", 
+            "f_pose_2d": general_output_folder + "pose_2d.txt", 
+            "f_pose_lift": general_output_folder + "pose_lift.txt",
+            "f_intrinsics": general_output_folder + "intrinsics.txt"}
+
+    return drone_flight_filenames
 
 def reset_all_folders(animation_list, base = ""):
     if (base == ""):
@@ -531,6 +549,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     ax.set_xlim(mid_x - max_range, mid_x + max_range)
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.view_init(elev=30., azim=135)
 
     if not use_single_joint:
         left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
@@ -571,66 +590,6 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     plt.savefig(plot_3d_pos_loc)
     plt.close()
 
-def plot_global_motion(pose_client, plot_loc, ind):
-    if (pose_client.isCalibratingEnergy):
-        plot_info = pose_client.calib_res_list
-        file_name = plot_loc + '/global_plot_calib_'+ str(ind) + '.png'
-    else:
-        plot_info = pose_client.online_res_list
-        file_name = plot_loc + '/global_plot_online_'+ str(ind) + '.png'
-
-    fig = plt.figure(figsize=(4,4))
-    bone_connections, _, _, _ = pose_client.model_settings()
-    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
-    ax = fig.add_subplot(111, projection='3d')
-    for frame_ind in range (0, len(plot_info), 3):
-        frame_plot_info = plot_info[frame_ind]
-        predicted_bones = frame_plot_info["est"]
-        bones_GT = frame_plot_info["GT"]
-        drone = frame_plot_info["drone"]
-
-        #plot joints
-        for i, bone in enumerate(left_bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
-        for i, bone in enumerate(right_bone_connections):
-            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
-        for i, bone in enumerate(middle_bone_connections):
-            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
-
-        for i, bone in enumerate(left_bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
-        for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
-        for i, bone in enumerate(middle_bone_connections):
-            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
-
-        plotd, = ax.plot(drone[0], drone[1], -drone[2], c='xkcd:lime', marker='^', label="drone")
-
-        if frame_ind == 0:
-            X = np.concatenate([np.concatenate([bones_GT[0,:], predicted_bones[0,:]]), drone[0]])
-            Y = np.concatenate([np.concatenate([bones_GT[1,:], predicted_bones[1,:]]), drone[1]])
-            Z = np.concatenate([np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]]), -drone[2]])
-        else:
-            X = np.concatenate([X, np.concatenate([np.concatenate([bones_GT[0,:], predicted_bones[0,:]]), drone[0]])])
-            Y = np.concatenate([Y, np.concatenate([np.concatenate([bones_GT[1,:], predicted_bones[1,:]]), drone[1]])])
-            Z = np.concatenate([Z, np.concatenate([np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]]), -drone[2]])])
-
-    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
-
-    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
-    mid_x = (X.max()+X.min()) * 0.5
-    mid_y = (Y.max()+Y.min()) * 0.5
-    mid_z = (Z.max()+Z.min()) * 0.5
-    ax.set_xlim(mid_x - max_range, mid_x + max_range)
-    ax.set_ylim(mid_y - max_range, mid_y + max_range)
-    ax.set_zlim(mid_z - max_range, mid_z + max_range)
-
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-
-    plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
-    plt.close()
 
 def plot_drone_traj(pose_client, plot_loc, ind):
     if (pose_client.isCalibratingEnergy):
@@ -736,9 +695,9 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     predicted_bones = last_frame_plot_info["est"]
     bones_GT = last_frame_plot_info["GT"]
 
-    #X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
-    #Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
-    #Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+    X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
+    Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
+    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
 
     #plot drone
     drone_x, drone_y, drone_z = [],[],[]
@@ -749,9 +708,9 @@ def plot_drone_traj(pose_client, plot_loc, ind):
         drone_y.append(drone[1])
         drone_z.append(-drone[2])
 
-        #X = np.concatenate([X, [drone[0]]])
-        #Y = np.concatenate([Y, [drone[1]]])
-        #Z = np.concatenate([Z, [-drone[2]]])
+        X = np.concatenate([X, [drone[0]]])
+        Y = np.concatenate([Y, [drone[1]]])
+        Z = np.concatenate([Z, [-drone[2]]])
 
     plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
 
@@ -774,17 +733,19 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     else:
         plot1, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], -predicted_bones[2,:], c='xkcd:blood red')
         plot2, = ax.plot(bones_GT[0,:], bones_GT[1,:], -bones_GT[2,:], c='xkcd:royal blue')
-        #ax.legend(handles=[plot1,plot2])
+        #ax.legend(handles=[plot1,plot2]
 
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    #ax.set_xlim(predicted_bones[0,0]-7, predicted_bones[0,0] +7)
+    #ax.set_ylim(predicted_bones[1,0]-7, predicted_bones[1,0] +7)
+    #ax.set_zlim(-predicted_bones[2,0]-2, -predicted_bones[2,0] +9)
 
-
-    #max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
-    #mid_x = (X.max()+X.min()) * 0.5
-    #mid_y = (Y.max()+Y.min()) * 0.5
-    #mid_z = (Z.max()+Z.min()) * 0.5
-    ax.set_xlim(predicted_bones[0,0]-7, predicted_bones[0,0] +7)
-    ax.set_ylim(predicted_bones[1,0]-7, predicted_bones[1,0] +7)
-    ax.set_zlim(-predicted_bones[2,0]-2, -predicted_bones[2,0] +9)
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
     ax.set_xlabel('X')
     ax.set_ylabel('Y')

@@ -1,4 +1,5 @@
 import numpy as np
+from helpers import drone_flight_filenames
 
 class FileManager(object):
     def __init__(self, parameters):
@@ -28,6 +29,7 @@ class FileManager(object):
             self.f_openpose_leg_error = open(self.filenames_anim["f_openpose_leg_error"], 'w')
 
         self.plot_loc = self.foldernames_anim["superimposed_images"]
+        self.photo_loc = ""
         self.take_photo_loc =  self.foldernames_anim["images"]
         self.estimate_folder_name = self.foldernames_anim["estimates"]
 
@@ -35,29 +37,28 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
-    def get_filenames(self):
-        return "" #TODO #'test_sets/'+self.test_set_name+'/groundtruth.txt', 'test_sets/'+self.test_set_name+'/a_flight.txt'
-
-    #def save_simulation_values(self, airsim_client):
-    #    f_output_str = str(airsim_client.linecount)+ '\t' + self.f_string + '\n'
-    #    self.f_output.write(f_output_str)
-
-    #    f_reconstruction_str = str(airsim_client.linecount)+ '\t' + self.f_reconst_string + '\n'
-    #    self.f_reconstruction.write(f_reconstruction_str)
-
-     #   f_groundtruth_str =  str(airsim_client.linecount) + '\t' + self.f_groundtruth_str + '\n'
-     #   self.f_groundtruth.write(f_groundtruth_str)
+        if (self.simulation_mode == "drone_flight_data"):
+            self.drone_flight_filenames = drone_flight_filenames()  
+            self.label_list = []
+            self.drone_flight_files =  {"f_intrinsics":open(self.drone_flight_filenames["f_intrinsics"], "r"),
+                                        "f_pose_2d":open(self.drone_flight_filenames["f_pose_2d"], "r"),
+                                        "f_pose_lift":open(self.drone_flight_filenames["f_pose_lift"], "r"),
+                                        "f_groundtruth_reoriented": open(self.drone_flight_filenames["f_groundtruth_reoriented"], "r"),
+                                        "f_drone_pos_reoriented": open(self.drone_flight_filenames["f_drone_pos_reoriented"], "r")}
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
         self.f_initial_drone_pos.write(initial_drone_pos_str + '\n')
 
-    def get_photo_loc(self, linecount):
+    def update_photo_loc(self, ind):
         if (self.simulation_mode == "use_airsim"):
-            photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + '.png'
-        else:
-            photo_loc = 'test_sets/'+self.test_set_name+'/images/img_' + str(linecount) + '.png'
-        return photo_loc
+            self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(ind) + '.png'
+        elif (self.simulation_mode == "drone_flight_data"):
+            self.photo_loc = self.drone_flight_filenames["input_image_dir"]+"/"+self.label_list[ind]
+        return self.photo_loc
+
+    def get_photo_loc(self):
+        return self.photo_loc
     
     def close_files(self):
         self.f_drone_pos.close()

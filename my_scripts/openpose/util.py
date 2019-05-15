@@ -8,6 +8,7 @@ import math
 from .constants import *
 
 
+
 def padRightDownCorner(img, stride, padValue):
     """
     Pads the original image such that the final size is a multiple of the stride.
@@ -48,6 +49,7 @@ def preapreImage(img, scale, stride, padValue):
     imageToTest = cv2.resize(img, (0, 0), fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
     imageToTest_padded, pad = padRightDownCorner(imageToTest, stride, padValue)
     imageToTest_padded = np.transpose(np.float32(imageToTest_padded[:, :, :, np.newaxis]), (3, 2, 0, 1)) / 256 - 0.5  # Strange that they use 256 and not 255
+
     return Variable(torch.from_numpy(imageToTest_padded)).cuda()
 
 

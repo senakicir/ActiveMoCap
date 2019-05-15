@@ -39,7 +39,6 @@ def get_prediction(model, oriImg, model_dict, scale_search, model_type):
         feed = preapreImage(oriImg, scale, model_dict['stride'], model_dict['padValue'])
         #print "Preparing the image took {}".format(time() - tic_image)
 
-
         #tic_model = time()
         output1, output2 = model(feed)
         #openpose_model_eval_time = time() - tic_model
@@ -101,6 +100,8 @@ def get_prediction_justmodel(model, oriImg, model_dict, scale_search, model_type
     for idx, scale in enumerate(multiplier):
         feed = preapreImage(oriImg, scale, model_dict['stride'], model_dict['padValue'])
         _, output2 = model(feed)
+
+        #print("shape of image", oriImg.shape, output2.shape)
 
         heatmap = nn.Upsample((oriImg.shape[0], oriImg.shape[1]), mode='bilinear', align_corners=True).cuda()(output2)
         heatmap_avg_orig[idx] = heatmap[0].data

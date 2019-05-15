@@ -40,9 +40,23 @@ class PotentialState(object):
         desired_yaw_deg = find_delta_yaw((curr_drone_orientation)[2],  self.orientation)
         return self.position , desired_yaw_deg, self.pitch   
 
+class PotentialState_Drone_Flight(object):
+    def __init__(self, transformation_matrix, index):
+        self.transformation_matrix = transformation_matrix
+        self.position = self.transformation_matrix[0:3,3]
+        self.inv_transformation_matrix = torch.inverse(self.transformation_matrix)
+        self.index = index
+        self.pitch = 0
+    def get_goal_pos_yaw_pitch(self, arg):
+        return self.position, 0, 0
+
+
+
 class PotentialStatesFetcher(object):
-    def __init__(self, pose_client, active_parameters):
+    def __init__(self, airsim_client, pose_client, active_parameters):
         _, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
+        self.simulation_mode = pose_client.simulation_mode
+
         self.minmax = active_parameters["MINMAX"]
         self.hessian_part = active_parameters["HESSIAN_PART"]
         self.uncertainty_calc_method = active_parameters["UNCERTAINTY_CALC_METHOD"]
@@ -63,12 +77,17 @@ class PotentialStatesFetcher(object):
 
         self.number_of_samples = len(self.POSITION_GRID)
 
-        self.overall_error_list = np.zeros(self.number_of_samples)
-        self.future_error_list = np.zeros(self.number_of_samples)
-        self.error_std_list =  np.zeros(self.number_of_samples)
         self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
         self.counter = 0 
+
+        if self.simulation_mode == "drone_flight_data":
+            self.drone_flight_states = airsim_client.get_drone_flight_states()
+            self.number_of_samples = len(self.drone_flight_states)
+
+        self.overall_error_list = np.zeros(self.number_of_samples)
+        self.future_error_list = np.zeros(self.number_of_samples)
+        self.error_std_list =  np.zeros(self.number_of_samples)
 
     def reset(self, pose_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
@@ -259,8 +278,11 @@ class PotentialStatesFetcher(object):
         return goal_state
 
     def dome_experiment(self):
-        for theta, phi in self.POSITION_GRID:
-            sample_states_spherical(self, SAFE_RADIUS, theta, phi)
+        if self.simulation_mode == "use_airsim":
+            for theta, phi in self.POSITION_GRID:
+                sample_states_spherical(self, SAFE_RADIUS, theta, phi)
+        elif self.simulation_mode == "drone_flight_data":
+            self.potential_states_try = self.drone_flight_states
         return self.potential_states_try
 
     def up_down_baseline(self):

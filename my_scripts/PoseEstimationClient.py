@@ -14,8 +14,9 @@ def calculate_bone_lengths(bones, bone_connections, batch):
 
 
 class PoseEstimationClient(object):
-    def __init__(self, param, cropping_tool, animation):
+    def __init__(self, param, simulation_mode, cropping_tool, animation, intrinsics_focal, intrinsics_px, intrinsics_py):
         self.simulate_error_mode = False
+        self.simulation_mode = simulation_mode
 
         self.modes = param["MODES"]
         self.method = param["METHOD"]
@@ -113,9 +114,10 @@ class PoseEstimationClient(object):
         self.loss_dict = {}
 
         self.animation = animation
-
-        self.projection_client = Projection_Client(num_of_joints=self.num_of_joints)
-
+        if simulation_mode == "use_airsim":
+            self.projection_client = Projection_Client(is_using_airsim=True, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
+        elif simulation_mode == "drone_flight_data":
+            self.projection_client = Projection_Client(is_using_airsim=False, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index

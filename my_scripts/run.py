@@ -7,7 +7,7 @@ from determine_positions import *
 from PotentialStatesFetcher import PotentialStatesFetcher, PotentialState
 from State import State, TOP_SPEED, TIME_HORIZON, DELTA_T
 from file_manager import FileManager
-from DroneFlightClient import DroneFlightClient
+from drone_flight_client import DroneFlightClient
 import copy
 
 import pprint
@@ -66,7 +66,8 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     else:
         bone_pos_gt, drone_transformation_matrix = airsim_client.read_frame_gt_values()
         current_state.store_frame_transformation_matrix_joint_gt(bone_pos_gt, drone_transformation_matrix)
-        
+    file_manager.update_photo_loc(airsim_client.get_linecount())
+
     return response.image_data_uint8
 
 def take_photo(airsim_client, pose_client, current_state, file_manager):
@@ -111,13 +112,14 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
         time.sleep(2)
     elif simulation_mode == "drone_flight_data":
-        airsim_client = DroneFlightClient(file_manager.get_filenames())
+        airsim_client = DroneFlightClient(file_manager.drone_flight_files)
+        file_manager.label_list = airsim_client.label_list
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
 
-    pose_client = PoseEstimationClient(energy_parameters,  Crop(loop_mode = loop_mode), animation=file_manager.anim_num)
+    pose_client = PoseEstimationClient(energy_parameters, simulation_mode, Crop(loop_mode = loop_mode), animation=file_manager.anim_num, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py)
     current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, model_settings=pose_client.model_settings())
-    potential_states_fetcher = PotentialStatesFetcher(pose_client, active_parameters)
+    potential_states_fetcher = PotentialStatesFetcher(airsim_client, pose_client, active_parameters)
     
     file_manager.save_initial_drone_pos(airsim_client)
 
@@ -135,7 +137,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     elif loop_mode == "openpose":
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == "teleport":
-        pose_client_sim = PoseEstimationClient_Simulation(energy_parameters,  Crop(loop_mode = loop_mode), pose_client, parameters)
+        pose_client_sim = PoseEstimationClient_Simulation(energy_parameters, simulation_mode, Crop(loop_mode = loop_mode), pose_client, parameters, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py)
         teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager)
 ################
 
@@ -248,7 +250,7 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
         photo_loc = file_manager.get_photo_loc(airsim_client.linecount)
         take_photo(airsim_client, pose_client, current_state, file_manager)
 
-        determine_positions(airsim_client, pose_client, current_state, file_manager)
+        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager)
 
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
@@ -314,7 +316,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 take_photo(airsim_client, pose_client, current_state, file_manager)
                 airsim_client.simPauseDrone(True)
                 
-                determine_openpose_error(airsim_client, pose_client, current_state, file_manager)
+                determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager)
 
                 #SAVE ALL VALUES OF THIS SIMULATION
                 file_manager.append_openpose_error(pose_client.openpose_error, pose_client.openpose_arm_error,  pose_client.openpose_leg_error)
@@ -350,13 +352,12 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
 
     #START AT POSITION 0
     goal_state = potential_states_fetcher.potential_states_try[0]
-    sim_pos = goal_state.position
-    airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state.orientation)), True)
+    airsim_client.simSetVehiclePose(goal_state)
     airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
     current_state.cam_pitch = goal_state.pitch
     take_photo(airsim_client, pose_client, current_state, file_manager)
 
-    initialize_with_gt(airsim_client, pose_client, current_state, file_manager)
+    initialize_with_gt(airsim_client.linecount, pose_client, current_state, file_manager)
     airsim_client.linecount += 1
 
     for exp_ind in range(1, 25):        
@@ -377,14 +378,13 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
             pose_client_sim.update_initial_param(pose_client)
             for state_ind in range(len(potential_states_try)):
                 goal_state = potential_states_try[state_ind]
-                sim_pos = goal_state.position
-                airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state.orientation)), True)
+                airsim_client.simSetVehiclePose(goal_state)
                 airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
                 current_state.cam_pitch = goal_state.pitch
                 for trial_ind in range(pose_client_sim.num_of_noise_trials):
                     take_photo(airsim_client, pose_client_sim, current_state, file_manager)
                     pose_client_sim.adjust_3d_pose(current_state, pose_client)
-                    determine_positions(airsim_client, pose_client_sim, current_state, file_manager)
+                    determine_positions(airsim_client.linecount, pose_client_sim, current_state, file_manager)
                     pose_client_sim.append_error(trial_ind)
                     pose_client_sim.rewind_step()
                 file_manager.write_error_values(pose_client_sim.frame_overall_error_list, airsim_client.linecount)
@@ -405,15 +405,14 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
             plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
         potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
 
-        sim_pos = goal_state.position
-        airsim_client.simSetVehiclePose(airsim.Pose(airsim.Vector3r(sim_pos[0],sim_pos[1],sim_pos[2]), airsim.to_quaternion(0, 0, goal_state.orientation)), True)
+        airsim_client.simSetVehiclePose(goal_state)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
         current_state.cam_pitch = goal_state.pitch
 
         take_photo(airsim_client, pose_client, current_state, file_manager)
         pose_client_sim.adjust_3d_pose(current_state, pose_client)
 
-        determine_positions(airsim_client, pose_client, current_state, file_manager)
+        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager)
 
         airsim_client.linecount += 1
         plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)

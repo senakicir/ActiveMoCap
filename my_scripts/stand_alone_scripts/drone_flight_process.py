@@ -8,8 +8,8 @@ from matplotlib import cm, colors
 import sys
 sys.path.append("..")
 
-from math import radians, cos, sin, acos, degrees
-from helpers import rearrange_bones_to_mpi, bones_mpi, numpy_to_tuples, split_bone_connections, return_lift_bone_connections, euler_to_rotation_matrix
+from math import radians, cos, sin, acos, degrees, pi
+from helpers import rearrange_bones_to_mpi, bones_mpi, numpy_to_tuples, split_bone_connections, return_lift_bone_connections, euler_to_rotation_matrix, rotation_matrix_to_euler
 from determine_positions import find_2d_pose_openpose, find_lifted_pose
 from crop import Crop, SimpleCrop
 from PoseEstimationClient import PoseEstimationClient
@@ -30,8 +30,8 @@ import random
 
 cherry_pick_frames = ["frame0030.jpg", "frame0040.jpg", "frame0115.jpg", "frame0150.jpg", "frame0155.jpg",
                         "frame0160.jpg", "frame0175.jpg", "frame0200.jpg", "frame0210.jpg", "frame0260.jpg", "frame0265.jpg", 
-                        "frame0270.jpg", "frame0274.jpg", "frame0380.jpg", "frame0390.jpg", "frame0390.jpg", "frame0390.jpg",
-                        "frame0395.jpg", "frame0415.jpg", "frame0473.jpg", "frame0509.jpg", "frame0510.jpg", "frame0514.jpg",
+                        "frame0270.jpg", "frame0274.jpg", "frame0380.jpg", "frame0390.jpg", "frame0395.jpg", "frame0415.jpg", 
+                        "frame0473.jpg", "frame0509.jpg", "frame0510.jpg", "frame0514.jpg",
                         "frame0517.jpg", "frame0523.jpg", "frame0527.jpg", "frame0530.jpg", "frame0534.jpg", "frame0537.jpg",
                         "frame0541.jpg", "frame0544.jpg", "frame0549.jpg", "frame0553.jpg", "frame0557.jpg", "frame0564.jpg",
                         "frame0575.jpg", "frame0580.jpg", "frame0585.jpg", "frame0591.jpg", "frame0597.jpg", "frame0604.jpg",
@@ -159,79 +159,62 @@ def pose_3d_estimate(pose_client, use_these_ind, transform_matrix_tensor, inv_tr
     gt_3d_pose = pose_client.current_pose
     return gt_3d_pose
 
+
 def reorient_human_and_drones(gt_3d_pose, transform_matrix_tensor, joint_names):
-    #find human orientation (from GT)
-    spine_vector = gt_3d_pose[:, joint_names.index('neck')] - gt_3d_pose[:, joint_names.index('spine1')] 
-    roll = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    R_roll =  euler_to_rotation_matrix(roll=roll, pitch=0, yaw=0, returnTensor=True)
-    roll_fixed_gt_3d_pose = np.dot(torch.inverse(R_roll).numpy(), gt_3d_pose)
-
-    ##### debug
-    spine_vector = roll_fixed_gt_3d_pose[:, joint_names.index('neck')] - roll_fixed_gt_3d_pose[:, joint_names.index('spine1')] 
-    reor_roll = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 1 roll", degrees(roll), degrees(reor_roll))
-    #####
-
-    shoulder_vector = gt_3d_pose[:, joint_names.index('left_arm')] - gt_3d_pose[:, joint_names.index('right_arm')] 
-    yaw = np.arctan2(-shoulder_vector[0], shoulder_vector[1])
-    R_yaw = euler_to_rotation_matrix(roll=0, pitch=0, yaw=yaw, returnTensor=True)
-    yaw_fixed_gt_3d_pose = np.dot(torch.inverse(R_yaw).numpy(), roll_fixed_gt_3d_pose)
-
-    ##### debug
-    shoulder_vector = yaw_fixed_gt_3d_pose[:, joint_names.index('left_arm')] - yaw_fixed_gt_3d_pose[:, joint_names.index('right_arm')] 
-    reor_yaw = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 2 yaw", degrees(yaw), degrees(reor_yaw))
-    spine_vector = yaw_fixed_gt_3d_pose[:, joint_names.index('neck')] - yaw_fixed_gt_3d_pose[:, joint_names.index('spine1')] 
-    reor_roll = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 2 roll", degrees(roll), degrees(reor_roll))
-    #####
 
     human_displacement = torch.zeros([3,1])
-    human_displacement[0:2, 0] = torch.from_numpy(yaw_fixed_gt_3d_pose[0:2, joint_names.index('spine1')]).float()
-    if ( yaw_fixed_gt_3d_pose[2, joint_names.index('left_foot')] < yaw_fixed_gt_3d_pose[2, joint_names.index('right_foot')]):
-        human_displacement[2,0] = yaw_fixed_gt_3d_pose[2, joint_names.index('left_foot')]
+    human_displacement[0:2, 0] = torch.from_numpy(gt_3d_pose[0:2, joint_names.index('spine1')]).float()
+    if ( gt_3d_pose[2, joint_names.index('left_foot')] < gt_3d_pose[2, joint_names.index('right_foot')]):
+        human_displacement[2,0] = gt_3d_pose[2, joint_names.index('left_foot')]
     else:
-        human_displacement[2,0] = yaw_fixed_gt_3d_pose[2, joint_names.index('right_foot')]
-
-    reoriented_3d_pose = yaw_fixed_gt_3d_pose - human_displacement
-
-    ##### debug
-    shoulder_vector = reoriented_3d_pose[:, joint_names.index('left_arm')] - reoriented_3d_pose[:, joint_names.index('right_arm')] 
-    reor_yaw = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 3 yaw", degrees(yaw), degrees(reor_yaw))
-    spine_vector = reoriented_3d_pose[:, joint_names.index('neck')] - reoriented_3d_pose[:, joint_names.index('spine1')] 
-    reor_roll = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 3 roll", degrees(roll), degrees(reor_roll))
-    print("debug pos 3 reoriented", reoriented_3d_pose[:, joint_names.index('spine1')])
-    #####
-
+        human_displacement[2,0] = gt_3d_pose[2, joint_names.index('right_foot')]
+    gt_3d_pose = gt_3d_pose - human_displacement.numpy()
+    for i in range(transform_matrix_tensor.shape[0]):
+        transform_matrix_tensor[i, 0:3, 3] = transform_matrix_tensor[i, 0:3, 3] - human_displacement[:,0]  
     
-    #### OR
+    spine_vector = gt_3d_pose[:, joint_names.index('neck')] - gt_3d_pose[:, joint_names.index('spine1')] 
+    shoulder_vector = gt_3d_pose[:, joint_names.index('left_arm')] - gt_3d_pose[:, joint_names.index('right_arm')] 
+    normal_vec = np.cross(spine_vector, shoulder_vector)
+   
+    normal_vec_unit = normal_vec/np.linalg.norm(normal_vec)
+    spine_vector_unit = spine_vector/np.linalg.norm(spine_vector)
+    shoulder_vector = np.cross(normal_vec_unit, spine_vector_unit)
+    shoulder_vector_unit = shoulder_vector/np.linalg.norm(shoulder_vector)
 
-    R = R_roll @ R_yaw
-    overall_transformation_matrix = torch.cat((torch.cat((R, R@human_displacement), dim=1), torch.FloatTensor([[0,0,0,1]])), dim=0)
+    R = torch.from_numpy(np.concatenate([normal_vec_unit[:, np.newaxis], shoulder_vector_unit[:, np.newaxis], spine_vector_unit[:, np.newaxis]], axis=1)).float()
+    overall_transformation_matrix = torch.cat((torch.cat((R, torch.zeros([3,1])), dim=1), torch.FloatTensor([[0,0,0,1]])), dim=0)
     inv_overall_transformation_matrix = torch.inverse(overall_transformation_matrix)
 
     reoriented_3d_pose = np.dot(inv_overall_transformation_matrix.numpy(), np.concatenate((gt_3d_pose, np.ones([1,gt_3d_pose.shape[1]])), axis=0))
-    
-    ##### debug
-    shoulder_vector = reoriented_3d_pose[:, joint_names.index('left_arm')] - reoriented_3d_pose[:, joint_names.index('right_arm')] 
-    reor_yaw = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 4 yaw", degrees(yaw), degrees(reor_yaw))
-    spine_vector = reoriented_3d_pose[:, joint_names.index('neck')] - reoriented_3d_pose[:, joint_names.index('spine1')] 
-    reor_roll = -np.arccos(spine_vector[2]/np.linalg.norm(spine_vector))
-    print("debug pos 4 roll", degrees(roll), degrees(reor_roll))
-    print("debug pos 4 reoriented", reoriented_3d_pose[:, joint_names.index('spine1')])
-    #####
-
 
     reoriented_transform_matrix = torch.zeros(transform_matrix_tensor.shape)
+    reoriented_inv_transform_matrix = torch.zeros(transform_matrix_tensor.shape)
     for i in range(transform_matrix_tensor.shape[0]):
         reoriented_transform_matrix[i, :, :] = torch.mm(inv_overall_transformation_matrix, transform_matrix_tensor[i, :, :])
+        reoriented_inv_transform_matrix[i, :, :] = torch.inverse(reoriented_transform_matrix[i, :, :])
+    return reoriented_3d_pose, reoriented_transform_matrix, reoriented_inv_transform_matrix
 
+def prune_indices(transform_matrix_tensor, label_list, use_these_ind, distance_tol=1):
+    pruned_ind_list = use_these_ind.copy()
+    for i in pruned_ind_list:
+        curr_drone_displacement = transform_matrix_tensor[i, 0:3, 3]
+        j_ind = 0
+        while j_ind < len(pruned_ind_list):
+        #for j in pruned_ind_list:
+            j = pruned_ind_list[j_ind]
+            if i != j:
+                other_drone_displacement =  transform_matrix_tensor[j, 0:3, 3]
+                if (np.linalg.norm(curr_drone_displacement-other_drone_displacement) < distance_tol):
+                    pruned_ind_list.remove(j)
+                    j_ind -=1
+            j_ind +=1
+
+    pruned_label_list = []
+    for i in pruned_ind_list:
+        pruned_label_list.append(label_list[i])
     
-    return reoriented_3d_pose, reoriented_transform_matrix
-
+    print(pruned_ind_list)
+    return pruned_ind_list, pruned_label_list
 
 def find_3d_gt(energy_parameters, filenames, mode):
     files = {"f_drone_pos": open(filenames["f_drone_pos"], "r"),
@@ -260,16 +243,21 @@ def find_3d_gt(energy_parameters, filenames, mode):
 
     gt_3d_pose = pose_3d_estimate(pose_client, use_these_ind, transform_matrix_tensor, inverse_transform_matrix_tensor, pose_2d_tensor)
     vis_pose(gt_3d_pose, filenames["gt_folder_dir"], '', 'gt_3d_pose')   
-    plot_all_drone_pos(transform_matrix_tensor, gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot")
-    record_3d_poses(files["f_groundtruth_reoriented"], gt_3d_pose)
+    plot_all_drone_pos(transform_matrix_tensor[use_these_ind, :, :], gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot", use_these_ind)
+    record_3d_poses(files["f_groundtruth"], gt_3d_pose)
 
     #####
-    gt_3d_pose, transform_matrix_tensor = reorient_human_and_drones(gt_3d_pose, transform_matrix_tensor, joint_names)
+    gt_3d_pose, transform_matrix_tensor, inverse_transform_matrix_tensor = reorient_human_and_drones(gt_3d_pose, transform_matrix_tensor, joint_names)
+    plot_all_drone_pos(transform_matrix_tensor[use_these_ind,:,:], gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot_reoriented", use_these_ind)
+
+    pruned_ind, pruned_label_list = prune_indices(transform_matrix_tensor, label_list, use_these_ind, distance_tol=3.5)
+    print("Number of pruned ind", len(pruned_ind))
 
     vis_pose(gt_3d_pose, filenames["gt_folder_dir"], '', 'gt_3d_pose_reoriented')   
-    plot_all_drone_pos(transform_matrix_tensor, gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot_reoriented")
+    plot_all_drone_pos(transform_matrix_tensor[pruned_ind,:,:], gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot_reoriented_pruned", pruned_ind)
+    
     record_3d_poses(files["f_groundtruth_reoriented"], gt_3d_pose)
-    record_drone_transformation_matrix(files["f_drone_pos_reoriented"], transform_matrix_tensor, label_list)
+    record_drone_transformation_matrix(files["f_drone_pos_reoriented"], transform_matrix_tensor[pruned_ind,:,:], pruned_label_list)
 
 def drone_flight_process_all_data(filenames, energy_parameters):
     files = {"f_drone_pos": open(filenames["f_drone_pos"], "w"), 
@@ -388,21 +376,72 @@ def vis_superimposed_openpose(image, pose, plot_loc, custom_name, label):
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def plot_all_drone_pos(transformation_matrix_tensor, gt_3d_pose, plot_loc, label, custom_name):
-    file_name = plot_loc + "/" + custom_name  + ".jpg"
-
-    fig = plt.figure(figsize=(4, 4))
-    ax = fig.add_subplot(111,  projection='3d')
-    X = gt_3d_pose[0,:].tolist()
-    Y = gt_3d_pose[1,:].tolist()
-    Z = gt_3d_pose[2,:].tolist()
+def plot_all_drone_pos_debug(transformation_matrix_tensor_old, gt_3d_pose_old, transformation_matrix_tensor_new, gt_3d_pose_new):
+    fig = plt.figure(figsize=(8, 4))
+    ax = fig.add_subplot(121,  projection='3d')
+    X = gt_3d_pose_old[0,:].tolist()
+    Y = gt_3d_pose_old[1,:].tolist()
+    Z = gt_3d_pose_old[2,:].tolist()
     for _, bone in enumerate(bones_mpi):
-        ax.plot(gt_3d_pose[0,bone], gt_3d_pose[1,bone], gt_3d_pose[2,bone], c='xkcd:black')
+        ax.plot(gt_3d_pose_old[0,bone], gt_3d_pose_old[1,bone], gt_3d_pose_old[2,bone], c='xkcd:black')
 
-    for ind in range(transformation_matrix_tensor.shape[0]):
-        transformation_matrix = transformation_matrix_tensor[ind, :, :]
+    for ind in range(transformation_matrix_tensor_old.shape[0]):
+        transformation_matrix = transformation_matrix_tensor_old[ind, :, :]
         C_drone = transformation_matrix[0:3, 3]
-        ax.scatter(C_drone[0], C_drone[1], C_drone[2], c='xkcd:red')
+        R_drone = transformation_matrix[0:3, 0:3]
+        axis1 = R_drone@torch.t(torch.FloatTensor([[0,0,1]]))
+        axis2 = R_drone@torch.t(torch.FloatTensor([[0,1,0]]))
+        axis3 = R_drone@torch.t(torch.FloatTensor([[1,0,0]]))
+
+        axis1 = 3*axis1/torch.norm(axis1)
+        axis2 = 3*axis2/torch.norm(axis2)
+        axis3 = 3*axis3/torch.norm(axis3)
+
+        ax.scatter(C_drone[0], C_drone[1], C_drone[2], c='xkcd:pink')
+        ax.plot([C_drone[0], C_drone[0]+axis1[0,0]], [C_drone[1], C_drone[1]+axis1[1,0]], [C_drone[2], C_drone[2]+axis1[2,0]], c='xkcd:red')
+        ax.plot([C_drone[0], C_drone[0]+axis2[0,0]], [C_drone[1], C_drone[1]+axis2[1,0]], [C_drone[2], C_drone[2]+axis2[2,0]], c='xkcd:blue')
+        ax.plot([C_drone[0], C_drone[0]+axis3[0,0]], [C_drone[1], C_drone[1]+axis3[1,0]], [C_drone[2], C_drone[2]+axis3[2,0]], c='xkcd:green')
+
+        X.append(C_drone[0])
+        Y.append(C_drone[1])
+        Z.append(C_drone[2])
+    X = np.array(X)
+    Y = np.array(Y)
+    Z = np.array(Z)
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.view_init(elev=30., azim=135)
+
+    ax = fig.add_subplot(122,  projection='3d')
+    X = gt_3d_pose_new[0,:].tolist()
+    Y = gt_3d_pose_new[1,:].tolist()
+    Z = gt_3d_pose_new[2,:].tolist()
+    for _, bone in enumerate(bones_mpi):
+        ax.plot(gt_3d_pose_new[0,bone], gt_3d_pose_new[1,bone], gt_3d_pose_new[2,bone], c='xkcd:black')
+
+    for ind in range(transformation_matrix_tensor_new.shape[0]):
+        transformation_matrix = transformation_matrix_tensor_new[ind, :, :]
+        C_drone = transformation_matrix[0:3, 3]
+        R_drone = transformation_matrix[0:3, 0:3]
+        axis1 = R_drone@torch.t(torch.FloatTensor([[0,0,1]]))
+        axis2 = R_drone@torch.t(torch.FloatTensor([[0,1,0]]))
+        axis3 = R_drone@torch.t(torch.FloatTensor([[1,0,0]]))
+
+        axis1 = 3*axis1/torch.norm(axis1)
+        axis2 = 3*axis2/torch.norm(axis2)
+        axis3 = 3*axis3/torch.norm(axis3)
+
+        ax.scatter(C_drone[0], C_drone[1], C_drone[2], c='xkcd:pink')
+        ax.plot([C_drone[0], C_drone[0]+axis1[0,0]], [C_drone[1], C_drone[1]+axis1[1,0]], [C_drone[2], C_drone[2]+axis1[2,0]], c='xkcd:red')
+        ax.plot([C_drone[0], C_drone[0]+axis2[0,0]], [C_drone[1], C_drone[1]+axis2[1,0]], [C_drone[2], C_drone[2]+axis2[2,0]], c='xkcd:blue')
+        ax.plot([C_drone[0], C_drone[0]+axis3[0,0]], [C_drone[1], C_drone[1]+axis3[1,0]], [C_drone[2], C_drone[2]+axis3[2,0]], c='xkcd:green')
+
         X.append(C_drone[0])
         Y.append(C_drone[1])
         Z.append(C_drone[2])
@@ -418,9 +457,57 @@ def plot_all_drone_pos(transformation_matrix_tensor, gt_3d_pose, plot_loc, label
     ax.set_xlim(mid_x - max_range, mid_x + max_range)
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.view_init(elev=30., azim=135)
+    plt.show()
+    plt.close(fig)
+
+def plot_all_drone_pos(transformation_matrix_tensor, gt_3d_pose, plot_loc, label, custom_name, indices):
+    file_name = plot_loc + "/" + custom_name  + ".jpg"
+
+    fig = plt.figure(figsize=(4, 4))
+    ax = fig.add_subplot(111,  projection='3d')
+    X = gt_3d_pose[0,:].tolist()
+    Y = gt_3d_pose[1,:].tolist()
+    Z = gt_3d_pose[2,:].tolist()
+    for _, bone in enumerate(bones_mpi):
+        ax.plot(gt_3d_pose[0,bone], gt_3d_pose[1,bone], gt_3d_pose[2,bone], c='xkcd:black')
+
+    for ind in range(transformation_matrix_tensor.shape[0]):
+        transformation_matrix = transformation_matrix_tensor[ind, :, :]
+        C_drone = transformation_matrix[0:3, 3]
+        R_drone = transformation_matrix[0:3, 0:3]
+        axis1 = R_drone@torch.t(torch.FloatTensor([[0,0,1]]))
+        axis2 = R_drone@torch.t(torch.FloatTensor([[0,1,0]]))
+        axis3 = R_drone@torch.t(torch.FloatTensor([[1,0,0]]))
+
+        axis1 = 3*axis1/torch.norm(axis1)
+        axis2 = 3*axis2/torch.norm(axis2)
+        axis3 = 3*axis3/torch.norm(axis3)
+
+        ax.scatter(C_drone[0], C_drone[1], C_drone[2], c='xkcd:pink')
+        ax.plot([C_drone[0], C_drone[0]+axis1[0,0]], [C_drone[1], C_drone[1]+axis1[1,0]], [C_drone[2], C_drone[2]+axis1[2,0]], c='xkcd:red')
+        ax.plot([C_drone[0], C_drone[0]+axis2[0,0]], [C_drone[1], C_drone[1]+axis2[1,0]], [C_drone[2], C_drone[2]+axis2[2,0]], c='xkcd:blue')
+        ax.plot([C_drone[0], C_drone[0]+axis3[0,0]], [C_drone[1], C_drone[1]+axis3[1,0]], [C_drone[2], C_drone[2]+axis3[2,0]], c='xkcd:green')
+        #ax.text(C_drone[0], C_drone[1], C_drone[2], str(indices[ind]))
+
+        X.append(C_drone[0])
+        Y.append(C_drone[1])
+        Z.append(C_drone[2])
+
+    X = np.array(X)
+    Y = np.array(Y)
+    Z = np.array(Z)
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.view_init(elev=30., azim=135)
 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
-    #plt.show()
     plt.close(fig)
 
 def record_2d_poses(f_pose_2d, pose_2d):
@@ -446,12 +533,12 @@ def record_drone_transformation_matrix(f_drone_pos, transformation_matrix, label
             f_drone_pos_str += str(float(flattened_transformation_matrix[i])) + '\t'
         f_drone_pos.write(f_drone_pos_str + "\n")
 
-def plot_stuff(filenames):
-    files = {"f_drone_pos": open(filenames["f_drone_pos"], "r"), 
-            "f_groundtruth":open(filenames["f_groundtruth"], "r")}
-    human_gt, transformation_matrix = read_gt_and_transformation_matrix(files)
-    plot_all_drone_pos(transformation_matrix, human_gt, filenames["output_image_dir"], "", "drone_pos")
-
+#def plot_stuff(filenames):
+#    files = {"f_drone_pos": open(filenames["f_drone_pos"], "r"), 
+#            "f_groundtruth":open(filenames["f_groundtruth"], "r")}
+#    human_gt, transformation_matrix = read_gt_and_transformation_matrix(files)
+#    plot_all_drone_pos(transformation_matrix, human_gt, filenames["output_image_dir"], "", "drone_pos")
+    
 
 #####reader functions
 def read_transformation_matrix(f_drone_pos):
@@ -505,7 +592,7 @@ if __name__ == "__main__":
     #output_folder_dir = "/Users/kicirogl/Documents/drone_flight_dataset"
     process_all_data = False
     find_3d_pose = True
-    mode = "cherry-pick" #0: 'all', 1: 'cherry-pick', 2: 'ransac'
+    mode = "ransac" #0: 'all', 1: 'cherry-pick', 2: 'ransac'
 
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
 
