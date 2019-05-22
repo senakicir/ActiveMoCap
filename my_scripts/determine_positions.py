@@ -148,6 +148,7 @@ def determine_openpose_error(linecount, pose_client, current_state, file_manager
 
     plot_end = {"est": bone_pos_3d_GT, "GT": bone_pos_3d_GT, "drone": current_state.C_drone_gt, "eval_time": 0}
     pose_client.append_res(plot_end)
+    return bone_2d
 
 def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager):
     plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()

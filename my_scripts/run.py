@@ -16,7 +16,6 @@ import cv2 as cv
 
 gt_hv = []
 est_hv = []
-LENGTH_OF_SIMULATION = 200
 photo_time = 0
 
 def get_client_gt_values(airsim_client, pose_client, X, file_manager):
@@ -66,18 +65,21 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     else:
         bone_pos_gt, drone_transformation_matrix = airsim_client.read_frame_gt_values()
         current_state.store_frame_transformation_matrix_joint_gt(bone_pos_gt, drone_transformation_matrix)
-    file_manager.update_photo_loc(airsim_client.get_linecount())
 
     return response.image_data_uint8
 
-def take_photo(airsim_client, pose_client, current_state, file_manager):
+def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoint = ""):
     if airsim_client.is_using_airsim:
         photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-        loc = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount) + '.png'
+        if viewpoint == "":
+            loc = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount) + '.png'
+        else:
+            loc = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount) + "_viewpoint_" + str(viewpoint)  + '.png'
+        file_manager.update_photo_loc(airsim_client.linecount, viewpoint)
         airsim.write_file(os.path.normpath(loc), photo)
-        loc_rem = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
-        if os.path.isfile(loc_rem):
-            os.remove(loc_rem)
+        #loc_rem = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
+        #if os.path.isfile(loc_rem):
+        #    os.remove(loc_rem)
     else:
         photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     return photo
@@ -98,7 +100,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     #connect to the AirSim simulator
     if simulation_mode == "use_airsim":
-        airsim_client = airsim.MultirotorClient()
+        airsim_client = airsim.MultirotorClient(50)
         airsim_client.confirmConnection()
         if loop_mode == "normal":
             airsim_client.enableApiControl(True)
@@ -139,12 +141,15 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     elif loop_mode == "teleport":
         pose_client_sim = PoseEstimationClient_Simulation(energy_parameters, simulation_mode, Crop(loop_mode = loop_mode), pose_client, parameters, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py)
         teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager)
+    elif loop_mode == "create_dataset":
+        create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
+    
 ################
 
     #calculate errors
     airsim_client.simPause(True)
-    errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
-    errors["middle_3d_err"] = sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
+    #errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
+    #errors["middle_3d_err"] = sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
 
     simple_plot(pose_client.processing_time, file_manager.estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
     if (pose_client.modes["mode_3d"] == 3):
@@ -236,7 +241,7 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
         print('linecount', airsim_client.linecount)
 
         if airsim_client.is_using_airsim:
-            if (airsim_client.linecount == LENGTH_OF_SIMULATION):
+            if (airsim_client.linecount == airsim_client.length_of_simulation):
                 end_test = True
         else:
             end_test = airsim_client.end
@@ -360,7 +365,7 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
     initialize_with_gt(airsim_client.linecount, pose_client, current_state, file_manager)
     airsim_client.linecount += 1
 
-    for exp_ind in range(1, 25):        
+    for exp_ind in range(1, 30):        
         potential_states_fetcher.reset(pose_client, current_state)
         potential_states_fetcher.potential_states_try = potential_states_try
         potential_states_fetcher.potential_states_go = potential_states_try
@@ -398,12 +403,20 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
             goal_state = potential_states_fetcher.potential_states_try[exp_ind]
             potential_states_fetcher.goal_state_ind = exp_ind
         else:
-            goal_state, _ = potential_states_fetcher.find_best_potential_state()    
+            if potential_states_fetcher.trajectory == "active":
+                goal_state, _ = potential_states_fetcher.find_best_potential_state()    
+                if pose_client_sim.find_best_traj:
+                    pose_client_sim.find_correlations(potential_states_fetcher)
+                    plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
+                potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
+            elif potential_states_fetcher.trajectory == "constant_rotation":
+                goal_state = potential_states_fetcher.find_next_state_constant_rotation(airsim_client.linecount)    
+            elif potential_states_fetcher.trajectory == "random":
+                goal_state = potential_states_fetcher.find_random_next_state()    
             file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_list_whole, airsim_client.linecount)
-        if pose_client_sim.find_best_traj:
-            pose_client_sim.find_correlations(potential_states_fetcher)
-            plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
-        potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
+        
+        pose_client_sim.find_average_error_over_trials(goal_state.index)
+        file_manager.write_average_error_over_trials(pose_client_sim.final_average_error)
 
         airsim_client.simSetVehiclePose(goal_state)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
@@ -417,6 +430,38 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
         airsim_client.linecount += 1
         plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
         print('linecount', airsim_client.linecount)
+
+def create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
+    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
+    print("experiment began at:", date_time_name)
+    airsim_client.simPauseDrone(False)
+
+    for _ in range(200):        
+        airsim_client.simPauseHuman(False)
+        time.sleep(DELTA_T)
+        airsim_client.simPauseHuman(True)
+
+        airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+        pose_client.future_pose = current_state.bone_pos_gt
+        pose_client.current_pose = current_state.bone_pos_gt
+        potential_states_fetcher.reset(pose_client, current_state)
+        potential_states_try = potential_states_fetcher.dome_experiment()
+        file_manager.record_gt_pose(current_state.bone_pos_gt, airsim_client.linecount)
+
+        for state_ind in range(len(potential_states_try)):
+            goal_state = potential_states_try[state_ind]
+            airsim_client.simSetVehiclePose(goal_state)
+            airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
+            current_state.cam_pitch = goal_state.pitch
+
+            take_photo(airsim_client, pose_client, current_state, file_manager, state_ind)
+            openpose_res = determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager)
+            file_manager.prepare_test_set(current_state, openpose_res, airsim_client.linecount, state_ind)
+
+        airsim_client.linecount += 1
+        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
+        print('linecount', airsim_client.linecount)
+
 
 def create_trackbars(radius, z_pos):
     # create trackbars for angle change

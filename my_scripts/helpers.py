@@ -18,7 +18,9 @@ import cv2
 from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos
 
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
-ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "noise":-1}
+ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "05_11":6, "05_15":7, "06_09":8,"07_10": 9, 
+                 "07_05": 10, "64_11": 11, "64_22":12, "64_26":13, "13_06":14, "14_32":15,"06_13":16,"14_01":17, "28_19":18, 
+                 "noise":-1}
 
 bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [0, 4], [4, 5], [5, 6], [6, 20], #left leg
@@ -261,12 +263,14 @@ def reset_all_folders(animation_list, base = ""):
             file_names[key] = {"f_error": experiment_folder_name +  '/error.txt', 
                 "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', 
                 "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', 
-                "f_uncertainty": experiment_folder_name +  '/uncertainty.txt', 
+                "f_uncertainty": experiment_folder_name +  '/uncertainty.txt',
+                "f_average_error" : experiment_folder_name + '/average_error.txt',
                 "f_drone_pos": experiment_folder_name +  '/drone_pos.txt', 
                 "f_initial_drone_pos": experiment_folder_name +  '/initial_drone_pos.txt', 
                 "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', 
                 "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  
-                "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt'}
+                "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt',
+                "f_openpose_results": experiment_folder_name +  '/openpose_results.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
@@ -1329,3 +1333,18 @@ def plot_correlations(pose_client, linecount, plot_loc):
 
     corr_plot_loc = plot_loc +'/correlations_' + str(linecount) + '.png'
     plt.savefig(corr_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
+    fig = plt.figure()
+    ax_current = fig.add_subplot(121)
+    ax_future = fig.add_subplot(122)
+
+    corr = [pose_client.cosine_current, pose_client.cosine_future]
+    for ind, ax in enumerate([ax_current, ax_future]):
+        ax.plot(corr[ind], marker="^")
+        point_text = 'Mean: {0:.4f}, Std:{1:.4f}'.format(np.mean(corr[ind]), np.std(corr[ind]))
+        ax.text(0.02, 0.9, point_text, fontsize=14, transform=ax.transAxes)
+
+    corr_plot_loc = plot_loc +'/cosine_metric_' + str(linecount) + '.png'
+    plt.savefig(corr_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.close(fig)

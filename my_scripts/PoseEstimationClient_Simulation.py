@@ -30,6 +30,12 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
 
         self.correlation_current = []
         self.correlation_future = []
+        self.cosine_current = []
+        self.cosine_future = []
+
+        self.error_across_trials = [] 
+        self.all_average_errors_across_trials = []
+        self.final_average_error = 0
     
     def update_initial_param(self, pose_client_general):
         self.init_optimized_poses = pose_client_general.optimized_poses.copy()
@@ -51,7 +57,9 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.isCalibratingEnergy = pose_client_general.isCalibratingEnergy
         self.result_shape, self.result_size, self.loss_dict = pose_client_general.result_shape, pose_client_general.result_size, pose_client_general.loss_dict
 
-        self.rewind_step()        
+        self.error_across_trials = [] 
+
+        self.rewind_step()       
 
     def rewind_step(self):
         self.optimized_poses = self.init_optimized_poses.copy()
@@ -105,17 +113,29 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
 
     def record_noise_experiment_statistics(self, psf, state_ind):
         psf.overall_error_list[state_ind], psf.future_error_list[state_ind], psf.overall_error_std_list[state_ind], psf.future_error_std_list[state_ind] = np.mean(self.frame_overall_error_list), np.mean(self.frame_future_error_list), np.std(self.frame_overall_error_list), np.std(self.frame_future_error_list)
+        self.error_across_trials.append(psf.overall_error_list[state_ind])
+
 
     def find_correlations(self, psf):
         overall_uncertainty_arr = np.array(psf.uncertainty_list_whole)
         norm_overall_uncertainty = (overall_uncertainty_arr-np.min(overall_uncertainty_arr))/(np.max(overall_uncertainty_arr)-np.min(overall_uncertainty_arr))
         norm_overall_error = (psf.overall_error_list-np.min(psf.overall_error_list))/(np.max(psf.overall_error_list)-np.min(psf.overall_error_list))
         self.correlation_current.append(pearsonr(norm_overall_uncertainty, norm_overall_error)[0])
+        self.cosine_current.append(norm_overall_uncertainty@norm_overall_error)
+
 
         future_uncertainty_arr = np.array(psf.uncertainty_list_future)
         norm_future_uncertainty = (future_uncertainty_arr-np.min(future_uncertainty_arr))/(np.max(future_uncertainty_arr)-np.min(future_uncertainty_arr))
         norm_future_error = (psf.future_error_list-np.min(psf.future_error_list))/(np.max(psf.future_error_list)-np.min(psf.future_error_list))
         self.correlation_future.append(pearsonr(norm_future_uncertainty, norm_future_error)[0])
+        self.cosine_future.append(norm_future_uncertainty@norm_future_error)
+
+
+    def find_average_error_over_trials(self, index):
+        print("debug", index)
+        self.all_average_errors_across_trials.append(self.error_across_trials[index])
+        self.final_average_error =  sum(self.all_average_errors_across_trials)/len(self.all_average_errors_across_trials)
+        print("Running average error", self.final_average_error )
 
     def init_3d_pose(self, pose):
         if self.animation == "noise":

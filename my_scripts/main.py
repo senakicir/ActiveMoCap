@@ -9,13 +9,13 @@ if __name__ == "__main__":
     use_trackbar = False
     
     #simulation mode = "use_airsim", "drone_flight_data"
-    simulation_mode = "drone_flight_data"
-    #base_folder = "/Users/kicirogl/Documents/temp_main"
-    base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
+    simulation_mode = "use_airsim"#"drone_flight_data"
+    base_folder = "/Users/kicirogl/Documents/temp_main"
+    #base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright
     trajectory = "active"
-    #loop_mode = 0-normal, 1-openpose, 2-teleport
-    loop_mode = "teleport"
+    #loop_mode = 0-normal, 1-openpose, 2-teleport, 3-create_dataset
+    loop_mode = "create_dataset"
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part = "whole"
     #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-random
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     is_quiet = False
     
     online_window_size = 6
-    calibration_length = 200
+    calibration_length = 0
     calibration_window_size = 6
 
     precalibration_length = 0
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     #use_lift_term = False
     use_trajectory_basis = False
     num_of_trajectory_param = 5
-    num_of_noise_trials = 5
+    num_of_noise_trials = 8
     pose_noise_3d_std = 0.1
 
     parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
@@ -60,22 +60,28 @@ if __name__ == "__main__":
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt"}
+    modes = {"mode_3d":"scipy", "mode_2d":"openpose", "mode_lift":"gt"}
    
-    #animations = {"02_01": len(SEED_LIST), "05_08": len(SEED_LIST)}
-    animations = {"02_01": len(SEED_LIST)}
+    animations = {"02_01":1, "05_08":1, "38_03":1, "64_06":1, "06_03":1, "05_11":1, "05_15":1, "06_09":1, "07_10":1, 
+                  "07_05":1, "64_11":1, "64_22":1, "64_26":1, "13_06":1, "14_32":1, "06_13":1, "14_01":1, "28_19":1}
+    #animations = {"02_01": len(SEED_LIST)}
 
-    theta_list = [270]#list(range(270, 180, -40)) #list(range(270, 180, -20))
+    theta_list = list(range(270, 235, -20))#list(range(270, 180, -40)) #list(range(270, 180, -20))
     phi_list = list(range(0, 360, 20))
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #position_grid.append([radians(180), radians(0)])
 
-    active_parameters = {"TRAJECTORY":trajectory, "HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
+    active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     
-    lift_bone_term_grid = [[False, True],[True, True], [True, False], [False, False]]
+    #lift_bone_term_grid =[[False, True],[True, True], [True, False], [False, False]]
+    lift_bone_term_grid =[ [True, False], [False, False]]
+
+
+    TRAJECTORY_LIST = ["active"]#["constant_rotation", "active", "random"]
+
     num_of_experiments = len(lift_bone_term_grid)
-    for experiment_ind in range(num_of_experiments):
+    for experiment_ind in range(1, num_of_experiments):
 
         file_names, folder_names, f_notes_name, _ = reset_all_folders(animations, base_folder)
         
@@ -92,6 +98,8 @@ if __name__ == "__main__":
         active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
         active_parameters["Z_POS"] = Z_POS_LIST[0]
         active_parameters["LOOKAHEAD"] = LOOKAHEAD_LIST[0]
+
+        active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[0]
 
         fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
 

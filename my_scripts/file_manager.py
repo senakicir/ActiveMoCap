@@ -21,7 +21,10 @@ class FileManager(object):
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_error = open(self.filenames_anim["f_error"], 'w')
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
+        self.f_average_error = open(self.filenames_anim["f_average_error"], 'w')
         self.f_initial_drone_pos = open(self.filenames_anim["f_initial_drone_pos"], 'w')
+        self.f_openpose_results = open(self.filenames_anim["f_openpose_results"], 'w')
+
 
         if self.loop_mode ==  "openpose":
             self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
@@ -50,9 +53,9 @@ class FileManager(object):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
         self.f_initial_drone_pos.write(initial_drone_pos_str + '\n')
 
-    def update_photo_loc(self, ind):
+    def update_photo_loc(self, ind, viewpoint):
         if (self.simulation_mode == "use_airsim"):
-            self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(ind) + '.png'
+            self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(ind) + "_viewpoint_" + str(viewpoint) + '.png'
         elif (self.simulation_mode == "drone_flight_data"):
             self.photo_loc = self.drone_flight_filenames["input_image_dir"]+"/"+self.label_list[ind]
         return self.photo_loc
@@ -100,6 +103,26 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
+    def prepare_test_set(self, current_state, openpose_res, linecount, state_ind):
+        f_drone_pos_str = ""
+        flattened_transformation_matrix = np.reshape(current_state.drone_transformation_matrix.numpy(), (16, ))
+        for i in range (16):
+            f_drone_pos_str += str(float(flattened_transformation_matrix[i])) + '\t'
+
+        self.f_drone_pos.write(str(linecount)+ '\t' + str(state_ind) + '\t' + f_drone_pos_str + '\n')
+    
+        openpose_str = ""
+        for i in range(openpose_res.shape[1]):
+            openpose_str += str(openpose_res[0, i].item()) + '\t' + str(openpose_res[1, i].item()) + '\t'
+        self.f_openpose_results.write(str(linecount)+ '\t'+ str(state_ind) + '\t' + openpose_str + '\n')
+
+    def record_gt_pose(self, gt_3d_pose, linecount):
+        f_groundtruth_str = ""
+        for i in range(gt_3d_pose.shape[1]):
+            f_groundtruth_str += str(gt_3d_pose[0, i].item()) + '\t' + str(gt_3d_pose[1, i].item()) + '\t' +  str(gt_3d_pose[2, i].item()) + '\t'
+        self.f_groundtruth.write(str(linecount)+ '\t' + f_groundtruth_str + '\n')
+
+
     def write_reconstruction_values(self, pose_3d, pose_3d_gt, drone_pos, drone_orient, linecount, num_of_joints):
         f_reconstruction_str = ""
         f_groundtruth_str = ""
@@ -129,6 +152,9 @@ class FileManager(object):
         for uncertainty in uncertainties:
             f_uncertainty_str += str(uncertainty) + '\t'
         self.f_uncertainty.write(str(linecount)+ '\t' + f_uncertainty_str + '\n')
+
+    def write_average_error_over_trials(self, error):
+        self.f_average_error.write(str(error) + '\n')
 
     def write_hessians(self, hessians, linecount):
         pass
