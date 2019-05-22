@@ -1,11 +1,53 @@
 import numpy as np
 from helpers import drone_flight_filenames
 
+def drone_flight_filenames(date_time_name="", mode=""):
+    if date_time_name == "":
+        date_time_name = '2019-05-15-18-13'
+    if mode == "":
+        mode = "ransac"
+
+    main_dir = "/cvlabdata2/home/kicirogl/ActiveDrone/drone_flight/2019_02_isinsu/video_1_full_framerate_2_trial_2"
+    input_image_dir = main_dir
+    general_output_folder = main_dir + "/drone_flight_dataset/" 
+    gt_folder_dir = general_output_folder + date_time_name + "_" + mode + '/'
+    openpose_liftnet_image_dir = general_output_folder + "openpose_liftnet_images"
+
+    drone_flight_filenames = {"input_image_dir": input_image_dir, 
+            "openpose_liftnet_image_dir": openpose_liftnet_image_dir, 
+            "gt_folder_dir": gt_folder_dir,
+            "f_drone_pos": gt_folder_dir + "drone_pos_reoriented.txt", 
+            "f_groundtruth": gt_folder_dir + "groundtruth_reoriented.txt", 
+            "f_pose_2d": general_output_folder + "pose_2d.txt", 
+            "f_pose_lift": general_output_folder + "pose_lift.txt",
+            "f_intrinsics": general_output_folder + "intrinsics.txt"}
+
+    return drone_flight_filenames
+
+def get_airsim_testset(anim):
+    main_dir = "/Users/kicirogl/Documents/temp_main/test_set/" + anim + "/0"
+    input_image_dir = main_dir+ "/images"
+
+    drone_flight_filenames = {"input_image_dir": input_image_dir, 
+            "f_drone_pos": main_dir + "drone_pos.txt", 
+            "f_groundtruth": main_dir + "groundtruth.txt", 
+            "f_pose_2d": main_dir + "openpose_results.txt", 
+            "f_pose_lift": main_dir + "groundtruth.txt",
+            "f_intrinsics": None}
+    return drone_flight_filenames
+
+def get_filenames(test_set_name):
+    if test_set_name == "drone_flight":
+        return drone_flight_filenames()
+    else: 
+        return get_airsim_testset(test_set_name)
+
+
 class FileManager(object):
     def __init__(self, parameters):
         self.anim_num = parameters["ANIMATION_NUM"]
         self.experiment_name = parameters["EXPERIMENT_NAME"]
-        self.test_set_name = parameters["TEST_SET_NAME"]
+        self.test_set_name = parameters["TEST_SET"]
 
         self.file_names = parameters["FILE_NAMES"]
         self.folder_names = parameters["FOLDER_NAMES"]
@@ -40,14 +82,17 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
-        if (self.simulation_mode == "drone_flight_data"):
-            self.drone_flight_filenames = drone_flight_filenames()  
+        if (self.simulation_mode == "saved_simulation"):
+            self.non_simulation_filenames = get_filenames(self.test_set_name)  
             self.label_list = []
-            self.drone_flight_files =  {"f_intrinsics":open(self.drone_flight_filenames["f_intrinsics"], "r"),
-                                        "f_pose_2d":open(self.drone_flight_filenames["f_pose_2d"], "r"),
-                                        "f_pose_lift":open(self.drone_flight_filenames["f_pose_lift"], "r"),
-                                        "f_groundtruth_reoriented": open(self.drone_flight_filenames["f_groundtruth_reoriented"], "r"),
-                                        "f_drone_pos_reoriented": open(self.drone_flight_filenames["f_drone_pos_reoriented"], "r")}
+            self.non_simulation_files =  {"f_intrinsics":None,
+                                        "f_pose_2d":open(self.non_simulation_filenames["f_pose_2d"], "r"),
+                                        "f_pose_lift":open(self.non_simulation_filenames["f_pose_lift"], "r"),
+                                        "f_groundtruth": open(self.non_simulation_filenames["f_groundtruth"], "r"),
+                                        "f_drone_pos": open(self.non_simulation_filenames["f_drone_pos"], "r")}
+            if self.non_simulation_filenames["f_intrinsics"] != None:
+                self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
+            
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])

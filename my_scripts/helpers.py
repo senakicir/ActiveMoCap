@@ -212,26 +212,6 @@ def read_M(num_of_joints, name = "M_rel"):
 def move_M(destination_folder):
     os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
 
-def drone_flight_filenames():
-    date_time_name = '2019-05-15-18-13'
-    mode = "ransac"
-
-    main_dir = "/cvlabdata2/home/kicirogl/ActiveDrone/drone_flight/2019_02_isinsu/video_1_full_framerate_2_trial_2"
-    input_image_dir = main_dir
-    general_output_folder = main_dir + "/drone_flight_dataset/" 
-    gt_folder_dir = general_output_folder + date_time_name + "_" + mode + '/'
-    openpose_liftnet_image_dir = general_output_folder + "openpose_liftnet_images"
-
-    drone_flight_filenames = {"input_image_dir": input_image_dir, 
-            "openpose_liftnet_image_dir": openpose_liftnet_image_dir, 
-            "gt_folder_dir": gt_folder_dir,
-            "f_drone_pos_reoriented": gt_folder_dir + "drone_pos_reoriented.txt", 
-            "f_groundtruth_reoriented": gt_folder_dir + "groundtruth_reoriented.txt", 
-            "f_pose_2d": general_output_folder + "pose_2d.txt", 
-            "f_pose_lift": general_output_folder + "pose_lift.txt",
-            "f_intrinsics": general_output_folder + "intrinsics.txt"}
-
-    return drone_flight_filenames
 
 def reset_all_folders(animation_list, base = ""):
     if (base == ""):

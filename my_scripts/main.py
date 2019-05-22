@@ -8,8 +8,11 @@ if __name__ == "__main__":
     kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
     use_trackbar = False
     
-    #simulation mode = "use_airsim", "drone_flight_data"
-    simulation_mode = "use_airsim"#"drone_flight_data"
+    # simulation mode = "use_airsim", "saved_simulation"
+    simulation_mode = "use_airsim"
+    # test_set = "drone_flight", "02_01", "05_08"
+    test_set = "drone_flight"
+
     base_folder = "/Users/kicirogl/Documents/temp_main"
     #base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright
@@ -55,15 +58,15 @@ if __name__ == "__main__":
     num_of_noise_trials = 8
     pose_noise_3d_std = 0.1
 
-    parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
+    parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode, "TEST_SET": test_set, "LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":"scipy", "mode_2d":"openpose", "mode_lift":"gt"}
    
-    animations = {"02_01":1, "05_08":1, "38_03":1, "64_06":1, "06_03":1, "05_11":1, "05_15":1, "06_09":1, "07_10":1, 
-                  "07_05":1, "64_11":1, "64_22":1, "64_26":1, "13_06":1, "14_32":1, "06_13":1, "14_01":1, "28_19":1}
+    animations = {"05_08":1, "38_03":1, "64_06":1, "06_03":1, "05_11":1, "05_15":1, "06_09":1, "07_10":1, 
+                  "07_05":1, "64_11":1, "64_22":1, "64_26":1, "13_06":1, "14_32":1, "06_13":1, "14_01":1, "28_19":1, "02_01":1}
     #animations = {"02_01": len(SEED_LIST)}
 
     theta_list = list(range(270, 235, -20))#list(range(270, 180, -40)) #list(range(270, 180, -20))
@@ -105,23 +108,12 @@ if __name__ == "__main__":
 
         many_runs_last = []
         many_runs_middle = []
-        #if (use_airsim):
         for animation in animations:
             for ind in range(animations[animation]):
                 parameters["ANIMATION_NUM"]=  animation
                 energy_parameters["SEED"] = SEED_LIST[ind]
-                parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
-                parameters["TEST_SET_NAME"]= ""
                 errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
                 many_runs_last.append(errors["ave_3d_err"] )
                 many_runs_middle.append(errors["middle_3d_err"] )
 
-        #else:
-        #    ind = 0
-        #    for animation in animations:
-        #        parameters["ANIMATION_NUM"]=  animation
-        #        parameters["EXPERIMENT_NAME"] = animation + "_" + str(ind)
-        #        parameters["TEST_SET_NAME"]= TEST_SETS[animation]
-        #        errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
-        
         append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

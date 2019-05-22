@@ -148,8 +148,12 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     #calculate errors
     airsim_client.simPause(True)
-    #errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
-    #errors["middle_3d_err"] = sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
+    if len(pose_client.error_3d) != 0:
+        errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
+        errors["middle_3d_err"] = sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
+    else:
+        errors["ave_3d_err"] = None
+        errors["middle_3d_err"] = None
 
     simple_plot(pose_client.processing_time, file_manager.estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
     if (pose_client.modes["mode_3d"] == 3):
