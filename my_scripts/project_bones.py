@@ -10,19 +10,19 @@ DEFAULT_TORSO_SIZE = 0.125
 C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]])
 
 class Projection_Client(object):
-    def __init__(self, is_using_airsim, num_of_joints, focal_length, px, py):
+    def __init__(self, test_set, num_of_joints, focal_length, px, py):
         self.K_torch = (torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]]))
         self.K_inv_torch = torch.inverse(self.K_torch)
         self.focal_length = focal_length
         self.num_of_joints = num_of_joints
 
-        if is_using_airsim:
-            self.flip_x_y_single = torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]])
-            self.flip_x_y_single_inv = torch.inverse(self.flip_x_y_single)
-        else:
+        if test_set == "drone_flight":
             self.flip_x_y_single = torch.eye(3)
             self.flip_x_y_single_inv = torch.eye(3)
-
+        else:
+            self.flip_x_y_single = torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]])
+            self.flip_x_y_single_inv = torch.inverse(self.flip_x_y_single)
+        
     def reset(self, data_list, simulate_error_mode, noise_2d_std):
         self.window_size = len(data_list)
 

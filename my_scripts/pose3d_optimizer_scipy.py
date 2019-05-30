@@ -2,7 +2,7 @@ from helpers import *
 from project_bones import Projection_Client
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
-from Lift_Client import Lift_Client, calculate_bone_directions
+from Lift_Client import Lift_Client, calculate_bone_directions, calculate_bone_directions_simple
 from torch.autograd import grad
 import pdb
 
@@ -64,7 +64,6 @@ def fun_hessian(pytorch_objective, x, result_shape):
     for ind, ele in enumerate(gradient_torch_flat):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)
         hessian_torch[:, ind] = temp[0].view(-1)
-
     hessian = hessian_torch.detach().numpy()
     return hessian
 
@@ -131,7 +130,7 @@ class pose3d_online_parallel_wrapper():
         self.result_shape = pose_client.result_shape
 
     def reset_future(self, pose_client, potential_state):
-        self.bone_connections, _, _, _ = pose_client.model_settings()
+        self.bone_connections, _, _, self.hip_index = pose_client.model_settings()
         
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
@@ -143,7 +142,11 @@ class pose3d_online_parallel_wrapper():
         
         if pose_client.USE_LIFT_TERM:
             lift_list = pose_client.liftPoseList
-            potential_pose3d_lift_directions = calculate_bone_directions(future_pose, np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 
+
+            if pose_client.LIFT_METHOD == "complex":
+                potential_pose3d_lift_directions = calculate_bone_directions(future_pose, np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 
+            if pose_client.LIFT_METHOD == "simple":
+                potential_pose3d_lift_directions = calculate_bone_directions_simple(future_pose, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index, batch=False)
             lift_client.reset_future(lift_list, potential_pose3d_lift_directions)
             
         if pose_client.USE_TRAJECTORY_BASIS:

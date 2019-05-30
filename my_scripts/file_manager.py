@@ -1,16 +1,15 @@
 import numpy as np
-from helpers import drone_flight_filenames
 
 def drone_flight_filenames(date_time_name="", mode=""):
     if date_time_name == "":
-        date_time_name = '2019-05-15-18-13'
+        date_time_name = '2019-05-23-20-35'
     if mode == "":
         mode = "ransac"
 
     main_dir = "/cvlabdata2/home/kicirogl/ActiveDrone/drone_flight/2019_02_isinsu/video_1_full_framerate_2_trial_2"
-    input_image_dir = main_dir
     general_output_folder = main_dir + "/drone_flight_dataset/" 
     gt_folder_dir = general_output_folder + date_time_name + "_" + mode + '/'
+    input_image_dir = gt_folder_dir
     openpose_liftnet_image_dir = general_output_folder + "openpose_liftnet_images"
 
     drone_flight_filenames = {"input_image_dir": input_image_dir, 
@@ -25,14 +24,15 @@ def drone_flight_filenames(date_time_name="", mode=""):
     return drone_flight_filenames
 
 def get_airsim_testset(anim):
-    main_dir = "/Users/kicirogl/Documents/temp_main/test_set/" + anim + "/0"
-    input_image_dir = main_dir+ "/images"
+    main_dir = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/test_set/" +anim + "/0/"
+    #main_dir = "/Users/kicirogl/Documents/temp_main/test_set/" + anim + "/0/"
+    input_image_dir = main_dir+ "images/"
 
     drone_flight_filenames = {"input_image_dir": input_image_dir, 
             "f_drone_pos": main_dir + "drone_pos.txt", 
             "f_groundtruth": main_dir + "groundtruth.txt", 
             "f_pose_2d": main_dir + "openpose_results.txt", 
-            "f_pose_lift": main_dir + "groundtruth.txt",
+            "f_pose_lift": main_dir + "liftnet_results.txt",
             "f_intrinsics": None}
     return drone_flight_filenames
 
@@ -47,7 +47,7 @@ class FileManager(object):
     def __init__(self, parameters):
         self.anim_num = parameters["ANIMATION_NUM"]
         self.experiment_name = parameters["EXPERIMENT_NAME"]
-        self.test_set_name = parameters["TEST_SET"]
+        self.test_set_name = self.anim_num
 
         self.file_names = parameters["FILE_NAMES"]
         self.folder_names = parameters["FOLDER_NAMES"]
@@ -66,7 +66,7 @@ class FileManager(object):
         self.f_average_error = open(self.filenames_anim["f_average_error"], 'w')
         self.f_initial_drone_pos = open(self.filenames_anim["f_initial_drone_pos"], 'w')
         self.f_openpose_results = open(self.filenames_anim["f_openpose_results"], 'w')
-
+        self.f_liftnet_results = open(self.filenames_anim["f_liftnet_results"], 'w')
 
         if self.loop_mode ==  "openpose":
             self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
@@ -98,11 +98,13 @@ class FileManager(object):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
         self.f_initial_drone_pos.write(initial_drone_pos_str + '\n')
 
-    def update_photo_loc(self, ind, viewpoint):
+    def update_photo_loc(self, linecount, viewpoint):
         if (self.simulation_mode == "use_airsim"):
-            self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(ind) + "_viewpoint_" + str(viewpoint) + '.png'
-        elif (self.simulation_mode == "drone_flight_data"):
-            self.photo_loc = self.drone_flight_filenames["input_image_dir"]+"/"+self.label_list[ind]
+            self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
+        elif (self.simulation_mode == "saved_simulation"):
+            if self.test_set_name == "drone_flight":
+                linecount = 0
+            self.photo_loc = self.non_simulation_filenames["input_image_dir"] + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
         return self.photo_loc
 
     def get_photo_loc(self):
@@ -148,7 +150,7 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
-    def prepare_test_set(self, current_state, openpose_res, linecount, state_ind):
+    def prepare_test_set(self, current_state, openpose_res, liftnet_res, linecount, state_ind):
         f_drone_pos_str = ""
         flattened_transformation_matrix = np.reshape(current_state.drone_transformation_matrix.numpy(), (16, ))
         for i in range (16):
@@ -160,6 +162,12 @@ class FileManager(object):
         for i in range(openpose_res.shape[1]):
             openpose_str += str(openpose_res[0, i].item()) + '\t' + str(openpose_res[1, i].item()) + '\t'
         self.f_openpose_results.write(str(linecount)+ '\t'+ str(state_ind) + '\t' + openpose_str + '\n')
+
+        liftnet_str = ""
+        for i in range(liftnet_res.shape[1]):
+            liftnet_str += str(liftnet_res[0, i].item()) + '\t' + str(liftnet_res[1, i].item()) + '\t' + str(liftnet_res[2, i].item())
+        self.f_liftnet_results.write(str(linecount)+ '\t'+ str(state_ind) + '\t' + liftnet_str + '\n')
+
 
     def record_gt_pose(self, gt_3d_pose, linecount):
         f_groundtruth_str = ""

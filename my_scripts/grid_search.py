@@ -1,149 +1,128 @@
-from main import *
-
-def run_simulation(weights, animation_num, kalman_arguments, energy_parameters):
-    file_names, folder_names, f_notes_name, date_time_name = reset_all_folders([animation_num], base="grid_search")
-    test_set = TEST_SETS[animation_num]
-    parameters = {"USE_TRACKBAR": False, "USE_AIRSIM": False, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "ANIMATION_NUM": animation_num, "TEST_SET_NAME":test_set}
-    normalized_weights = normalize_weights(weights)
-    energy_parameters["WEIGHTS"] = normalized_weights
-    fill_notes(f_notes_name, parameters, energy_parameters)   
-
-    energy_parameters["PARAM_READ_M"] = False
-    energy_parameters["PARAM_FIND_M"] = True
-    errors = main(kalman_arguments, parameters, energy_parameters)
-    move_M(folder_names[animation_num]["estimates"])
-    return errors, date_time_name   
-
-def run_simulation_2(weights, animation_num, kalman_arguments, energy_parameters):
-    file_names, folder_names, f_notes_name, date_time_name = reset_all_folders([animation_num], base="grid_search")
-    test_set = TEST_SETS[animation_num]
-    parameters = {"USE_TRACKBAR": False, "USE_AIRSIM": False, "FILE_NAMES": file_names, "FOLDER_NAMES": folder_names, "ANIMATION_NUM": animation_num, "TEST_SET_NAME":test_set}
-    normalized_weights = normalize_weights(weights)
-    energy_parameters["WEIGHTS"] = normalized_weights
-    fill_notes(f_notes_name, parameters, energy_parameters)   
-
-    energy_parameters["PARAM_READ_M"] = False
-    energy_parameters["PARAM_FIND_M"] = True
-    main(kalman_arguments, parameters, energy_parameters)
-
-    energy_parameters["PARAM_READ_M"] = True
-    energy_parameters["PARAM_FIND_M"] = False
-    errors = main(kalman_arguments, parameters, energy_parameters)
-    move_M(folder_names[animation_num]["estimates"])
-    return errors, date_time_name   
-
-def weight_search(with_M = True): 
-    if (with_M):
-        sim_func = run_simulation_2
-    else:
-        sim_func = run_simulation
-
-    kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
-    kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
-    param_read_M = True
-    param_find_M = False
-    is_quiet = True
-    calculate_hess = False
-    flight_window_size = 6
-    calibration_length = 35
-    #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
-    #mode_2d: 0- gt, 1- openpose
-    #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":1} 
-
-    animation_num = "02_01"
-
-    weight_list = np.logspace(-2, 2, 4)
-    if os.path.exists("grid_search"):
-        shutil.rmtree("grid_search")
-
-    ave_errors_pos = np.zeros([len(weight_list),len(weight_list), len(weight_list)])
-    folder_name_grid = []          
-
-    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess, "FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3}
-
-    for smooth_ind, smooth_weights in enumerate(weight_list):
-        for bone_ind, bone_weights in enumerate(weight_list):
-            for lift_ind, lift_weights in enumerate(weight_list):
-                weights_ = {'proj': 0.1, 'smooth': float(smooth_weights), 'bone': float(bone_weights), 'lift': float(lift_weights)}#'smoothpose': 0.01,}
-                errors, date_time = sim_func(weights_, animation_num, kalman_arguments, energy_parameters)
-                folder_name_grid.append(date_time)
-                ave_errors_pos[smooth_ind, bone_ind, lift_ind] = errors["ave_3d_err"]
-                print(errors)
-            simple_plot2(weight_list, ave_errors_pos[smooth_ind, bone_ind, :], "grid_search", "overall_err"+str(lift_ind), plot_title="For " + str(smooth_weights) +" " + str(bone_weights), x_label="Lift weight", y_label="Error")
-
-    overall_errors = ave_errors_pos
-    min_err_ind = np.argmin(overall_errors)
-    print("folder name:", folder_name_grid[min_err_ind])
-    ind = np.unravel_index(min_err_ind, overall_errors.shape)
-    print("min error", np.amin(overall_errors))
-    good_weights = {'proj': 0.1, 'smooth': weight_list[ind[0]], 'bone': weight_list[ind[1]], 'lift':weight_list[ind[2]]}
-    normalized_good_weights = normalize_weights(good_weights)
-    print("weights", normalized_good_weights)
-
-def oneaxis_weight_search(): 
-    kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" : 5.17947467923e-10, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1.38949549437e-08}
-    kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 517.947467923 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
-    param_read_M = True
-    param_find_M = False
-    is_quiet = True
-    calculate_hess = False
-    flight_window_size = 6
-    calibration_length = 35
-    #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
-    #mode_2d: 0- gt, 1- openpose
-    #mode_lift: 0- gt, 1- lift
-    modes = {"mode_3d":3, "mode_2d":1, "mode_lift":1} 
-    animation_num = "02_01"
-
-    if os.path.exists("grid_search"):
-        shutil.rmtree("grid_search")
-
-    energy_parameters = {"CALCULATE_HESSIAN":calculate_hess, "FLIGHT_WINDOW_SIZE": flight_window_size, "CALIBRATION_LENGTH": calibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": 1e-3}
-
-    centered = {'proj': 0.01, 'smooth': 100, 'bone': 4.6415888336127775, 'lift': 100}#'smoothpose': 0.01,}
-
-    def generate_weight_list(mean):
-        return [mean/10, mean/5, mean, mean*5, mean*10]
-
-    for _ in range(0,2):
-        weights_ = centered
-        line_error_list = np.zeros([5,])
-        proj_weight_list = generate_weight_list(centered["proj"])
-        for proj_ind, proj_weights in enumerate(proj_weight_list):
-            weights_["proj"] = proj_weights
-            errors, date_time = run_simulation(weights_, animation_num, kalman_arguments, energy_parameters)
-            line_error_list[proj_ind] = errors["ave_3d_err"]
-        centered["proj"]=proj_weight_list[np.argmin(line_error_list)]
-
-        smooth_weight_list = generate_weight_list(centered["smooth"])
-        weights_ = centered
-        for smooth_ind, smooth_weights in enumerate(smooth_weight_list):
-            weights_["smooth"] = smooth_weights
-            errors, date_time = run_simulation(weights_, animation_num, kalman_arguments, energy_parameters)
-            line_error_list[smooth_ind] = errors["ave_3d_err"]
-        centered["smooth"]=smooth_weight_list[np.argmin(line_error_list)]
-
-        bone_weight_list = generate_weight_list(centered["bone"])
-        weights_ = centered
-        for bone_ind, bone_weights in enumerate(bone_weight_list):
-            weights_["bone"] = bone_weights
-            errors, date_time = run_simulation(weights_, animation_num, kalman_arguments, energy_parameters)
-            line_error_list[bone_ind] = errors["ave_3d_err"]
-        centered["bone"]=bone_weight_list[np.argmin(line_error_list)]
-
-        lift_weight_list = generate_weight_list(centered["lift"])
-        weights_ = centered
-        for lift_ind, lift_weights in enumerate(lift_weight_list):
-            weights_["lift"] = lift_weights
-            errors, date_time = run_simulation(weights_, animation_num, kalman_arguments, energy_parameters)
-            line_error_list[lift_ind] = errors["ave_3d_err"]
-        centered["lift"]=lift_weight_list[np.argmin(line_error_list)]       
-
-    print(centered)
-    print(np.min(line_error_list))
-
+from run import run_simulation
+from helpers import reset_all_folders, normalize_weights, fill_notes, append_error_notes
+from math import radians
+import numpy as np
 
 if __name__ == "__main__":
-    weight_search(with_M= False)
+    kalman_arguments = {"KALMAN_PROCESS_NOISE_AMOUNT" :1, "KALMAN_MEASUREMENT_NOISE_AMOUNT_XY" : 1e-3}
+    kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_Z"] = 1000 * kalman_arguments["KALMAN_MEASUREMENT_NOISE_AMOUNT_XY"]
+    use_trackbar = False
+    
+    # simulation mode = "use_airsim", "saved_simulation"
+    simulation_mode = "saved_simulation"
+    if (simulation_mode == "use_airsim"):
+        base_folder = "/Users/kicirogl/Documents/temp_main"
+    elif (simulation_mode == "saved_simulation"):
+            base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
 
+
+
+    #loop_mode = 0-normal, 1-openpose, 2-teleport, 3-create_dataset
+    loop_mode = "teleport"
+    #hessian_part: 0-future, 1-middle, 2-whole
+    hessian_part = "whole"
+    #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-random
+    uncertainty_calc_method = "sum_eig"
+
+    minmax = True #True-min, False-max
+    SEED_LIST = [41]#, 41 5, 2, 12, 1995]
+    WOBBLE_FREQ_LIST = [0.5, 1, 2, 5, 20]
+    UPDOWN_LIM_LIST = [[-3, -1]]
+    LOOKAHEAD_LIST = [0.3]
+    go_distance = 3
+    upper_lim = -3
+    lower_lim = -1 #-2.5
+    ftol = 1e-3
+
+    param_read_M = False
+    param_find_M = False
+    is_quiet = False
+    
+    online_window_size = 6
+    calibration_length = 0
+    calibration_window_size = 6
+
+    precalibration_length = 0
+    #init_pose_mode: 0- "gt", "zeros", "backproj"
+    init_pose_mode = "zeros"
+    find_best_traj = True
+    noise_2d_std = 3
+    drone_pos_jitter_noise_std = 0.5
+    predefined_traj_len = 0
+
+    use_symmetry_term = True
+    use_single_joint = False
+    #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
+    smoothness_mode = "velocity"
+    use_bone_term = True
+    use_lift_term = True
+    use_trajectory_basis = False
+    num_of_trajectory_param = 5
+    num_of_noise_trials = 8
+    pose_noise_3d_std = 0.1
+    lift_method = "simple"
+    bone_len_method = "no_sqrt"
+
+    parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode,"LOOP_MODE":loop_mode, "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
+
+    #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
+    #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
+    #mode_lift: 0- gt, 1- lift
+    modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt"}
+   
+    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10", 
+                 # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
+    #animations = {"02_01": len(SEED_LIST)}
+
+    theta_list = list(range(270, 235, -20))#list(range(270, 180, -40)) #list(range(270, 180, -20))
+    phi_list = list(range(0, 360, 20))
+    position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
+    #position_grid.append([radians(180), radians(0)])
+
+    active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
+    Z_POS_LIST = [-2.5]#, -4, -5, -6]
+    
+
+    #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
+    TRAJECTORY_LIST = ["active", "go_to_best", "constant_rotation", "random"]
+
+    num_of_experiments = len(TRAJECTORY_LIST)
+    for experiment_ind in range(num_of_experiments):
+        file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder)
+        
+        parameters["FILE_NAMES"] = file_names
+        parameters["FOLDER_NAMES"] = folder_names
+        
+        weights =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
+
+        energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ONLINE_WINDOW_SIZE": online_window_size, 
+                            "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, 
+                            "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, 
+                            "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": ftol, "WEIGHTS": weights, 
+                            "INIT_POSE_MODE": init_pose_mode, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, 
+                            "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis,
+                            "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param}
+        energy_parameters["USE_LIFT_TERM"] = use_lift_term
+        energy_parameters["USE_BONE_TERM"] = use_bone_term
+
+        active_parameters["UPDOWN_LIM"] = UPDOWN_LIM_LIST[0]
+        active_parameters["WOBBLE_FREQ"] = WOBBLE_FREQ_LIST[0]
+        active_parameters["Z_POS"] = Z_POS_LIST[0]
+        active_parameters["LOOKAHEAD"] = LOOKAHEAD_LIST[0]
+
+        active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[experiment_ind]
+
+        fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
+
+        many_runs_last = []
+        many_runs_middle = []
+        for animation in ANIMATIONS:
+            for ind, seed in enumerate(SEED_LIST):
+                parameters["ANIMATION_NUM"]=  animation
+                energy_parameters["SEED"] = seed
+                parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
+                errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
+                many_runs_last.append(errors["ave_3d_err"] )
+                many_runs_middle.append(errors["middle_3d_err"] )
+
+        append_error_notes(f_notes_name, many_runs_last, many_runs_middle)

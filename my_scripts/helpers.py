@@ -213,25 +213,29 @@ def move_M(destination_folder):
     os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
 
 
-def reset_all_folders(animation_list, base = ""):
+def reset_all_folders(animation_list, seed_list, base = ""):
     if (base == ""):
         base = "temp_main"
     if (base == "grid_search"):
         base = "grid_search"
 
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
-    folder_names = [base, base + '/' + date_time_name]
-    main_folder_name = base + '/' + date_time_name
+    main_folder_name =  base + '/' + date_time_name
+
+    if os.path.exists(main_folder_name):
+        main_folder_name += "_b_"
+
+    folder_names = [base, main_folder_name]
 
     for a_folder_name in folder_names:
         if not os.path.exists(a_folder_name):
-            os.makedirs(a_folder_name)
+            os.makedirs(a_folder_name)            
     
     file_names = {}
     folder_names = {}
     for animation in animation_list:
         sub_folder_name = main_folder_name + "/" + str(animation)
-        for ind in range(animation_list[animation]):
+        for ind, seed in enumerate(seed_list):
             experiment_folder_name = sub_folder_name + "/" + str(ind)
             if not os.path.exists(experiment_folder_name):
                 os.makedirs(experiment_folder_name)
@@ -250,6 +254,7 @@ def reset_all_folders(animation_list, base = ""):
                 "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', 
                 "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  
                 "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt',
+                "f_liftnet_results": experiment_folder_name +  '/liftnet_results.txt',
                 "f_openpose_results": experiment_folder_name +  '/openpose_results.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
@@ -1132,8 +1137,8 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
     fig = plt.figure(figsize=(8,12))
 
     potential_states = potential_states_fetcher.potential_states_go
-    uncertainty_list_whole = potential_states_fetcher.uncertainty_list_whole
-    uncertainty_list_future = potential_states_fetcher.uncertainty_list_future
+    uncertainty_list_whole =  list(potential_states_fetcher.uncertainty_list_whole.values())
+    uncertainty_list_future = list(potential_states_fetcher.uncertainty_list_future.values())
     overall_error_list = potential_states_fetcher.overall_error_list
     overall_std_list = potential_states_fetcher.overall_error_std_list 
     future_error_list = potential_states_fetcher.future_error_list
@@ -1211,7 +1216,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
         ax = fig.add_subplot(111, projection='3d')
 
     potential_states = potential_states_fetcher.potential_states_go
-    covs = potential_states_fetcher.potential_covs_whole
+    covs = [potential_cov_dict["inv_hess"] for potential_cov_dict in (potential_states_fetcher.potential_covs_whole)]
     if plot_errors:
         error_list = potential_states_fetcher.error_list
         cmap = cm.cool

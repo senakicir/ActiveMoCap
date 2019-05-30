@@ -54,13 +54,11 @@ class State(object):
 
         self.human_orientation_gt = np.zeros([3,])
         self.drone_orientation_gt = np.zeros([3,])
-        self.drone_pos_gt = np.zeros([3,])
         self.human_pos_gt = np.zeros([3,])
         self.bone_pos_gt = np.zeros([3, self.num_of_joints])
 
         self.drone_translation_matrix = 0 
 
-        self.drone_pos_est = np.zeros([3,])
         self.human_pos_est = np.zeros([3,])
         self.human_orientation_est = np.zeros([3,])
         self.drone_orientation_est = np.array([0,0,0])
@@ -78,7 +76,6 @@ class State(object):
         self.change_human_gt_info(bone_pos_gt)
         
         self.drone_orientation_gt = drone_orientation_gt
-        self.drone_pos_gt = drone_pos_gt
 
         self.R_drone_gt = euler_to_rotation_matrix(self.drone_orientation_gt[0], self.drone_orientation_gt[1], self.drone_orientation_gt[2])
         self.C_drone_gt = torch.from_numpy(drone_pos_gt).float()
@@ -95,14 +92,14 @@ class State(object):
     def store_frame_transformation_matrix_joint_gt(self, bone_pos_gt, drone_transformation_matrix):
         self.change_human_gt_info(bone_pos_gt)
 
-        self.R_drone_gt = torch.zeros([3,3])
-        self.C_drone_gt = torch.zeros([3,1])
         self.R_cam_gt = torch.zeros([3,3])
 
         self.drone_orientation_gt = np.zeros([3,])
-        self.drone_pos_gt = np.zeros([3,])
 
         self.drone_transformation_matrix = drone_transformation_matrix.clone()
+        self.R_drone_gt = self.drone_transformation_matrix[0:3,0:3]
+        self.C_drone_gt = self.drone_transformation_matrix[0:3,3].unsqueeze(1)
+
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
@@ -115,8 +112,8 @@ class State(object):
         self.human_pos_est = bone_pos_est[:, self.hip_index]
 
     def get_required_pitch(self):
-        new_radius = np.linalg.norm(self.drone_pos_gt - self.human_pos_est)
-        new_theta = acos((self.drone_pos_gt[2] - self.human_pos_est[2])/new_radius)
+        new_radius = np.linalg.norm(self.C_drone_gt.numpy() - self.human_pos_est)
+        new_theta = acos((self.C_drone_gt[2] - self.human_pos_est[2])/new_radius)
         new_pitch = pi/2 - new_theta
         return new_pitch
 

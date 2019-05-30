@@ -12,11 +12,15 @@ def calculate_bone_lengths(bones, bone_connections, batch):
     else:  
         return (torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))
 
+def calculate_bone_lengths_sqrt(bones, bone_connections, batch):
+    if batch:
+        return torch.sqrt(torch.sum(torch.pow(bones[:, :, bone_connections[:,0]] - bones[:, :, bone_connections[:,1]], 2), dim=1))
+    else:  
+        return torch.sqrt(torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))    
 
 class PoseEstimationClient(object):
-    def __init__(self, param, simulation_mode, cropping_tool, animation, intrinsics_focal, intrinsics_px, intrinsics_py):
+    def __init__(self, param, cropping_tool, animation, intrinsics_focal, intrinsics_px, intrinsics_py):
         self.simulate_error_mode = False
-        self.simulation_mode = simulation_mode
 
         self.modes = param["MODES"]
         self.method = param["METHOD"]
@@ -35,12 +39,14 @@ class PoseEstimationClient(object):
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
         self.PRECALIBRATION_LENGTH = param["PRECALIBRATION_LENGTH"]
         self.quiet = param["QUIET"]
-        self.init_pose_with_gt = param["INIT_POSE_WITH_GT"]
+        self.INIT_POSE_MODE = param["INIT_POSE_MODE"]
         self.noise_2d_std = param["NOISE_2D_STD"]
         self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
         self.SMOOTHNESS_MODE = param["SMOOTHNESS_MODE"]
         self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
         self.USE_BONE_TERM = param["USE_BONE_TERM"]
+        self.BONE_LEN_METHOD = param["BONE_LEN_METHOD"]
+        self.LIFT_METHOD = param["LIFT_METHOD"]
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
 
@@ -114,10 +120,7 @@ class PoseEstimationClient(object):
         self.loss_dict = {}
 
         self.animation = animation
-        if simulation_mode == "use_airsim":
-            self.projection_client = Projection_Client(is_using_airsim=True, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
-        elif simulation_mode == "drone_flight_data":
-            self.projection_client = Projection_Client(is_using_airsim=False, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
+        self.projection_client = Projection_Client(test_set=self.animation, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
@@ -134,7 +137,10 @@ class PoseEstimationClient(object):
 
     def update_bone_lengths(self, bones):
         bone_connections = np.array(self.bone_connections)
-        current_bone_lengths = calculate_bone_lengths(bones=bones, bone_connections=bone_connections, batch=False)
+        if self.BONE_LEN_METHOD == "no_sqrt":
+            current_bone_lengths = calculate_bone_lengths(bones=bones, bone_connections=bone_connections, batch=False)
+        elif self.BONE_LEN_METHOD == "sqrt":
+            current_bone_lengths = calculate_bone_lengths_sqrt(bones=bones, bone_connections=bone_connections, batch=False)
        
         if self.animation == "noise":
             self.multiple_bone_lengths = torch.cat((current_bone_lengths.unsqueeze(0),self.multiple_bone_lengths[:-1,:]), dim=0)
@@ -226,11 +232,13 @@ class PoseEstimationClient(object):
         if (linecount != 0):
             current_frame_init = self.future_pose.copy()
         else:
-            if self.init_pose_with_gt:
+            if self.INIT_POSE_MODE == "gt":
                 current_frame_init = pose_3d_gt.copy()
-            else:
+            elif self.INIT_POSE_MODE == "backprojection":
                 current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
-        
+            elif self.INIT_POSE_MODE == "zeros":
+                current_frame_init = np.zeros([3, self.num_of_joints])
+
         if self.isCalibratingEnergy:
             self.pose_3d_preoptimization = current_frame_init.copy()
         else:

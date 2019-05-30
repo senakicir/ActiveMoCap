@@ -3,8 +3,8 @@ import torch as torch
 from helpers import split_bone_connections, EPSILON, return_lift_bone_connections, euler_to_rotation_matrix, CAMERA_PITCH_OFFSET, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z
 import numpy as np 
 from math import pi
-from PoseEstimationClient import calculate_bone_lengths
-from Lift_Client import Lift_Client, calculate_bone_directions
+from PoseEstimationClient import calculate_bone_lengths, calculate_bone_lengths_sqrt
+from Lift_Client import Lift_Client, calculate_bone_directions, calculate_bone_directions_simple
 
 def mse_loss(input_1, input_2, N):
     return torch.sum(torch.pow((input_1 - input_2),2))/N
@@ -88,7 +88,7 @@ class pose3d_online_parallel(torch.nn.Module):
 
         self.projection_client = projection_client
 
-        bone_connections, _, self.NUM_OF_JOINTS, _ = pose_client.model_settings()
+        bone_connections, _, self.NUM_OF_JOINTS, self.hip_index = pose_client.model_settings()
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
@@ -107,6 +107,8 @@ class pose3d_online_parallel(torch.nn.Module):
         self.use_lift_term = pose_client.USE_LIFT_TERM
         self.use_bone_term = pose_client.USE_BONE_TERM
         self.use_single_joint = pose_client.USE_SINGLE_JOINT
+        self.bone_len_method = pose_client.BONE_LEN_METHOD
+        self.lift_method = pose_client.LIFT_METHOD
 
         if self.use_lift_term and not self.use_single_joint:
             self.pose3d_lift_directions = lift_client.pose3d_lift_directions
@@ -132,11 +134,15 @@ class pose3d_online_parallel(torch.nn.Module):
         output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
 
         if self.use_bone_term and not self.use_single_joint:
+            if self.bone_len_method == "no_sqrt":
+                bone_len_func = calculate_bone_lengths
+            elif self.bone_len_method == "sqrt":
+                bone_len_func = calculate_bone_lengths_sqrt
             #bone length consistency 
-            length_of_bone = calculate_bone_lengths(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
+            length_of_bone = bone_len_func(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
             bonelosses = torch.pow((length_of_bone - self.bone_lengths),2)
             output["bone"] = torch.sum(bonelosses)/(self.NUM_OF_JOINTS-1)
-
+        
         #smoothness term
         if self.smoothness_mode == "velocity":
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
@@ -152,11 +158,19 @@ class pose3d_online_parallel(torch.nn.Module):
 
         #lift term  
         if not self.use_single_joint and self.use_lift_term:
-            if not self.future_proj:
-                pose_est_directions = calculate_bone_directions(self.pose3d[1:,:,:], self.lift_bone_directions, batch=True)
-            else:
-                pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
-            output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
+            if self.lift_method == "complex":
+                if not self.future_proj:
+                    pose_est_directions = calculate_bone_directions(self.pose3d[1:,:,:], self.lift_bone_directions, batch=True)
+                else:
+                    pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
+                output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  3*self.NUM_OF_JOINTS)
+
+            elif self.lift_method == "simple":
+                if not self.future_proj:
+                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d[1:, :, :]-self.pose3d[1:, :, self.hip_index].unsqueeze(2),  3*self.NUM_OF_JOINTS)
+                else:
+                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d-self.pose3d[:, :, self.hip_index].unsqueeze(2),  3*self.NUM_OF_JOINTS)
+
 
         overall_output = 0
         for loss_key in self.loss_dict:

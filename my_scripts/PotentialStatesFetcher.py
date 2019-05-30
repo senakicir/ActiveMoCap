@@ -37,7 +37,6 @@ class PotentialState(object):
         self.inv_transformation_matrix = torch.inverse(drone_transformation@camera_transformation)
         self.index = index
 
-
     def get_goal_pos_yaw_pitch(self, curr_drone_orientation):
         desired_yaw_deg = find_delta_yaw((curr_drone_orientation)[2],  self.orientation)
         return self.position , desired_yaw_deg, self.pitch   
@@ -53,11 +52,9 @@ class PotentialState_Drone_Flight(object):
         return self.position, 0, 0
 
 
-
 class PotentialStatesFetcher(object):
     def __init__(self, airsim_client, pose_client, active_parameters):
         _, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
-        self.simulation_mode = pose_client.simulation_mode
 
         self.minmax = active_parameters["MINMAX"]
         self.hessian_part = active_parameters["HESSIAN_PART"]
@@ -77,13 +74,15 @@ class PotentialStatesFetcher(object):
         self.UPPER_LIM = active_parameters["UPPER_LIM"]
         self.LOWER_LIM = active_parameters["LOWER_LIM"]
 
+        self.is_using_airsim = airsim_client.is_using_airsim
+
         self.number_of_samples = len(self.POSITION_GRID)
 
         self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
         self.counter = 0 
 
-        if self.simulation_mode == "drone_flight_data":
+        if not self.is_using_airsim:
             self.drone_flight_states = airsim_client.get_drone_flight_states()
             self.number_of_samples = len(self.drone_flight_states)
 
@@ -91,8 +90,8 @@ class PotentialStatesFetcher(object):
         self.future_error_list = np.zeros(self.number_of_samples)
         self.error_std_list =  np.zeros(self.number_of_samples)
 
-    def reset(self, pose_client, current_state):
-        self.current_drone_pos = np.squeeze(current_state.drone_pos_gt)
+    def reset(self, pose_client, airsim_client, current_state):
+        self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
 
@@ -125,6 +124,10 @@ class PotentialStatesFetcher(object):
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
         self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
+
+        if not self.is_using_airsim:
+            self.drone_flight_states = airsim_client.get_drone_flight_states()
+            self.number_of_samples = len(self.drone_flight_states)
 
 
     def get_potential_positions_really_spherical_future(self):
@@ -280,13 +283,14 @@ class PotentialStatesFetcher(object):
         return goal_state
 
     def dome_experiment(self):
-        if self.simulation_mode == "use_airsim":
+        if self.is_using_airsim:
             ind = 0
             for theta, phi in self.POSITION_GRID:
                 sample_states_spherical(self, SAFE_RADIUS, theta, phi, ind)
                 ind += 1
-        elif self.simulation_mode == "drone_flight_data":
-            self.potential_states_try = self.drone_flight_states
+        else:
+            self.potential_states_try = self.drone_flight_states.copy()
+            self.potential_states_go = self.drone_flight_states.copy()
         return self.potential_states_try
 
     def up_down_baseline(self):
@@ -432,7 +436,7 @@ class PotentialStatesFetcher(object):
     
     def find_hessians_for_potential_states(self, pose_client):
         self.counter += 1
-        for potential_state_ind, potential_state in enumerate(self.potential_states_try):
+        for potential_state in self.potential_states_try:
             self.objective.reset_future(pose_client, potential_state)
             if pose_client.USE_TRAJECTORY_BASIS:
                 hess2 = self.objective.hessian(self.optimized_traj)
@@ -441,7 +445,6 @@ class PotentialStatesFetcher(object):
             self.potential_hessians_normal.append(hess2)
 
             inv_hess2 = np.linalg.inv(hess2)
-
 
             #if self.counter ==5 :
                 #import IPython
@@ -469,27 +472,31 @@ class PotentialStatesFetcher(object):
                 #plt.show()
                 #plt.close()
  
-            self.potential_covs_future.append(choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.number_of_joints))
-            self.potential_covs_middle.append(choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.number_of_joints))
-            self.potential_covs_whole.append(inv_hess2)
+            self.potential_covs_future.append({"inv_hess": choose_frame_from_cov(inv_hess2, FUTURE_POSE_INDEX, self.number_of_joints), "potential_state": potential_state})
+            self.potential_covs_middle.append({"inv_hess" :choose_frame_from_cov(inv_hess2, MIDDLE_POSE_INDEX, self.number_of_joints), "potential_state": potential_state})
+            self.potential_covs_whole.append({"inv_hess":inv_hess2, "potential_state": potential_state})
 
             future_pose = torch.from_numpy(self.future_human_pos).float() 
-            self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
+            #self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
         return self.potential_covs_whole, self.potential_hessians_normal
 
     def find_best_potential_state(self):
-        for hessian_part_ind, covariances in enumerate([self.potential_covs_future, self.potential_covs_whole]):
-            uncertainty_list = []
-            for cov in covariances:
+        potential_cov_lists = {"future": self.potential_covs_future, "whole":self.potential_covs_whole}
+        for part, potential_cov_list in potential_cov_lists.items():
+            uncertainty_dict = {}
+            for x in potential_cov_list:
+                cov = x["inv_hess"]
+                potential_state = x["potential_state"]
+
                 if self.uncertainty_calc_method == "sum_eig":
                     _, s, _ = np.linalg.svd(cov)
-                    uncertainty_list.append(np.sum(s)) 
+                    uncertainty_dict[potential_state.index] = (np.sum(s)) 
                 elif self.uncertainty_calc_method == "add_diag":
                     s = np.diag(cov)
-                    uncertainty_list.append(np.sum(s)) 
+                    uncertainty_dict[potential_state.index] = (np.sum(s))
                 elif self.uncertainty_calc_method == "multip_eig":
                     _, s, _ = np.linalg.svd(cov)
-                    uncertainty_list.append(s[0]*s[1]*s[2]) 
+                    uncertainty_dict[potential_state.index] = s[0]*s[1]*s[2]
                     #import matplotlib.pyplot as plt
                     #fig =  plt.figure()
                     #print("largest three eigenvals", s[0], s[1], s[2])
@@ -497,7 +504,7 @@ class PotentialStatesFetcher(object):
                     #plt.show()
                     #plt.close()
                 elif self.uncertainty_calc_method == "determinant":
-                    uncertainty_list.append(np.linalg.det(s))
+                    uncertainty_dict[potential_state.index] = np.linalg.det(s)
                     #cov_shaped = shape_cov_general(cov, self.model, 0)
                     #uncertainty_joints = np.zeros([self.number_of_joints,])
                     #for joint_ind in range(self.number_of_joints):
@@ -508,21 +515,26 @@ class PotentialStatesFetcher(object):
                   #  pass
             #if self.uncertainty_calc_method == "random":
              #   (uncertainty_lists[hessian_part_ind]) = (np.random.permutation(np.arange(self.number_of_samples))).tolist()
-            if hessian_part_ind == 0:
-                self.uncertainty_list_future = uncertainty_list.copy()
-                final_list = uncertainty_list.copy()
-            elif self.hessian_part == "whole":
-                self.uncertainty_list_whole = uncertainty_list.copy()
-                final_list = uncertainty_list.copy()
+            if part == "future":
+                self.uncertainty_list_future = uncertainty_dict.copy()
+            elif part == "whole":
+                self.uncertainty_list_whole = uncertainty_dict.copy()
+
+        print("future", len(self.uncertainty_list_future), self.uncertainty_list_future)
+        print("whole", len(self.uncertainty_list_whole), self.uncertainty_list_whole)
+
+        if self.hessian_part == "future":
+            final_dict = self.uncertainty_list_future.copy()
+        elif self.hessian_part == "whole":
+            final_dict = self.uncertainty_list_whole.copy()
 
         if (self.minmax):
-            best_ind = final_list.index(min(uncertainty_list))
+            self.goal_state_ind = min(final_dict, key=final_dict.get)
         else:
-            best_ind = final_list.index(max(uncertainty_list))
-        self.goal_state_ind = best_ind
-        print("uncertainty list var:", np.std(final_list), "uncertainty list min max", np.min(final_list), np.max(final_list), "best ind", best_ind)
-        goal_state = self.potential_states_go[best_ind]
-        return goal_state, best_ind
+            self.goal_state_ind = max(final_dict, key=final_dict.get)
+        #print("uncertainty list var:", np.std(final_dict.values()), "uncertainty list min max", np.min(final_dict.values()), np.max(final_dict.values()), "best ind", self.goal_state_ind)
+        goal_state = self.potential_states_go[self.goal_state_ind]
+        return goal_state, self.goal_state_ind
 
     def find_random_next_state(self):
         random_ind = randint(0, len(self.potential_states_go)-1)
@@ -531,7 +543,7 @@ class PotentialStatesFetcher(object):
         return self.potential_states_go[random_ind]
 
     def find_next_state_constant_rotation(self, linecount):
-        self.goal_state_ind = linecount%len(self.potential_states_go)
+        self.goal_state_ind = (linecount)%len(self.potential_states_go)
         return self.potential_states_go[self.goal_state_ind]
 
 
@@ -544,6 +556,7 @@ class PotentialStatesFetcher(object):
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
             plot_potential_errors(self, plot_loc, linecount)
+            #self.plot_projections(linecount, plot_loc)
 
     def plot_projections(self, linecount, plot_loc):
         plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.joint_names)

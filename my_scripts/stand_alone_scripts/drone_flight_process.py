@@ -228,7 +228,7 @@ def find_3d_gt(energy_parameters, filenames, mode):
     label_list, transform_matrix_tensor, inverse_transform_matrix_tensor = read_transformation_matrix(files["f_drone_pos"])
     focal_length, cx, cy = read_intrinsics(files["f_intrinsics"])
 
-    pose_client = PoseEstimationClient(param=energy_parameters, simulation_mode="drone_flight_data", cropping_tool=None, animation="", intrinsics_focal=focal_length, intrinsics_px=cx, intrinsics_py=cy)
+    pose_client = PoseEstimationClient(param=energy_parameters, simulation_mode="saved_simulation", cropping_tool=None, animation="", intrinsics_focal=focal_length, intrinsics_px=cx, intrinsics_py=cy)
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
 
     pose_2d_tensor = read_pose_from_file(files["f_pose_2d"], 2, num_of_joints)
@@ -242,13 +242,9 @@ def find_3d_gt(energy_parameters, filenames, mode):
         use_these_ind = run_ransac(pose_client, pose_2d_tensor, transform_matrix_tensor, inverse_transform_matrix_tensor, label_list)
 
     gt_3d_pose = pose_3d_estimate(pose_client, use_these_ind, transform_matrix_tensor, inverse_transform_matrix_tensor, pose_2d_tensor)
-    vis_pose(gt_3d_pose, filenames["gt_folder_dir"], '', 'gt_3d_pose')   
-    plot_all_drone_pos(transform_matrix_tensor[use_these_ind, :, :], gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot", use_these_ind)
-    record_3d_poses(files["f_groundtruth"], gt_3d_pose)
 
     #####
     gt_3d_pose, transform_matrix_tensor, inverse_transform_matrix_tensor = reorient_human_and_drones(gt_3d_pose, transform_matrix_tensor, joint_names)
-    plot_all_drone_pos(transform_matrix_tensor[use_these_ind,:,:], gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot_reoriented", use_these_ind)
 
     pruned_ind, pruned_label_list = prune_indices(transform_matrix_tensor, label_list, use_these_ind, distance_tol=3.5)
     print("Number of pruned ind", len(pruned_ind))
@@ -256,8 +252,16 @@ def find_3d_gt(energy_parameters, filenames, mode):
     vis_pose(gt_3d_pose, filenames["gt_folder_dir"], '', 'gt_3d_pose_reoriented')   
     plot_all_drone_pos(transform_matrix_tensor[pruned_ind,:,:], gt_3d_pose, filenames["gt_folder_dir"], "", "general_plot_reoriented_pruned", pruned_ind)
     
-    record_3d_poses(files["f_groundtruth_reoriented"], gt_3d_pose)
-    record_drone_transformation_matrix(files["f_drone_pos_reoriented"], transform_matrix_tensor[pruned_ind,:,:], pruned_label_list)
+    record_gt_poses(files["f_groundtruth_reoriented"], gt_3d_pose)
+    record_drone_transformation_matrix(files["f_drone_pos_reoriented"], transform_matrix_tensor[pruned_ind,:,:])
+    save_images_again(filenames["input_image_dir"], filenames["gt_folder_dir"], pruned_label_list)
+
+def save_images_again(input_image_dir, output_image_dir, pruned_label_list):
+    for ind, label in enumerate(pruned_label_list):
+        photo_loc = input_image_dir+"/"+label
+        image = cv.imread(photo_loc)
+        output_image_loc = output_image_dir+"/img_0_viewpoint_"+str(ind)+".png"
+        cv.imwrite(output_image_loc, image)
 
 def drone_flight_process_all_data(filenames, energy_parameters):
     files = {"f_drone_pos": open(filenames["f_drone_pos"], "w"), 
@@ -510,35 +514,35 @@ def plot_all_drone_pos(transformation_matrix_tensor, gt_3d_pose, plot_loc, label
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def record_2d_poses(f_pose_2d, pose_2d):
+def record_2d_poses(sample_no, f_pose_2d, pose_2d):
     num_of_joints = pose_2d.shape[1]
     f_pose_2d_str = ""
     for i in range(num_of_joints):
-        f_pose_2d_str += str(pose_2d[0,i].item()) + '\t' + str(pose_2d[1,i].item()) + '\t' 
-    f_pose_2d.write(f_pose_2d_str + "\n")
+        f_pose_2d_str +=  str(pose_2d[0,i].item()) + '\t' + str(pose_2d[1,i].item()) + '\t' 
+    f_pose_2d.write("0\t" + str(sample_no) + "\t" + f_pose_2d_str + "\n")
 
-def record_3d_poses(f_pose, pose_3d):
+def record_3d_poses(sample_no, f_pose, pose_3d):
     num_of_joints = pose_3d.shape[1]
     f_pose_str = ""
     for i in range(num_of_joints):
-        f_pose_str += str(pose_3d[0,i].item()) + '\t' + str(pose_3d[1,i].item()) + '\t' + str(pose_3d[2,i].item()) + '\t' 
-    f_pose.write(f_pose_str + "\n")
+        f_pose_str +=  str(pose_3d[0,i].item()) + '\t' + str(pose_3d[1,i].item()) + '\t' + str(pose_3d[2,i].item()) + '\t' 
+    f_pose.write("0\t" + str(sample_no) + "\t"  + f_pose_str + "\n")
 
-def record_drone_transformation_matrix(f_drone_pos, transformation_matrix, label_list):
+def record_gt_poses(f_pose, pose_3d):
+    num_of_joints = pose_3d.shape[1]
+    f_pose_str = ""
+    for i in range(num_of_joints):
+        f_pose_str +=  str(pose_3d[0,i].item()) + '\t' + str(pose_3d[1,i].item()) + '\t' + str(pose_3d[2,i].item()) + '\t' 
+    f_pose.write("0\t" + f_pose_str + "\n")
+
+def record_drone_transformation_matrix(f_drone_pos, transformation_matrix):
     for ind in range(transformation_matrix.shape[0]):
-        label = label_list[ind]
+        #label = label_list[ind]
         flattened_transformation_matrix = np.reshape(transformation_matrix[ind, :].numpy(), (16, ))
-        f_drone_pos_str = str(label) + '\t'
+        f_drone_pos_str = str(ind) + '\t'
         for i in range (16):
             f_drone_pos_str += str(float(flattened_transformation_matrix[i])) + '\t'
-        f_drone_pos.write(f_drone_pos_str + "\n")
-
-#def plot_stuff(filenames):
-#    files = {"f_drone_pos": open(filenames["f_drone_pos"], "r"), 
-#            "f_groundtruth":open(filenames["f_groundtruth"], "r")}
-#    human_gt, transformation_matrix = read_gt_and_transformation_matrix(files)
-#    plot_all_drone_pos(transformation_matrix, human_gt, filenames["output_image_dir"], "", "drone_pos")
-    
+        f_drone_pos.write("0\t" + f_drone_pos_str + "\n")
 
 #####reader functions
 def read_transformation_matrix(f_drone_pos):
