@@ -354,8 +354,6 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
 
     airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     pose_client_sim.init_3d_pose(current_state.bone_pos_gt)
-    pose_client.future_pose = current_state.bone_pos_gt
-    pose_client.current_pose = current_state.bone_pos_gt
 
     potential_states_fetcher.reset(pose_client, airsim_client, current_state)
     potential_states_fetcher.dome_experiment()
@@ -365,14 +363,12 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
     airsim_client.simSetVehiclePose(goal_state)
     airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
     current_state.cam_pitch = goal_state.pitch
-    take_photo(airsim_client, pose_client, current_state, file_manager, 0)
 
+    take_photo(airsim_client, pose_client, current_state, file_manager, 0)
     initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager)
-    potential_states_fetcher.reset(pose_client, airsim_client, current_state)
-    potential_states_fetcher.dome_experiment()
     airsim_client.linecount += 1
 
-    for exp_ind in range(1, 60):       
+    while airsim_client.linecount < 60:       
         if pose_client_sim.find_best_traj: #/and exp_ind >= predefined_traj_len:
             pose_client_sim.update_initial_param(pose_client)
             for state_ind in range(len(potential_states_fetcher.potential_states_try)):
@@ -389,35 +385,34 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
                 file_manager.write_error_values(pose_client_sim.frame_overall_error_list, airsim_client.linecount)
                 pose_client_sim.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
 
-            best_index = np.argmin(potential_states_fetcher.overall_error_list)
-            worst_index = np.argmax(potential_states_fetcher.overall_error_list)
-            print("best index was", best_index, "with error", potential_states_fetcher.overall_error_list[best_index])
 
-        if exp_ind < pose_client_sim.predefined_traj_len:
-            goal_state = potential_states_fetcher.potential_states_try[exp_ind]
-            potential_states_fetcher.goal_state_ind = exp_ind
+        if airsim_client.linecount < pose_client_sim.predefined_traj_len:
+            goal_state = potential_states_fetcher.find_next_state_constant_rotation(airsim_client.linecount)    
         else:
             if potential_states_fetcher.trajectory == "active":
                 potential_states_fetcher.find_hessians_for_potential_states(pose_client)
                 goal_state, _ = potential_states_fetcher.find_best_potential_state()    
                 if pose_client_sim.find_best_traj:
                     pose_client_sim.find_correlations(potential_states_fetcher)
-                    plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
+                    file_manager.write_correlation_values(airsim_client.linecount, pose_client_sim.correlation_current, pose_client_sim.cosine_current)
+                    #plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
                 potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
             elif potential_states_fetcher.trajectory == "constant_rotation":
                 goal_state = potential_states_fetcher.find_next_state_constant_rotation(airsim_client.linecount)    
             elif potential_states_fetcher.trajectory == "random":
                 goal_state = potential_states_fetcher.find_random_next_state()    
             elif potential_states_fetcher.trajectory == "go_to_best":
-                goal_state = potential_states_fetcher.potential_states_try[best_index]    
+                best_index = np.argmin(potential_states_fetcher.overall_error_mean_list)
+                goal_state = potential_states_fetcher.choose_state(best_index)   
             elif potential_states_fetcher.trajectory == "go_to_worst":
-                goal_state = potential_states_fetcher.potential_states_try[worst_index]    
+                worst_index = np.argmax(potential_states_fetcher.overall_error_mean_list)
+                goal_state = potential_states_fetcher.choose_state(worst_index)
 
             file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_list_whole, airsim_client.linecount)
         
         if airsim_client.linecount > pose_client.ONLINE_WINDOW_SIZE:
-            pose_client_sim.find_average_error_over_trials(goal_state.index)
-            file_manager.write_average_error_over_trials(pose_client_sim.final_average_error)
+            ave_error_of_chosen_index = pose_client_sim.find_average_error_over_trials(goal_state.index)
+            file_manager.write_average_error_over_trials(airsim_client.linecount, ave_error_of_chosen_index, pose_client_sim.final_average_error)
 
         airsim_client.simSetVehiclePose(goal_state)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))

@@ -139,11 +139,6 @@ def normalize_weights(weights_):
         weights[loss_key] = weights_[loss_key]/weights_sum
     return weights
 
-def add_noise_to_pose(pose, noise_std):
-    noise = torch.normal(torch.zeros(pose.shape), torch.ones(pose.shape)*noise_std).float()
-    pose = pose.float().clone() + noise
-    return pose 
-
 def range_angle(angle, limit=360, is_radians = True):
     if is_radians:
         angle = degrees(angle)
@@ -249,6 +244,7 @@ def reset_all_folders(animation_list, seed_list, base = ""):
                 "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', 
                 "f_uncertainty": experiment_folder_name +  '/uncertainty.txt',
                 "f_average_error" : experiment_folder_name + '/average_error.txt',
+                "f_correlations" : experiment_folder_name + '/correlations.txt',
                 "f_drone_pos": experiment_folder_name +  '/drone_pos.txt', 
                 "f_initial_drone_pos": experiment_folder_name +  '/initial_drone_pos.txt', 
                 "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', 
@@ -1128,30 +1124,51 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_co
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
+def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_std, plot_future):
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
-    fig = plt.figure(figsize=(8,12))
-
     potential_states = potential_states_fetcher.potential_states_go
     uncertainty_list_whole =  list(potential_states_fetcher.uncertainty_list_whole.values())
-    uncertainty_list_future = list(potential_states_fetcher.uncertainty_list_future.values())
-    overall_error_list = potential_states_fetcher.overall_error_list
+    overall_error_list = potential_states_fetcher.overall_error_mean_list
     overall_std_list = potential_states_fetcher.overall_error_std_list 
-    future_error_list = potential_states_fetcher.future_error_list
-    future_std_list = potential_states_fetcher.future_error_std_list
-    
+    if plot_future:
+        future_error_list = potential_states_fetcher.future_error_mean_list
+        future_std_list = potential_states_fetcher.future_error_std_list
+        uncertainty_list_future = list(potential_states_fetcher.uncertainty_list_future.values())
+
+    if not plot_std and not plot_future:
+        fig_size=(6,8)
+        titles = ["Overall Uncertainty", "Overall Error Mean"]
+        lists = [uncertainty_list_whole, overall_error_list]
+        num_of_rows, num_of_col = 2, 1
+    elif not plot_std and plot_future:
+        fig_size=(10,8)
+        titles = ["Overall Uncertainty", "Future Uncertainty", "Overall Error Mean", "Future Error Mean"]
+        lists = [uncertainty_list_whole, uncertainty_list_future, overall_error_list, future_error_list]
+        num_of_rows, num_of_col = 2, 2
+    elif plot_std and not plot_future:
+        fig_size=(6,12)
+        titles = ["Overall Uncertainty",  "Overall Error Mean",  "Overall Error Std"]
+        lists = [uncertainty_list_whole, overall_error_list, overall_std_list]
+        num_of_rows, num_of_col = 3, 1
+    elif plot_std and plot_future:
+        fig_size=(10,12)
+        titles = ["Overall Uncertainty", "Future Uncertainty", "Overall Error Mean", "Future Error Mean", "Overall Error Std", "Future Error Std"]
+        lists = [uncertainty_list_whole, uncertainty_list_future, overall_error_list, future_error_list, overall_std_list, future_std_list]
+        num_of_rows, num_of_col = 3, 2
+
+    fig = plt.figure(figsize=fig_size)
+  
     cmap = cm.cool
     norms = []
     axes = []
-    titles = ["Overall Uncertainty", "Future Uncertainty", "Overall Error Mean", "Future Error Mean", "Overall Error Std", "Future Error Std"]
-    lists = [uncertainty_list_whole, uncertainty_list_future, overall_error_list, future_error_list, overall_std_list, future_std_list]
+
     for ind, a_list in enumerate(lists):
         norms.append(colors.Normalize(vmin=(np.min(a_list)), vmax=(np.max(a_list))))
-        axes.append(fig.add_subplot(3,2,ind+1, projection='3d'))
+        axes.append(fig.add_subplot(num_of_rows ,num_of_col, ind+1, projection='3d'))
 
     #for ax limits
     X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
@@ -1193,7 +1210,6 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount):
         ax.set_title(titles[ind])
         plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
         plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
-        #ax.legend(handles=[plot1, plot2])
 
     file_name = plot_loc + "/potential_errors_" + str(linecount) + ".png"
     plt.savefig(file_name)
@@ -1205,7 +1221,6 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
-    
 
     if top_down:
         fig = plt.figure(figsize=(8,4))

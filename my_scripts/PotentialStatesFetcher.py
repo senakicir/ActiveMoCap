@@ -86,9 +86,10 @@ class PotentialStatesFetcher(object):
             self.drone_flight_states = airsim_client.get_drone_flight_states()
             self.number_of_samples = len(self.drone_flight_states)
 
-        self.overall_error_list = np.zeros(self.number_of_samples)
-        self.future_error_list = np.zeros(self.number_of_samples)
-        self.error_std_list =  np.zeros(self.number_of_samples)
+        self.overall_error_mean_list = np.zeros(self.number_of_samples)
+        self.future_error_mean_list = np.zeros(self.number_of_samples)
+        self.future_error_std_list =  np.zeros(self.number_of_samples)
+        self.overall_error_std_list =  np.zeros(self.number_of_samples)
 
     def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
@@ -97,16 +98,15 @@ class PotentialStatesFetcher(object):
 
         self.future_human_pos = pose_client.future_pose
         self.current_human_pos = pose_client.current_pose
+
         self.potential_states_try = []
         self.potential_states_go = []
+
         self.potential_hessians_normal = []
 
         self.potential_covs_future = []
         self.potential_covs_middle = []
         self.potential_covs_whole = []
-
-        self.optimized_poses = pose_client.optimized_poses
-        self.optimized_traj = pose_client.optimized_traj
 
         self.current_state_ind = 0
         self.goal_state_ind =0
@@ -118,8 +118,8 @@ class PotentialStatesFetcher(object):
         else:
             self.objective = objective_online
 
-        self.overall_error_list = np.zeros(self.number_of_samples)
-        self.future_error_list = np.zeros(self.number_of_samples)
+        self.overall_error_mean_list = np.zeros(self.number_of_samples)
+        self.future_error_mean_list = np.zeros(self.number_of_samples)
         self.future_error_std_list =  np.zeros(self.number_of_samples)
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
         self.uncertainty_list_whole = []
@@ -439,9 +439,9 @@ class PotentialStatesFetcher(object):
         for potential_state in self.potential_states_try:
             self.objective.reset_future(pose_client, potential_state)
             if pose_client.USE_TRAJECTORY_BASIS:
-                hess2 = self.objective.hessian(self.optimized_traj)
+                hess2 = self.objective.hessian(pose_client.optimized_traj)
             else:
-                hess2 = self.objective.hessian(self.optimized_poses)
+                hess2 = self.objective.hessian(pose_client.optimized_poses)
             self.potential_hessians_normal.append(hess2)
 
             inv_hess2 = np.linalg.inv(hess2)
@@ -520,9 +520,6 @@ class PotentialStatesFetcher(object):
             elif part == "whole":
                 self.uncertainty_list_whole = uncertainty_dict.copy()
 
-        print("future", len(self.uncertainty_list_future), self.uncertainty_list_future)
-        print("whole", len(self.uncertainty_list_whole), self.uncertainty_list_whole)
-
         if self.hessian_part == "future":
             final_dict = self.uncertainty_list_future.copy()
         elif self.hessian_part == "whole":
@@ -546,6 +543,9 @@ class PotentialStatesFetcher(object):
         self.goal_state_ind = (linecount)%len(self.potential_states_go)
         return self.potential_states_go[self.goal_state_ind]
 
+    def choose_state(self, index):
+        self.goal_state_ind = index
+        return self.potential_states_go[self.goal_state_ind]
 
     def plot_everything(self, linecount, plot_loc, photo_loc):
         if not self.is_quiet:
@@ -555,7 +555,7 @@ class PotentialStatesFetcher(object):
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
-            plot_potential_errors(self, plot_loc, linecount)
+            plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False)
             #self.plot_projections(linecount, plot_loc)
 
     def plot_projections(self, linecount, plot_loc):

@@ -25,7 +25,7 @@ class Crop (object):
             self.bounding_box_margin = 3
 
     def crop_function(self, image):
-        orig_image_width = image.shape[1]
+        orig_image_width  = image.shape[1]
         orig_image_height = image.shape[0]
 
         self.bbox[0] = int(crop_alpha*self.bbox[0] + (1-crop_alpha)*self.old_bbox[0])

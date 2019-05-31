@@ -2,8 +2,9 @@ import cv2 as cv2
 from math import radians, cos, sin, pi, degrees, acos, sqrt
 import numpy as np
 import torch as torch
-from helpers import range_angle, shape_cov, euler_to_rotation_matrix, add_noise_to_pose
+from helpers import range_angle, shape_cov, euler_to_rotation_matrix
 import time as time 
+from pose_helper_functions import add_noise_to_pose
 from project_bones import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor, C_cam_torch
 import pdb 
 

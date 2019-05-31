@@ -63,7 +63,13 @@ class FileManager(object):
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_error = open(self.filenames_anim["f_error"], 'w')
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
+
         self.f_average_error = open(self.filenames_anim["f_average_error"], 'w')
+        self.f_average_error.write("linecount" + '\t' +  "current error" + '\t' +  "running average error"  + '\n')
+
+        self.f_correlations = open(self.filenames_anim["f_correlations"], 'w')
+        self.f_correlations.write("linecount" + '\t' +  "current corr" + '\t' + "running ave corr" + '\t' +  "current cos sim" + '\t' + 'running ave cos sim' + '\n')
+
         self.f_initial_drone_pos = open(self.filenames_anim["f_initial_drone_pos"], 'w')
         self.f_openpose_results = open(self.filenames_anim["f_openpose_results"], 'w')
         self.f_liftnet_results = open(self.filenames_anim["f_liftnet_results"], 'w')
@@ -206,8 +212,12 @@ class FileManager(object):
             f_uncertainty_str += str(uncertainty) + '\t'
         self.f_uncertainty.write(str(linecount)+ '\t' + f_uncertainty_str + '\n')
 
-    def write_average_error_over_trials(self, error):
-        self.f_average_error.write(str(error) + '\n')
+    def write_average_error_over_trials(self, linecount, error, ave_error):
+        self.f_average_error.write(str(linecount) + '\t' + str(error) + '\t' + str(ave_error) + '\n')
+
+    def write_correlation_values(self, linecount, corr_array, cosine_array):
+        self.f_correlations.write(str(linecount) + '\t' + str(corr_array[-1]) + '\t' + str(np.mean(corr_array)) + '\t' + str(cosine_array[-1]) + '\t' + str(np.mean(cosine_array)) + '\n')
+
 
     def write_hessians(self, hessians, linecount):
         pass

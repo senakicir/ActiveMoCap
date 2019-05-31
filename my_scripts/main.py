@@ -43,12 +43,13 @@ if __name__ == "__main__":
     calibration_window_size = 6
 
     precalibration_length = 0
-    #init_pose_mode: 0- "gt", "zeros", "backproj", "t_pose"
-    init_pose_mode = "t_pose"
-    pose_noise_3d_std = 0.1
+    #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
+    init_pose_mode = "zeros"
 
     find_best_traj = True
     noise_2d_std = 3
+    noise_lift_std = 0.2
+    noise_3d_init_std = 0.2
     drone_pos_jitter_noise_std = 0.5
     predefined_traj_len = 0
 
@@ -66,7 +67,7 @@ if __name__ == "__main__":
 
     parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode,"LOOP_MODE":loop_mode, 
                   "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, 
-                  "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "POSE_NOISE_3D_STD": pose_noise_3d_std}
+                  "NUM_OF_NOISE_TRIALS": num_of_noise_trials}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
@@ -82,12 +83,14 @@ if __name__ == "__main__":
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #position_grid.append([radians(180), radians(0)])
 
-    active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
+    active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, 
+                        "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, 
+                        "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["active", "go_to_best", "constant_rotation", "random"]
+    TRAJECTORY_LIST = ["active", "go_to_best"]
 
     num_of_experiments = len(TRAJECTORY_LIST)
     for experiment_ind in range(num_of_experiments):
@@ -104,7 +107,7 @@ if __name__ == "__main__":
                             "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": ftol, "WEIGHTS": weights, 
                             "INIT_POSE_MODE": init_pose_mode, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, 
                             "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis,
-                            "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param}
+                            "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param, "NOISE_LIFT_STD": noise_lift_std, "NOISE_3D_INIT_STD": noise_3d_init_std}
         energy_parameters["USE_LIFT_TERM"] = use_lift_term
         energy_parameters["USE_BONE_TERM"] = use_bone_term
 

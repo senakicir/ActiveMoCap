@@ -5,18 +5,8 @@ import numpy as np
 from crop import Crop
 from square_bounding_box import *
 from project_bones import Projection_Client
-
-def calculate_bone_lengths(bones, bone_connections, batch):
-    if batch:
-        return (torch.sum(torch.pow(bones[:, :, bone_connections[:,0]] - bones[:, :, bone_connections[:,1]], 2), dim=1))
-    else:  
-        return (torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))
-
-def calculate_bone_lengths_sqrt(bones, bone_connections, batch):
-    if batch:
-        return torch.sqrt(torch.sum(torch.pow(bones[:, :, bone_connections[:,0]] - bones[:, :, bone_connections[:,1]], 2), dim=1))
-    else:  
-        return torch.sqrt(torch.sum(torch.pow(bones[:, bone_connections[:,0]] - bones[:, bone_connections[:,1]], 2), dim=0))    
+from Lift_Client import Lift_Client
+from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose
 
 class PoseEstimationClient(object):
     def __init__(self, param, cropping_tool, animation, intrinsics_focal, intrinsics_px, intrinsics_py):
@@ -40,7 +30,9 @@ class PoseEstimationClient(object):
         self.PRECALIBRATION_LENGTH = param["PRECALIBRATION_LENGTH"]
         self.quiet = param["QUIET"]
         self.INIT_POSE_MODE = param["INIT_POSE_MODE"]
-        self.noise_2d_std = param["NOISE_2D_STD"]
+        self.NOISE_2D_STD = param["NOISE_2D_STD"]
+        self.NOISE_LIFT_STD = param["NOISE_LIFT_STD"]
+        self.NOISE_3D_INIT_STD = param["NOISE_3D_INIT_STD"]
         self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
         self.SMOOTHNESS_MODE = param["SMOOTHNESS_MODE"]
         self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
@@ -121,6 +113,7 @@ class PoseEstimationClient(object):
 
         self.animation = animation
         self.projection_client = Projection_Client(test_set=self.animation, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
+        self.lift_client = Lift_Client()
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
@@ -234,7 +227,9 @@ class PoseEstimationClient(object):
         else:
             if self.INIT_POSE_MODE == "gt":
                 current_frame_init = pose_3d_gt.copy()
-            elif self.INIT_POSE_MODE == "backprojection":
+            elif self.INIT_POSE_MODE == "gt_with_noise":
+                current_frame_init = add_noise_to_pose(pose_3d_gt, self.NOISE_3D_INIT_STD)
+            elif self.INIT_POSE_MODE == "backproj":
                 current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
             elif self.INIT_POSE_MODE == "zeros":
                 current_frame_init = np.zeros([3, self.num_of_joints])
