@@ -21,7 +21,7 @@ if __name__ == "__main__":
     loop_mode = "teleport"
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part = "whole"
-    #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-random
+    #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
@@ -44,26 +44,32 @@ if __name__ == "__main__":
 
     precalibration_length = 0
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
-    init_pose_mode = "zeros"
+    init_pose_mode = "backproj"
 
     find_best_traj = True
     noise_2d_std = 3
-    noise_lift_std = 0.2
-    noise_3d_init_std = 0.2
+    noise_lift_std = 0.1
+    noise_3d_init_std = 0.5
     drone_pos_jitter_noise_std = 0.5
     predefined_traj_len = 0
 
     use_symmetry_term = True
     use_single_joint = False
-    #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
-    smoothness_mode = "velocity"
     use_bone_term = True
     use_lift_term = True
     use_trajectory_basis = False
     num_of_trajectory_param = 5
-    num_of_noise_trials = 8
-    lift_method = "simple"
-    bone_len_method = "no_sqrt"
+    num_of_noise_trials = 5
+    #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
+    smoothness_mode = "velocity"
+    #lift_method: "simple", "complex"
+    lift_method = "simple" 
+    #bone_len_method: "no_sqrt, sqrt"
+    bone_len_method = "no_sqrt" 
+    #projection_method: "scaled, normal"
+    projection_method = "normal" 
+    #weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
+    weights =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
 
     parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode,"LOOP_MODE":loop_mode, 
                   "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, 
@@ -74,7 +80,7 @@ if __name__ == "__main__":
     #mode_lift: 0- gt, 1- lift
     modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt"}
    
-    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10", 
+    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -90,7 +96,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["active", "go_to_best"]
+    TRAJECTORY_LIST = ["active", "random", "constant_rotation", "constant_angle"]
 
     num_of_experiments = len(TRAJECTORY_LIST)
     for experiment_ind in range(num_of_experiments):
@@ -99,7 +105,6 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
 
         energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ONLINE_WINDOW_SIZE": online_window_size, 
                             "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, 
@@ -107,7 +112,8 @@ if __name__ == "__main__":
                             "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": ftol, "WEIGHTS": weights, 
                             "INIT_POSE_MODE": init_pose_mode, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, 
                             "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis,
-                            "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param, "NOISE_LIFT_STD": noise_lift_std, "NOISE_3D_INIT_STD": noise_3d_init_std}
+                            "NUMBER_OF_TRAJ_PARAM": num_of_trajectory_param, "NOISE_LIFT_STD": noise_lift_std, "NOISE_3D_INIT_STD": noise_3d_init_std,
+                            "PROJECTION_METHOD" :projection_method}
         energy_parameters["USE_LIFT_TERM"] = use_lift_term
         energy_parameters["USE_BONE_TERM"] = use_bone_term
 

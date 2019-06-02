@@ -38,6 +38,7 @@ class PoseEstimationClient(object):
         self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
         self.USE_BONE_TERM = param["USE_BONE_TERM"]
         self.BONE_LEN_METHOD = param["BONE_LEN_METHOD"]
+        self.PROJECTION_METHOD = param["PROJECTION_METHOD"]
         self.LIFT_METHOD = param["LIFT_METHOD"]
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]

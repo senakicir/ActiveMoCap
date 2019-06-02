@@ -6,7 +6,7 @@ from pose_helper_functions import add_noise_to_pose
 import pdb
 
 neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
-DEFAULT_TORSO_SIZE = 0.125
+DEFAULT_TORSO_SIZE = 0.3
 
 C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]])
 

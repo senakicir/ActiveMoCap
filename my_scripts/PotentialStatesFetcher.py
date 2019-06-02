@@ -511,10 +511,9 @@ class PotentialStatesFetcher(object):
                     #    _, s, _ = np.linalg.svd(cov_shaped[joint_ind, :, :])
                     #    uncertainty_joints[joint_ind] = np.sum(s)#np.linalg.det(cov_shaped[joint_ind, :, :]) 
                     #uncertainty_list.append(np.mean(uncertainty_joints))
-                #elif self.uncertainty_calc_method == 4:
-                  #  pass
-            #if self.uncertainty_calc_method == "random":
-             #   (uncertainty_lists[hessian_part_ind]) = (np.random.permutation(np.arange(self.number_of_samples))).tolist()
+                elif self.uncertainty_calc_method == "max_eig":
+                    _, s, _ = np.linalg.svd(cov)
+                    uncertainty_dict[potential_state.index] = (np.max(s)) 
             if part == "future":
                 self.uncertainty_list_future = uncertainty_dict.copy()
             elif part == "whole":
@@ -555,7 +554,8 @@ class PotentialStatesFetcher(object):
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
-            plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False)
+            plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")
+            plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=False)
             #self.plot_projections(linecount, plot_loc)
 
     def plot_projections(self, linecount, plot_loc):

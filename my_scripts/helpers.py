@@ -1124,7 +1124,11 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_co
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_std, plot_future):
+def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_std, plot_future, plot_log=True, custom_name=None):
+    if custom_name == None:
+        name = '/potential_errors_'
+    else: 
+        name = '/'+custom_name
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
@@ -1167,6 +1171,8 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
     axes = []
 
     for ind, a_list in enumerate(lists):
+        if plot_log:
+            a_list = np.log(a_list)
         norms.append(colors.Normalize(vmin=(np.min(a_list)), vmax=(np.max(a_list))))
         axes.append(fig.add_subplot(num_of_rows ,num_of_col, ind+1, projection='3d'))
 
@@ -1191,6 +1197,8 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
             markersize=100
             text_color="r"
         for list_ind, a_list in enumerate(lists):
+            if plot_log:
+                a_list = np.log(a_list)
             plot5=axes[list_ind].scatter([center[0]], [center[1]], [center[2]], marker='^', c=[a_list[state_ind]], cmap=cmap, norm=norms[list_ind], s=markersize, alpha=1)
             if state_ind == 0:
                 plt.colorbar(plot5, ax=axes[list_ind])#, shrink = 0.8)    
@@ -1211,7 +1219,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
         plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
         plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
 
-    file_name = plot_loc + "/potential_errors_" + str(linecount) + ".png"
+    file_name = plot_loc + name + str(linecount) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
 

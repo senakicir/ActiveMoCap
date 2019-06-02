@@ -52,8 +52,6 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
 
         self.init_error_3d = pose_client_general.error_3d.copy()
         self.init_error_2d = pose_client_general.error_2d.copy()
-        self.isCalibratingEnergy = pose_client_general.isCalibratingEnergy
-        self.result_shape, self.result_size, self.loss_dict = pose_client_general.result_shape, pose_client_general.result_size, pose_client_general.loss_dict
 
         self.error_across_trials = [] 
 

@@ -9,6 +9,9 @@ from Lift_Client import Lift_Client, calculate_bone_directions, calculate_bone_d
 def mse_loss(input_1, input_2, N):
     return torch.sum(torch.pow((input_1 - input_2),2))/N
 
+def weighted_mse_loss(input_1, input_2, weights, N):
+    return torch.sum(weights*torch.pow((input_1 - input_2),2))/N    
+
 def blake_zisserman_loss(input_1, input_2):
     N = input_1.data.nelement()
     C = -torch.log(torch.exp(-torch.pow((input_1-input_2),2))+EPSILON)
@@ -109,6 +112,15 @@ class pose3d_online_parallel(torch.nn.Module):
         self.use_single_joint = pose_client.USE_SINGLE_JOINT
         self.bone_len_method = pose_client.BONE_LEN_METHOD
         self.lift_method = pose_client.LIFT_METHOD
+        self.projection_method = pose_client.PROJECTION_METHOD
+
+        if self.projection_method == "normal":
+            self.projection_scales = 1
+        elif self.projection_method == "scaled":
+            max_y_vals, _ = torch.max(self.projection_client.pose_2d_tensor[:,1,:], dim=1)
+            min_y_vals, _ = torch.min(self.projection_client.pose_2d_tensor[:,1,:], dim=1)
+            self.projection_scales = (1/(max_y_vals-min_y_vals))[:, None, None]
+       # print("average scale", torch.mean(self.projection_scales))
 
         if self.use_lift_term and not self.use_single_joint:
             self.pose3d_lift_directions = lift_client.pose3d_lift_directions
@@ -131,7 +143,7 @@ class pose3d_online_parallel(torch.nn.Module):
             projected_2d = self.projection_client.take_projection(self.pose3d[1:,:,:])
         else:
             projected_2d = self.projection_client.take_projection(self.pose3d)
-        output["proj"] = mse_loss(projected_2d, self.projection_client.pose_2d_tensor, 2*self.NUM_OF_JOINTS)
+        output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, 2*self.NUM_OF_JOINTS)
 
         if self.use_bone_term and not self.use_single_joint:
             if self.bone_len_method == "no_sqrt":

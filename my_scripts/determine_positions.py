@@ -98,6 +98,7 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
     return pose3d_lift_directions
 
 def initialize_empty_frames(linecount, pose_client, current_state, file_manager):
+    plot_loc, _ = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
     bone_pos_3d_GT, _, transformation_matrix = current_state.get_frame_parameters()
 
@@ -115,6 +116,7 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager)
     elif pose_client.INIT_POSE_MODE == "backproj":
         backprojection_result = pose_client.projection_client.take_single_backprojection(pose_2d, transformation_matrix, joint_names)
         optimized_poses = scale_with_bone_lengths(backprojection_result, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections)).numpy()
+        plot_human(bone_pos_3d_GT, optimized_poses, plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT)
 
     if not pose_client.isCalibratingEnergy:
         optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
@@ -206,7 +208,11 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
 
     objective.reset(pose_client)
     start_time = time.time()
-    optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
+    if linecount < 10:
+        bounds = (-np.inf, np.inf)
+    else:
+        bounds = (pose3d_init-1, pose3d_init+1)
+    optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol)
     func_eval_time = time.time() - start_time
     #print("least squares eval time", func_eval_time)
     if not pose_client.USE_TRAJECTORY_BASIS:
@@ -245,6 +251,7 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
     ave_middle_error =  sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)
 
     if (plot_loc != 0 and not pose_client.quiet and not pose_client.simulate_error_mode): 
+        start_plot_time = time.time()
         superimpose_on_image(bone_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.numpy())
         #superimpose_on_image(bone_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
         #plot_2d_projection(check.numpy(), plot_loc, linecount, bone_connections, custom_name="proj_2d")
@@ -263,6 +270,8 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
             #adjusted_current_pose_normalized, _ = normalize_pose(adjusted_current_pose, hip_index, is_torch=False)
             #plot_human(bone_pos_3d_GT_normalized, pose3d_lift_normalized, plot_loc, linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["GT", "LiftNet"])
             plot_human(pose3d_lift_directions.numpy(), bone_pos_3d_GT, plot_loc, linecount, bone_connections, error_3d, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
+        end_plot_time = time.time()
+        print("Time it took to plot", end_plot_time - start_plot_time)
     plot_end = {"est": adjusted_current_pose, "GT": bone_pos_3d_GT, "drone": current_state.C_drone_gt, "eval_time": func_eval_time}
     pose_client.append_res(plot_end)
     file_manager.write_reconstruction_values(adjusted_current_pose, bone_pos_3d_GT, current_state.C_drone_gt, current_state.R_drone_gt, linecount, num_of_joints)
