@@ -17,6 +17,8 @@ import time, os
 import cv2
 from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos
 
+torch.set_num_threads(8)
+
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
 ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "05_11":6, "05_15":7, "06_09":8,"07_10": 9, 
                  "07_05": 10, "64_11": 11, "64_22":12, "64_26":13, "13_06":14, "14_32":15,"06_13":16,"14_01":17, "28_19":18, 

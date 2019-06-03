@@ -84,8 +84,10 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
     bone_pos_3d_GT, _, transformation_matrix = current_state.get_frame_parameters()
     bone_connections, _, _, hip_index = pose_client.model_settings()
 
-    if (pose_client.modes["mode_lift"] == 'gt'):
+    if (pose_client.modes["mode_lift"] != 'lift'):
         pose3d_relative = torch.from_numpy(bone_pos_3d_GT).clone()
+        if (pose_client.modes["mode_lift"] == "gt_with_noise"):
+            pose3d_relative = add_noise_to_pose(pose3d_relative, pose_client.NOISE_LIFT_STD)
     elif (pose_client.modes["mode_lift"]   == 'lift'):
         pose3d_lift = find_lifted_pose(pose_2d, cropped_image, heatmap_2d)
         pose3d_relative = pose_client.projection_client.camera_to_world(pose3d_lift.cpu(), transformation_matrix)

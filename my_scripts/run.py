@@ -103,15 +103,15 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     if simulation_mode == "use_airsim":
         airsim_client = airsim.MultirotorClient(50)
         airsim_client.confirmConnection()
-        if loop_mode == "normal":
-            airsim_client.enableApiControl(True)
-            airsim_client.armDisarm(True)
+        #if loop_mode == "normal":
+        #    airsim_client.enableApiControl(True)
+         #   airsim_client.armDisarm(True)
         print('Taking off')
         airsim_client.initInitialDronePos()
         airsim_client.changeAnimation(ANIM_TO_UNREAL[file_manager.anim_num])
         airsim_client.changeCalibrationMode(True)
-        if loop_mode == "normal":
-            airsim_client.takeoffAsync(timeout_sec = 20).join()
+        #if loop_mode == "normal":
+        #    airsim_client.takeoffAsync(timeout_sec = 20).join()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
         time.sleep(2)
     elif simulation_mode == "saved_simulation":
@@ -136,12 +136,14 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
 ################
     if loop_mode == "normal":
-        normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
+        #normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
+        pose_client_sim = PoseEstimationClient_Simulation(energy_parameters, Crop(loop_mode = loop_mode), pose_client, parameters, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py)
+        teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager, loop_mode)
     elif loop_mode == "openpose":
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == "teleport":
         pose_client_sim = PoseEstimationClient_Simulation(energy_parameters, Crop(loop_mode = loop_mode), pose_client, parameters, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py)
-        teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager)
+        teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager, loop_mode)
     elif loop_mode == "create_dataset":
         create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     
@@ -347,7 +349,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
 
-def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager):
+def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, potential_states_fetcher, file_manager, loop_mode):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
     airsim_client.simPauseDrone(False)
@@ -357,12 +359,12 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
 
     potential_states_fetcher.reset(pose_client, airsim_client, current_state)
     potential_states_fetcher.dome_experiment()
+    # potential_states_fetcher.get_potential_positions_really_spherical_future()
+
 
     #START AT POSITION 0
     goal_state = potential_states_fetcher.potential_states_try[0]
-    airsim_client.simSetVehiclePose(goal_state)
-    airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
-    current_state.cam_pitch = goal_state.pitch
+    set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
 
     take_photo(airsim_client, pose_client, current_state, file_manager, 0)
     initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager)
@@ -375,7 +377,7 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
             for state_ind in range(0, len(potential_states_fetcher.potential_states_try)):
                 #print("Finding errors for", state_ind)
                 goal_state = potential_states_fetcher.potential_states_try[state_ind]
-                set_position(goal_state, airsim_client, current_state)
+                set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
 
                 for trial_ind in range(pose_client_sim.num_of_noise_trials):
                     take_photo(airsim_client, pose_client_sim, current_state, file_manager, state_ind)
@@ -422,7 +424,8 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
             file_manager.write_average_error_over_trials(airsim_client.linecount, ave_error_of_chosen_index, pose_client_sim.final_average_error)
 
         start3 = time.time()
-        set_position(goal_state, airsim_client, current_state)
+        #set_position(goal_state, airsim_client, current_state, loop_mode=loop_mode)
+        set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
 
         take_photo(airsim_client, pose_client, current_state, file_manager, goal_state.index)
         pose_client_sim.adjust_3d_pose(current_state, pose_client)
@@ -443,7 +446,10 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
             pose_client_sim.update_internal_3d_pose()
 
         potential_states_fetcher.reset(pose_client, airsim_client, current_state)
-        potential_states_fetcher.dome_experiment()
+        if loop_mode == "teleport":
+            potential_states_fetcher.dome_experiment()
+        elif loop_mode == "normal":
+            potential_states_fetcher.get_potential_positions_really_spherical_future()
         end4 = time.time()
         print("One iter took", end4-start1)
 
@@ -506,7 +512,24 @@ def unpause_function(airsim_client, pose_client):
     if not pose_client.isCalibratingEnergy:
         airsim_client.simPauseHuman(False)
 
-def set_position(goal_state, airsim_client, current_state):
-    airsim_client.simSetVehiclePose(goal_state)
-    airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
-    current_state.cam_pitch = goal_state.pitch
+def set_position(goal_state, airsim_client, current_state, loop_mode):
+    if loop_mode == "teleport":
+        airsim_client.simSetVehiclePose(goal_state)
+        airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
+        current_state.cam_pitch = goal_state.pitch
+
+    elif loop_mode == "normal":
+        if (airsim_client.linecount < 5):
+            drone_speed = TOP_SPEED * airsim_client.linecount/5
+        desired_pos, desired_yaw_deg, _ = goal_state.get_goal_pos_yaw_pitch(current_state.drone_orientation_gt)
+        start_move = time.time()
+        airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], drone_speed, DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
+        end_move = time.time()
+        time_passed = end_move - start_move
+        if (DELTA_T > time_passed):
+            time.sleep(DELTA_T-time_passed)
+
+        cam_pitch = current_state.get_required_pitch()
+        airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
+        current_state.cam_pitch = cam_pitch
+

@@ -13,7 +13,7 @@ if __name__ == "__main__":
     if (simulation_mode == "use_airsim"):
         base_folder = "/Users/kicirogl/Documents/temp_main"
     elif (simulation_mode == "saved_simulation"):
-            base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
+        base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
 
 
 
@@ -65,11 +65,13 @@ if __name__ == "__main__":
     #lift_method: "simple", "complex"
     lift_method = "simple" 
     #bone_len_method: "no_sqrt, sqrt"
-    bone_len_method = "no_sqrt" 
+    bone_len_method = "sqrt" 
     #projection_method: "scaled, normal"
     projection_method = "normal" 
-    #weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
-    weights =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
+    if projection_method == "normal":
+        weights =  {'proj': 0.0003332222592469177, 'smooth': 0.3332222592469177, 'bone': 0.3332222592469177, 'lift': 0.3332222592469177}
+    elif projection_method == "scaled":
+        weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
 
     parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode,"LOOP_MODE":loop_mode, 
                   "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, 
@@ -77,10 +79,10 @@ if __name__ == "__main__":
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
-    #mode_lift: 0- gt, 1- lift
+    #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
     modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt"}
    
-    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -96,7 +98,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["active", "random", "constant_rotation", "constant_angle"]
+    TRAJECTORY_LIST = ["constant_angle"]
 
     num_of_experiments = len(TRAJECTORY_LIST)
     for experiment_ind in range(num_of_experiments):

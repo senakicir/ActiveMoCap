@@ -104,7 +104,8 @@ class PoseEstimationClient_Simulation(PoseEstimationClient):
         self.pose_3d_preoptimization = self.optimized_poses.copy()
 
     def append_error(self, trial_ind):
-        self.frame_overall_error_list[trial_ind]  = np.mean(np.linalg.norm(self.optimized_poses - self.poses_3d_gt, axis=1))
+        #print("errors", np.mean(np.mean((np.linalg.norm(self.optimized_poses - self.poses_3d_gt, axis=1)), axis=1)))
+        self.frame_overall_error_list[trial_ind]  = np.mean(np.mean(np.linalg.norm(self.optimized_poses - self.poses_3d_gt, axis=1), axis=1))
         self.frame_future_error_list[trial_ind]  = np.mean(np.linalg.norm(self.optimized_poses[0,:,:] - self.poses_3d_gt[0,:,:], axis=0)) 
 
     def record_noise_experiment_statistics(self, psf, state_ind):
