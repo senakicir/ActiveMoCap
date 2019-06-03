@@ -41,6 +41,7 @@ if __name__ == "__main__":
     online_window_size = 6
     calibration_length = 0
     calibration_window_size = 6
+    length_of_simulation = 15
 
     precalibration_length = 0
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"

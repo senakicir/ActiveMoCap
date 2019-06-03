@@ -60,10 +60,11 @@ def get_pose_matrix(input_file, num_of_data, num_of_samples, dim):
     return openpose_matrix
 
 class DroneFlightClient(object):
-    def __init__(self, test_set_name, non_simulation_files):
+    def __init__(self, length_of_simulation, test_set_name, non_simulation_files):
         #take filenames and save them
         self.linecount = 0
         self.chosen_sample = 0
+        self.length_of_simulation = length_of_simulation
 
         self.is_using_airsim = False
         self.end = False

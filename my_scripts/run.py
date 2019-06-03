@@ -97,11 +97,12 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     USE_TRACKBAR = parameters["USE_TRACKBAR"]
     simulation_mode = parameters["SIMULATION_MODE"]
+    length_of_simulation = param["LENGTH_OF_SIMULATION"]
     loop_mode = parameters["LOOP_MODE"]
 
     #connect to the AirSim simulator
     if simulation_mode == "use_airsim":
-        airsim_client = airsim.MultirotorClient(50)
+        airsim_client = airsim.MultirotorClient(length_of_simulation)
         airsim_client.confirmConnection()
         #if loop_mode == "normal":
         #    airsim_client.enableApiControl(True)
@@ -115,7 +116,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
         time.sleep(2)
     elif simulation_mode == "saved_simulation":
-        airsim_client = DroneFlightClient(file_manager.anim_num, file_manager.non_simulation_files)
+        airsim_client = DroneFlightClient(length_of_simulation, file_manager.anim_num, file_manager.non_simulation_files)
         #file_manager.label_list = airsim_client.label_list
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
@@ -370,7 +371,7 @@ def teleport_loop(current_state, pose_client, pose_client_sim, airsim_client, po
     initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager)
     airsim_client.linecount += 1
 
-    while airsim_client.linecount < 60:    
+    while airsim_client.linecount < airsim_client.length_of_simulation:    
         start1 = time.time()   
         if pose_client_sim.find_best_traj: #/and exp_ind >= predefined_traj_len:
             pose_client_sim.update_initial_param(pose_client)
