@@ -120,9 +120,9 @@ class pose3d_online_parallel_wrapper():
             lift_client.reset(pose_client.liftPoseList, pose_client.poses_3d_gt, pose_client.simulate_error_mode, pose_client.NOISE_LIFT_STD)
 
         if pose_client.USE_TRAJECTORY_BASIS:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, lift_client, future_proj=pose_client.simulate_error_mode)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, lift_client, future_proj=False)
         else:
-            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, future_proj=pose_client.simulate_error_mode)
+            self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, future_proj=False)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape

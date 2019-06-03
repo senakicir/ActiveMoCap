@@ -12,9 +12,12 @@ C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_O
 
 class Projection_Client(object):
     def __init__(self, test_set, num_of_joints, focal_length, px, py):
+        self.test_set = test_set
         self.K_torch = (torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]]))
         self.K_inv_torch = torch.inverse(self.K_torch)
         self.focal_length = focal_length
+        self.px = px
+        self.py = py
         self.num_of_joints = num_of_joints
 
         if test_set == "drone_flight":
@@ -57,6 +60,9 @@ class Projection_Client(object):
         self.ones_tensor = torch.ones(self.window_size, 1, self.num_of_joints)
         self.flip_x_y_batch = (torch.cat((self.flip_x_y_single, torch.zeros(3,1)), dim=1)).repeat(self.window_size , 1, 1)
         self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
+
+    def deepcopy_projection_client(self):
+        return Projection_Client(self.test_set, self.num_of_joints, self.focal_length, self.px, self.py) 
 
     def take_projection(self, pose_3d):
         P_world = torch.cat((pose_3d, self.ones_tensor), dim=1)

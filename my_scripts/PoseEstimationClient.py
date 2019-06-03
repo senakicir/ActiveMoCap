@@ -10,6 +10,7 @@ from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths
 
 class PoseEstimationClient(object):
     def __init__(self, param, cropping_tool, animation, intrinsics_focal, intrinsics_px, intrinsics_py):
+        self.param = param
         self.simulate_error_mode = False
 
         self.modes = param["MODES"]
@@ -59,7 +60,7 @@ class PoseEstimationClient(object):
         self.optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.liftPoseList = []
-        self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
+        self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE-1, 3, self.num_of_joints])
         self.boneLengths = torch.zeros([self.num_of_joints-1])
         self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1])
 
@@ -113,7 +114,11 @@ class PoseEstimationClient(object):
         self.loss_dict = {}
 
         self.animation = animation
-        self.projection_client = Projection_Client(test_set=self.animation, num_of_joints=self.num_of_joints, focal_length=intrinsics_focal, px=intrinsics_px, py=intrinsics_py)
+        self.intrinsics_focal = intrinsics_focal
+        self.intrinsics_px = intrinsics_px
+        self.intrinsics_py = intrinsics_py
+
+        self.projection_client = Projection_Client(test_set=self.animation, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py)
         self.lift_client = Lift_Client()
 
     def model_settings(self):
@@ -200,7 +205,7 @@ class PoseEstimationClient(object):
                     self.liftPoseList.pop()
 
         else:
-            if (len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1):
+            if len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1:
                 self.requiredEstimationData.pop()
                 self.liftPoseList.pop()
                 
@@ -239,3 +244,41 @@ class PoseEstimationClient(object):
             self.pose_3d_preoptimization = current_frame_init.copy()
         else:
             self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
+
+ 
+    def deepcopy_PEC(self):
+        new_pose_client = PoseEstimationClient(self.param, None, self.animation, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py)
+
+        new_pose_client.projection_client = self.projection_client.deepcopy_projection_client()
+        new_pose_client.lift_client = self.lift_client.deepcopy_lift_client()
+
+        new_pose_client.optimized_poses = self.optimized_poses.copy()
+        new_pose_client.pose_3d_preoptimization = self.pose_3d_preoptimization.copy()
+
+        new_pose_client.requiredEstimationData = []
+        for bone_2d, bone_2d_gt, inverse_transformation_matrix in self.requiredEstimationData:
+            new_bone_2d = bone_2d.clone()
+            new_bone_2d_gt = bone_2d_gt.clone()
+            new_inverse_transformation_matrix = inverse_transformation_matrix.clone()
+            new_pose_client.requiredEstimationData.append([new_bone_2d, new_bone_2d_gt, new_inverse_transformation_matrix])
+
+        new_pose_client.liftPoseList = []
+        for lift_poses in self.liftPoseList:
+            new_pose_client.liftPoseList.append(lift_poses.clone())
+
+        new_pose_client.poses_3d_gt = self.poses_3d_gt.copy()
+        new_pose_client.boneLengths = self.boneLengths.clone()
+        new_pose_client.multiple_bone_lengths = self.multiple_bone_lengths.clone()
+
+        new_pose_client.middle_pose_GT_list = []
+        for middle_poses in self.middle_pose_GT_list:
+            new_pose_client.middle_pose_GT_list.append(middle_poses.copy())
+
+        new_pose_client.error_3d = self.error_3d.copy()
+        new_pose_client.error_2d = self.error_2d.copy()
+
+        new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
+        new_pose_client.quiet = True
+        new_pose_client.simulate_error_mode = True
+
+        return new_pose_client

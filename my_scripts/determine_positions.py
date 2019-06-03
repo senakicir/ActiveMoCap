@@ -27,10 +27,11 @@ def adjust_with_M(M, pose, hip_index):
 
 def determine_positions(linecount, pose_client, current_state, file_manager):
     if (pose_client.modes["mode_3d"] == "scipy"):
-        determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager)
+        cp = determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager)
     else:
         print("error! you removed this")
     current_state.update_human_info(pose_client.current_pose)
+    return cp
 
 def determine_2d_positions(pose_client, current_state, return_heatmaps=True, input_image = 0,  scales = [1]):
     mode_2d, cropping_tool = pose_client.modes["mode_2d"], pose_client.cropping_tool
@@ -188,12 +189,11 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
 
     final_loss = np.zeros([1,1])
     result_shape, result_size, loss_dict = pose_client.result_shape, pose_client.result_size, pose_client.loss_dict
-    pose3d_init_scrambled = pose_client.pose_3d_preoptimization.copy()
 
    # if (linecount > 0):
     #calibration mode parameters
     if (pose_client.isCalibratingEnergy): 
-        pose3d_init = np.reshape(a = pose3d_init_scrambled, newshape = [result_size,], order = "C")
+        pose3d_init = np.reshape(a = pose_client.pose_3d_preoptimization.copy(), newshape = [result_size,], order = "C")
         objective = objective_calib
         objective_jacobian =  objective_calib.jacobian
 
@@ -214,6 +214,7 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
         bounds = (-np.inf, np.inf)
     else:
         bounds = (pose3d_init-1, pose3d_init+1)
+        
     optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol)
     func_eval_time = time.time() - start_time
     #print("least squares eval time", func_eval_time)
@@ -245,7 +246,7 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
 
     #lots of plot stuff
     error_3d = np.mean(np.linalg.norm(bone_pos_3d_GT - adjusted_current_pose, axis=0))
-    middle_pose_error = np.mean(np.linalg.norm(pose_client.poses_3d_gt[MIDDLE_POSE_INDEX, :, :] - adjusted_middle_pose, axis=0))
+    middle_pose_error = np.mean(np.linalg.norm(pose_client.poses_3d_gt[MIDDLE_POSE_INDEX-1, :, :] - adjusted_middle_pose, axis=0))
 
     pose_client.error_3d.append(error_3d)
     pose_client.middle_pose_error.append(middle_pose_error)
@@ -277,7 +278,7 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, f
     plot_end = {"est": adjusted_current_pose, "GT": bone_pos_3d_GT, "drone": current_state.C_drone_gt, "eval_time": func_eval_time}
     pose_client.append_res(plot_end)
     file_manager.write_reconstruction_values(adjusted_current_pose, bone_pos_3d_GT, current_state.C_drone_gt, current_state.R_drone_gt, linecount, num_of_joints)
-
+    return  pose_client.current_pose
 
 def switch_energy(value):
     pass

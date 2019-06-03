@@ -24,6 +24,18 @@ class Crop (object):
             self.bbox = [SIZE_X//2-135,SIZE_Y//2-135,270,270]
             self.bounding_box_margin = 3
 
+    def copy_cropping_tool(self):
+        new_cropper = Crop()
+
+        new_cropper.old_bbox = self.old_bbox
+        new_cropper.bbox = self.bbox
+        new_cropper.image_bounds = self.image_bounds 
+        new_cropper.scales = self.scales
+        new_cropper.bounding_box_calculator = self.bounding_box_calculator
+        new_cropper.bounding_box_margin = self.bounding_box_margin
+        new_cropper.unstable = self.unstable
+        return new_cropper
+
     def crop_function(self, image):
         orig_image_width  = image.shape[1]
         orig_image_height = image.shape[0]

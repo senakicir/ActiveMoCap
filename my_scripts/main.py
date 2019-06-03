@@ -60,7 +60,7 @@ if __name__ == "__main__":
     use_lift_term = True
     use_trajectory_basis = False
     num_of_trajectory_param = 5
-    num_of_noise_trials = 5
+    num_of_noise_trials =8
     #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
     smoothness_mode = "velocity"
     #lift_method: "simple", "complex"
@@ -76,14 +76,14 @@ if __name__ == "__main__":
 
     parameters = {"USE_TRACKBAR": use_trackbar, "SIMULATION_MODE": simulation_mode,"LOOP_MODE":loop_mode, 
                   "FIND_BEST_TRAJ": find_best_traj, "PREDEFINED_TRAJ_LEN": predefined_traj_len, 
-                  "NUM_OF_NOISE_TRIALS": num_of_noise_trials}
+                  "NUM_OF_NOISE_TRIALS": num_of_noise_trials, "LENGTH_OF_SIMULATION":length_of_simulation}
 
     #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
     modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt"}
    
-    ANIMATIONS = ["02_01"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["constant_angle"]
+    TRAJECTORY_LIST = ["active", "constant_rotation", "random", "constant_angle", "go_to_best"]
 
     num_of_experiments = len(TRAJECTORY_LIST)
     for experiment_ind in range(num_of_experiments):
