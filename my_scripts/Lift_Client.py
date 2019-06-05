@@ -31,14 +31,14 @@ class Lift_Client(object):
         return Lift_Client()
 
     def reset(self, lift_list, bone_3d_pose_gt, simulate_error_mode, noise_lift_std):
-        if simulate_error_mode:
-            temp = torch.from_numpy(bone_3d_pose_gt.copy()).float()
-            temp = add_noise_to_pose(temp, noise_lift_std)
-        else:
-            temp = torch.stack(lift_list.copy()).float()
+        #if simulate_error_mode:
+         #   temp = torch.from_numpy(bone_3d_pose_gt.copy()).float()
+         #   temp = add_noise_to_pose(temp, noise_lift_std)
+        #else:
+        temp = torch.stack(lift_list.copy()).float()
         self.pose3d_lift_directions = temp
 
-    def reset_future(self, lift_list, potential_lift_directions, simulate_error_mode, noise_lift_std):
+    def reset_future(self, lift_list, potential_lift_directions, noise_lift_std):
         temp = torch.stack(lift_list.copy()).float()
         self.pose3d_lift_directions = torch.cat((potential_lift_directions.unsqueeze(0), temp), dim=0)
 

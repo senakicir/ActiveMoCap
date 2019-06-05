@@ -219,14 +219,13 @@ def reset_all_folders(animation_list, seed_list, base = ""):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     main_folder_name =  base + '/' + date_time_name
 
-    if os.path.exists(main_folder_name):
+    while not os.path.exists(main_folder_name):
         main_folder_name += "_b_"
+        if not os.path.exists(main_folder_name):
+            os.makedirs(main_folder_name)  
 
-    folder_names = [base, main_folder_name]
-
-    for a_folder_name in folder_names:
-        if not os.path.exists(a_folder_name):
-            os.makedirs(a_folder_name)            
+    if not os.path.exists(base):
+        os.makedirs(base)          
     
     file_names = {}
     folder_names = {}

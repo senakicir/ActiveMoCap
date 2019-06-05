@@ -245,7 +245,10 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         
         self.loss_dict = pose_client.loss_dict_online
         
-        self.energy_weights = pose_client.weights_online
+        if self.future_proj:
+            self.energy_weights = pose_client.weights_future
+        else:
+            self.energy_weights = pose_client.weights_online
 
         self.smoothness_mode = pose_client.SMOOTHNESS_MODE
         self.use_lift_term = pose_client.USE_LIFT_TERM

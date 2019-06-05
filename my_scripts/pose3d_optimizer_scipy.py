@@ -143,7 +143,7 @@ class pose3d_online_parallel_wrapper():
                 potential_pose3d_lift_directions = calculate_bone_directions(future_pose, np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 
             if pose_client.LIFT_METHOD == "simple":
                 potential_pose3d_lift_directions = calculate_bone_directions_simple(future_pose, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index)
-            lift_client.reset_future(pose_client.liftPoseList, potential_pose3d_lift_directions, pose_client.simulate_error_mode, pose_client.NOISE_LIFT_STD)
+            lift_client.reset_future(pose_client.liftPoseList, potential_pose3d_lift_directions, pose_client.NOISE_LIFT_STD)
             
         if pose_client.USE_TRAJECTORY_BASIS:
             self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, lift_client, future_proj=True)

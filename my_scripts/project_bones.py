@@ -33,9 +33,9 @@ class Projection_Client(object):
         self.pose_2d_tensor = torch.zeros(self.window_size , 2, self.num_of_joints)
         self.inverse_transformation_matrix = torch.zeros(self.window_size , 4, 4)
         queue_index = 0
-        for bone_2d, bone_2d_gt, inverse_transformation_matrix in data_list:
-            if simulate_error_mode:
-                bone_2d = add_noise_to_pose(bone_2d_gt.float(), noise_2d_std)
+        for bone_2d, _, inverse_transformation_matrix in data_list:
+            #if simulate_error_mode:
+            #    bone_2d = add_noise_to_pose(bone_2d_gt.float(), noise_2d_std)
             self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
             self.inverse_transformation_matrix[queue_index, :, :]= inverse_transformation_matrix.clone()
             queue_index += 1

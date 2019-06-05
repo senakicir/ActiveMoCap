@@ -65,7 +65,7 @@ class FileManager(object):
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
 
         self.f_average_error = open(self.filenames_anim["f_average_error"], 'w')
-        self.f_average_error.write("linecount" + '\t' +  "current error" + '\t' +  "running average error"  + '\n')
+        self.f_average_error.write("linecount" + '\t' +  "overall error'\toverall ave error\tcurrent error\tcurrent ave error\tmiddle error\tmiddle ave error"  + '\n')
 
         self.f_correlations = open(self.filenames_anim["f_correlations"], 'w')
         self.f_correlations.write("linecount" + '\t' +  "current corr" + '\t' + "running ave corr" + '\t' +  "current cos sim" + '\t' + 'running ave cos sim' + '\n')
@@ -212,8 +212,13 @@ class FileManager(object):
             f_uncertainty_str += str(uncertainty) + '\t'
         self.f_uncertainty.write(str(linecount)+ '\t' + f_uncertainty_str + '\n')
 
-    def write_average_error_over_trials(self, linecount, error, ave_error):
-        self.f_average_error.write(str(linecount) + '\t' + str(error) + '\t' + str(ave_error) + '\n')
+    def write_average_error_over_trials(self, linecount, potential_error_finder):
+        overall_error, overall_ave_error = potential_error_finder.overall_error_list[-1], potential_error_finder.final_overall_error
+        current_error, current_ave_error = potential_error_finder.current_error_list[-1], potential_error_finder.final_current_error
+        middle_error, middle_ave_error = potential_error_finder.middle_error_list[-1], potential_error_finder.final_middle_error
+
+        self.f_average_error.write(str(linecount) + '\t' + str(overall_error) + '\t' + str(overall_ave_error) + '\t' + str(current_error) + 
+                                   '\t' + str(current_ave_error) + '\t' + str(middle_error) + '\t' + str(middle_ave_error) + '\n')
 
     def write_correlation_values(self, linecount, corr_array, cosine_array):
         self.f_correlations.write(str(linecount) + '\t' + str(corr_array[-1]) + '\t' + str(np.mean(corr_array)) + '\t' + str(cosine_array[-1]) + '\t' + str(np.mean(cosine_array)) + '\n')

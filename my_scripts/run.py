@@ -1,6 +1,6 @@
 from helpers import * 
 from PoseEstimationClient import PoseEstimationClient
-from PoseEstimationClient_Simulation import PoseEstimationClient_Simulation
+from Potential_Error_Finder import Potential_Error_Finder
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
@@ -8,6 +8,7 @@ from PotentialStatesFetcher import PotentialStatesFetcher, PotentialState
 from State import State, TOP_SPEED, TIME_HORIZON, DELTA_T
 from file_manager import FileManager
 from drone_flight_client import DroneFlightClient
+from crop import Crop
 import copy
 
 import pprint
@@ -186,7 +187,7 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
 
         determine_calibration_mode(airsim_client.linecount, pose_client)
 
-        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager)
+        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
 
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
@@ -355,10 +356,10 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
     airsim_client.simPauseDrone(False)
-    pose_client_sim = PoseEstimationClient_Simulation(parameters)
+    potential_error_finder = Potential_Error_Finder(parameters)
 
     airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-    pose_client_sim.init_3d_pose(current_state.bone_pos_gt)
+    #potential_error_finder.init_3d_pose(current_state.bone_pos_gt)
 
     potential_states_fetcher.reset(pose_client, airsim_client, current_state)
     potential_states_fetcher.dome_experiment()
@@ -369,26 +370,26 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
     set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
 
     take_photo(airsim_client, pose_client, current_state, file_manager, 0)
-    initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager)
+    initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
     airsim_client.linecount += 1
 
     while airsim_client.linecount < airsim_client.length_of_simulation:    
         start1 = time.time()   
-        if pose_client_sim.find_best_traj: #/and exp_ind >= predefined_traj_len:
+        if potential_error_finder.find_best_traj: #/and exp_ind >= predefined_traj_len:
             for state_ind in range(0, len(potential_states_fetcher.potential_states_try)):
-                for trial_ind in range(pose_client_sim.num_of_noise_trials):
-                    pose_client_copy = pose_client.deepcopy_PEC()
-                    goal_state = potential_states_fetcher.potential_states_try[state_ind]
-                    set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
-                    take_photo(airsim_client, pose_client_copy, current_state, file_manager, state_ind)
-                    determine_positions(airsim_client.linecount, pose_client_copy, current_state, file_manager)
-                    pose_client_sim.append_error(trial_ind, pose_client_copy.optimized_poses, pose_client_copy.poses_3d_gt)
-                file_manager.write_error_values(pose_client_sim.frame_overall_error_list, airsim_client.linecount)
-                pose_client_sim.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
+                goal_state = potential_states_fetcher.potential_states_try[state_ind]
+                set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
+                take_photo(airsim_client, pose_client, current_state, file_manager, state_ind)
+                for trial_ind in range(potential_error_finder.num_of_noise_trials):
+                    pose_client_copy = pose_client.deepcopy_PEC(trial_ind)
+                    determine_positions(airsim_client.linecount, pose_client_copy, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
+                    potential_error_finder.append_error(trial_ind, pose_client_copy.adjusted_optimized_poses, pose_client_copy.poses_3d_gt)
+                file_manager.write_error_values(potential_error_finder.frame_overall_error_list, airsim_client.linecount)
+                potential_error_finder.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
         end1 = time.time()
         print("Simulating errors for all locations took", end1-start1, "seconds")
 
-        if airsim_client.linecount < pose_client_sim.predefined_traj_len:
+        if airsim_client.linecount < potential_error_finder.predefined_traj_len:
             goal_state = potential_states_fetcher.find_next_state_constant_rotation(airsim_client.linecount)    
         else:
             if potential_states_fetcher.trajectory == "active":
@@ -397,11 +398,11 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
                 goal_state, _ = potential_states_fetcher.find_best_potential_state()    
                 end2 = time.time()
                 print("Finding hessians and best potential state took", end2- start2)
-                if pose_client_sim.find_best_traj:
-                    pose_client_sim.find_correlations(potential_states_fetcher)
-                    file_manager.write_correlation_values(airsim_client.linecount, pose_client_sim.correlation_current, pose_client_sim.cosine_current)
-                    #plot_correlations(pose_client_sim, airsim_client.linecount, file_manager.plot_loc)
-                potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
+                if potential_error_finder.find_best_traj:
+                    potential_error_finder.find_correlations(potential_states_fetcher)
+                    file_manager.write_correlation_values(airsim_client.linecount, potential_error_finder.correlation_current, potential_error_finder.cosine_current)
+                    #plot_correlations(potential_error_finder, airsim_client.linecount, file_manager.plot_loc)
+                    potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
             elif potential_states_fetcher.trajectory == "constant_rotation":
                 goal_state = potential_states_fetcher.find_next_state_constant_rotation(airsim_client.linecount)    
             elif potential_states_fetcher.trajectory == "constant_angle":
@@ -417,18 +418,18 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
 
             file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_list_whole, airsim_client.linecount)
         
-        if airsim_client.linecount > pose_client.ONLINE_WINDOW_SIZE:
-            ave_error_of_chosen_index = pose_client_sim.find_average_error_over_trials(goal_state.index)
-            file_manager.write_average_error_over_trials(airsim_client.linecount, ave_error_of_chosen_index, pose_client_sim.final_average_error)
+        if airsim_client.linecount > pose_client.ONLINE_WINDOW_SIZE and potential_error_finder.find_best_traj:
+            potential_error_finder.find_average_error_over_trials(goal_state.index)
+            file_manager.write_average_error_over_trials(airsim_client.linecount, potential_error_finder)
 
         start3 = time.time()
         #set_position(goal_state, airsim_client, current_state, loop_mode=loop_mode)
         set_position(goal_state, airsim_client, current_state, loop_mode="teleport")
 
         take_photo(airsim_client, pose_client, current_state, file_manager, goal_state.index)
-        pose_client_sim.adjust_3d_pose(current_state, pose_client)
+        #pose_client_sim.adjust_3d_pose(current_state, pose_client)
 
-        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager)
+        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
 
         airsim_client.linecount += 1
         print('linecount', airsim_client.linecount)
@@ -441,7 +442,7 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
             if airsim_client.is_using_airsim:
                 time.sleep(DELTA_T)
             airsim_client.simPauseHuman(True)
-            pose_client_sim.update_internal_3d_pose()
+            #pose_client_sim.update_internal_3d_pose()
 
         potential_states_fetcher.reset(pose_client, airsim_client, current_state)
         if loop_mode == "teleport":
@@ -476,7 +477,7 @@ def create_test_set(current_state, pose_client, airsim_client, potential_states_
             current_state.cam_pitch = goal_state.pitch
 
             take_photo(airsim_client, pose_client, current_state, file_manager, state_ind)
-            openpose_res, liftnet_res = determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager)
+            openpose_res, liftnet_res = determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
             file_manager.prepare_test_set(current_state, openpose_res, liftnet_res, airsim_client.linecount, state_ind)
 
         airsim_client.linecount += 1
@@ -532,4 +533,3 @@ def set_position(goal_state, airsim_client, current_state, loop_mode):
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
         current_state.cam_pitch = cam_pitch
-

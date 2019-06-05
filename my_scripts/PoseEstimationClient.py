@@ -58,6 +58,7 @@ class PoseEstimationClient(object):
         self.openpose_leg_error = 0
 
         self.optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
+        self.adjusted_optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.liftPoseList = []
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE-1, 3, self.num_of_joints])
@@ -91,16 +92,14 @@ class PoseEstimationClient(object):
         else:
             self.M = np.eye(self.num_of_joints)
 
-        #self.kalman = ExtendedKalman()#Kalman()
-        self.measurement_cov = np.eye(3)
-        self.future_measurement_cov = np.eye(3)
-
         self.calib_cov_list = []
         self.online_cov_list = []
         self.middle_pose_GT_list = []
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
+        self.weights_future = param["WEIGHTS_FUTURE"]
+        
 
         self.loss_dict_calib = ["proj"]
         if self.USE_SYMMETRY_TERM:  
@@ -209,17 +208,20 @@ class PoseEstimationClient(object):
                 self.requiredEstimationData.pop()
                 self.liftPoseList.pop()
                 
-    def update3dPos(self, optimized_poses):
+    def update3dPos(self, optimized_poses, adjusted_optimized_poses):
         if (self.isCalibratingEnergy):
-            self.current_pose = optimized_poses.copy()
-            self.middle_pose = optimized_poses.copy()
-            self.future_pose = optimized_poses.copy()
+            self.current_pose = adjusted_optimized_poses.copy()
+            self.middle_pose = adjusted_optimized_poses.copy()
+            self.future_pose = adjusted_optimized_poses.copy()
             self.optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE, axis=0).copy()
+            self.adjusted_optimized_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE, axis=0).copy()
+
         else:
-            self.current_pose =  optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
-            self.middle_pose = optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
-            self.future_pose =  optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
+            self.current_pose =  adjusted_optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
+            self.middle_pose = adjusted_optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.future_pose =  adjusted_optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
             self.optimized_poses = optimized_poses.copy()
+            self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
         
     def update_middle_pose_GT(self, middle_pose):
         self.middle_pose_GT_list.insert(0, middle_pose)
@@ -243,16 +245,17 @@ class PoseEstimationClient(object):
         if self.isCalibratingEnergy:
             self.pose_3d_preoptimization = current_frame_init.copy()
         else:
-            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
+            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.adjusted_optimized_poses[:-1,:,:]])
 
  
-    def deepcopy_PEC(self):
+    def deepcopy_PEC(self, trial_ind):
         new_pose_client = PoseEstimationClient(self.param, None, self.animation, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py)
 
         new_pose_client.projection_client = self.projection_client.deepcopy_projection_client()
         new_pose_client.lift_client = self.lift_client.deepcopy_lift_client()
 
         new_pose_client.optimized_poses = self.optimized_poses.copy()
+        new_pose_client.adjusted_optimized_poses = self.adjusted_optimized_poses.copy()
         new_pose_client.pose_3d_preoptimization = self.pose_3d_preoptimization.copy()
 
         new_pose_client.requiredEstimationData = []
@@ -277,8 +280,14 @@ class PoseEstimationClient(object):
         new_pose_client.error_3d = self.error_3d.copy()
         new_pose_client.error_2d = self.error_2d.copy()
 
+        new_pose_client.future_pose = self.future_pose.copy()
+        new_pose_client.current_pose = self.current_pose.copy()
+        new_pose_client.middle_pose = self.middle_pose.copy()
+
         new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
+
         new_pose_client.quiet = True
-        new_pose_client.simulate_error_mode = True
+        new_pose_client.simulate_error_mode = False
+        new_pose_client.trial_ind = trial_ind
 
         return new_pose_client

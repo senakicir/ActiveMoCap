@@ -87,9 +87,11 @@ class PotentialStatesFetcher(object):
             self.number_of_samples = len(self.drone_flight_states)
 
         self.overall_error_mean_list = np.zeros(self.number_of_samples)
-        self.future_error_mean_list = np.zeros(self.number_of_samples)
-        self.future_error_std_list =  np.zeros(self.number_of_samples)
+        self.current_error_mean_list = np.zeros(self.number_of_samples)
+        self.middle_error_mean_list = np.zeros(self.number_of_samples)
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
+        self.current_error_std_list = np.zeros(self.number_of_samples)
+        self.middle_error_std_list = np.zeros(self.number_of_samples)        
 
     def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
@@ -119,9 +121,12 @@ class PotentialStatesFetcher(object):
             self.objective = objective_online
 
         self.overall_error_mean_list = np.zeros(self.number_of_samples)
-        self.future_error_mean_list = np.zeros(self.number_of_samples)
-        self.future_error_std_list =  np.zeros(self.number_of_samples)
+        self.current_error_mean_list = np.zeros(self.number_of_samples)
+        self.middle_error_mean_list = np.zeros(self.number_of_samples)
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
+        self.current_error_std_list = np.zeros(self.number_of_samples)
+        self.middle_error_std_list = np.zeros(self.number_of_samples)        
+        
         self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
 
