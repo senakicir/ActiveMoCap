@@ -54,7 +54,8 @@ class PotentialState_Drone_Flight(object):
 
 class PotentialStatesFetcher(object):
     def __init__(self, airsim_client, pose_client, active_parameters):
-        _, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
+        self.bone_connections, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
+        self.SIZE_X, self.SIZE_Y = pose_client.SIZE_X, pose_client.SIZE_Y
 
         self.minmax = active_parameters["MINMAX"]
         self.hessian_part = active_parameters["HESSIAN_PART"]
@@ -482,7 +483,7 @@ class PotentialStatesFetcher(object):
             self.potential_covs_whole.append({"inv_hess":inv_hess2, "potential_state": potential_state})
 
             future_pose = torch.from_numpy(self.future_human_pos).float() 
-            #self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
+            self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
         return self.potential_covs_whole, self.potential_hessians_normal
 
     def find_best_potential_state(self):
@@ -519,6 +520,9 @@ class PotentialStatesFetcher(object):
                 elif self.uncertainty_calc_method == "max_eig":
                     _, s, _ = np.linalg.svd(cov)
                     uncertainty_dict[potential_state.index] = (np.max(s)) 
+                elif self.uncertainty_calc_method == "root_six":
+                    _, s, _ = np.linalg.svd(cov)
+                    uncertainty_dict[potential_state.index] = np.sum(np.power(s, 1/6)) 
             if part == "future":
                 self.uncertainty_list_future = uncertainty_dict.copy()
             elif part == "whole":
@@ -551,17 +555,21 @@ class PotentialStatesFetcher(object):
         self.goal_state_ind = index
         return self.potential_states_go[self.goal_state_ind]
 
-    def plot_everything(self, linecount, plot_loc, photo_loc):
+    def plot_everything(self, linecount, file_manager, plot_potential_errors_bool):
+        plot_loc = file_manager.plot_loc
+        photo_locs = file_manager.get_photo_locs()
         if not self.is_quiet:
             #plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, custom_name = "potential_covs_normal_")
             #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_states(pose_client.current_pose, pose_client.future_pose, bone_pos_3d_GT, potential_states, C_drone, R_drone, pose_client.hip_index, plot_loc, airsim_client.linecount)
-            #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_loc, self.bone_connections)
+            #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
-            plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")
-            plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=False)
+
+            if plot_potential_errors_bool:
+                plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")
+                plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=False)
             #self.plot_projections(linecount, plot_loc)
 
     def plot_projections(self, linecount, plot_loc):
-        plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.joint_names)
+        plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.bone_connections, self.SIZE_X, self.SIZE_Y)

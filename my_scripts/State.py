@@ -36,10 +36,10 @@ def find_delta_yaw(current_yaw, desired_yaw):
 class State(object):
     def __init__(self, use_single_joint, model_settings):
         self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = model_settings
-        self.human_pos_est = np.array([0,0,0])
-        self.human_pos_gt = np.array([0,0,0])
+
         self.left_arm_ind = self.joint_names.index('left_arm')
         self.right_arm_ind = self.joint_names.index('right_arm')
+        self.use_single_joint = use_single_joint
         if use_single_joint:
             self.left_arm_ind = 0
             self.right_arm_ind = 0
@@ -58,13 +58,39 @@ class State(object):
         self.human_pos_gt = np.zeros([3,])
         self.bone_pos_gt = np.zeros([3, self.num_of_joints])
 
-        self.drone_translation_matrix = 0 
+        self.drone_transformation_matrix = torch.zeros(4,4)
+        self.inv_drone_transformation_matrix = torch.zeros(4,4)
 
         self.human_pos_est = np.zeros([3,])
         self.human_orientation_est = np.zeros([3,])
-        self.drone_orientation_est = np.array([0,0,0])
+        self.drone_orientation_est = np.zeros([3,])
+        self.drone_pos_est = np.zeros([3,1])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
+
+    def deepcopy_state(self):
+        model_settings =[self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index]
+        new_state = State(self.use_single_joint, model_settings)
+
+        new_state.R_drone_gt = self.R_drone_gt.clone()
+        new_state.C_drone_gt = self.C_drone_gt.clone()
+        new_state.R_cam_gt = self.R_cam_gt.clone()
+
+        new_state.human_orientation_gt = self.human_orientation_gt.copy()
+        new_state.drone_orientation_gt = self.drone_orientation_gt.copy()
+        new_state.human_pos_gt = self.human_pos_gt.copy()
+        new_state.bone_pos_gt = self.bone_pos_gt.copy()
+
+        new_state.drone_transformation_matrix = self.drone_transformation_matrix.clone()
+        new_state.inv_drone_transformation_matrix = self.inv_drone_transformation_matrix.clone()
+
+        new_state.human_pos_est = self.human_pos_est.copy()
+        new_state.human_orientation_est = self.human_orientation_est.copy()
+        new_state.drone_orientation_est = self.drone_orientation_est.copy()
+        new_state.drone_pos_est = self.drone_pos_est.copy()
+        new_state.bone_pos_est = self.bone_pos_est.copy()
+        new_state.cam_pitch = self.cam_pitch
+        return new_state
 
     def change_human_gt_info(self, bone_pos_gt_updated):
         self.bone_pos_gt =  bone_pos_gt_updated.copy()
@@ -104,47 +130,16 @@ class State(object):
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
-        return self.bone_pos_gt, self.inv_drone_transformation_matrix, self.drone_transformation_matrix
+        return self.bone_pos_gt.copy(), self.inv_drone_transformation_matrix.clone(), self.drone_transformation_matrix.clone()
 
     def update_human_info(self, bone_pos_est):
-        self.bone_pos_est = bone_pos_est
+        self.bone_pos_est = bone_pos_est.copy()
         shoulder_vector_gt = bone_pos_est[:, self.left_arm_ind] - bone_pos_est[:, self.right_arm_ind] 
         self.human_orientation_est = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
-        self.human_pos_est = bone_pos_est[:, self.hip_index]
+        self.human_pos_est = bone_pos_est[:, self.hip_index].copy()
 
     def get_required_pitch(self):
         new_radius = np.linalg.norm(self.C_drone_gt.numpy() - self.human_pos_est)
         new_theta = acos((self.C_drone_gt[2] - self.human_pos_est[2])/new_radius)
         new_pitch = pi/2 - new_theta
         return new_pitch
-
-        ############ USELESS
-
-    def get_delta_orient(self, target_yaw):
-        delta_yaw = find_delta_yaw((self.drone_orientation)[2],  target_yaw)
-        return delta_yaw
-
-    def get_desired_pos_and_yaw_trackbar(self):
-        #calculate new polar coordinates according to circular motion (the circular offset required to rotate around human)
-        input_rad = radians(cv2.getTrackbarPos('Angle', 'Drone Control')) #according to what degree we want the drone to be at
-        current_radius = cv2.getTrackbarPos('Radius', 'Drone Control')
-        desired_z_pos = cv2.getTrackbarPos('Z', 'Drone Control')
-        #input_rad_unreal_orient = input_rad + INITIAL_HUMAN_ORIENTATION #we don't use this at all currently
-        #desired_polar_angle = state.human_orientation + input_rad + state.human_rotation_speed*TIME_HORIZON
-        desired_polar_angle = input_rad
-
-        desired_polar_pos = np.array([cos(desired_polar_angle) * current_radius, sin(desired_polar_angle) * current_radius, 0])
-        #desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel - np.array([0,0,desired_z_pos])
-        desired_pos = desired_polar_pos + self.human_pos - np.array([0,0,desired_z_pos])
-        desired_yaw = desired_polar_angle - pi
-        return desired_pos, desired_yaw
-
-    def get_desired_pos_and_angle_fixed_rotation(self):
-        desired_polar_angle = self.current_degree + INCREMENT_DEGREE_AMOUNT
-        desired_polar_pos = np.array([cos(desired_polar_angle) * self.radius, sin(desired_polar_angle) * self.radius, 0])
-        desired_pos = desired_polar_pos + self.human_pos + TIME_HORIZON*self.human_vel 
-        desired_pos[2] = self.human_pos[2]-z_pos
-        desired_yaw = self.current_degree + pi#INCREMENT_DEGREE_AMOUNT/N + pi
-        desired_yaw_deg = find_delta_yaw((self.drone_orientation)[2], desired_yaw)
-
-        return desired_pos, desired_yaw_deg

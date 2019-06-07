@@ -42,9 +42,6 @@ joint_names_mpi = ['head','neck','right_arm','right_forearm','right_hand','left_
 
 EPSILON = 0.00000001
 
-SIZE_X = 1024
-SIZE_Y = 576
-
 CAMERA_OFFSET_X = 45/100
 CAMERA_OFFSET_Y = 0
 CAMERA_OFFSET_Z = 0#-4.92
@@ -219,10 +216,11 @@ def reset_all_folders(animation_list, seed_list, base = ""):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     main_folder_name =  base + '/' + date_time_name
 
-    while not os.path.exists(main_folder_name):
+    while os.path.exists(main_folder_name):
         main_folder_name += "_b_"
         if not os.path.exists(main_folder_name):
             os.makedirs(main_folder_name)  
+            break
 
     if not os.path.exists(base):
         os.makedirs(base)          
@@ -278,9 +276,9 @@ def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
     f_notes.write(notes_str)
     f_notes.close()
 
-def append_error_notes(f_notes_name, err_1, err_2):
+def append_error_notes(f_notes_name, err_1, err_2, animation):
     f_notes = open(f_notes_name, 'a')
-    notes_str = "\n---\nResults:\n"
+    notes_str = "\n---\nResults for animation "+str(animation)+":\n"
     notes_str += "last frame error: ave:" + str(np.mean(np.array(err_1), axis=0)) + '\tstd:' + str(np.std(np.array(err_1), axis=0)) +"\n"
     notes_str += "mid frame error: ave:" + str(np.mean(np.array(err_2), axis=0)) + '\tstd:' + str(np.std(np.array(err_2), axis=0)) +"\n"
     f_notes.write(notes_str)
@@ -506,7 +504,7 @@ def save_image(img, ind, plot_loc, custom_name=None):
     plt.close(fig)
 
 
-def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_single_joint, error = -5, custom_name = None, orientation = "z_up", label_names =None, additional_text =None):   
+def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_single_joint,  test_set, error = -5,custom_name = None, label_names =None, additional_text =None):   
     if custom_name == None:
         name = '/plot3d_'
     else: 
@@ -519,14 +517,19 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
         blue_label = label_names[0]
         red_label = label_names[1]
 
+
     fig = plt.figure(figsize=(4,4))
     ax = fig.add_subplot(111, projection='3d')
 
     X = bones_GT[0,:]
-    if orientation == "z_up":
-        # maintain aspect ratio
-        Y = bones_GT[1,:]
+    Y = bones_GT[1,:]
+    if test_set != "drone_flight":
         Z = -bones_GT[2,:]
+        multip = -1
+    else:
+        Z = bones_GT[2,:]
+        multip = 1
+
         
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.8
     mid_x = (X.max()+X.min()) * 0.5
@@ -542,22 +545,22 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
 
         #plot joints
         for i, bone in enumerate(left_bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
         for i, bone in enumerate(right_bone_connections):
-            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', marker='^')
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', marker='^')
 
         for i, bone in enumerate(left_bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
         for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^')
         ax.legend(handles=[plot1, plot1_r, plot2, plot2_r])
     else:
-        plot1, = ax.plot(bones_GT[0,:], bones_GT[1,:], -bones_GT[2,:], c='xkcd:royal blue', marker='^')
-        plot2, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], -predicted_bones[2,:], c='xkcd:blood red', marker='^')
+        plot1, = ax.plot(bones_GT[0,:], bones_GT[1,:], multip*bones_GT[2,:], c='xkcd:royal blue', marker='^')
+        plot2, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], multip*predicted_bones[2,:], c='xkcd:blood red', marker='^')
         #ax.legend(handles=[plot1, plot2])
 
     
@@ -566,7 +569,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     ax.set_zlabel('Z')
 
 
-    if (error != -5):
+    if (error != -1):
         ax.text2D(0, 0.3, "error: %.4f" %error, transform=ax.transAxes)
         if (additional_text != None):
             ax.text2D(0, 0.35, "running ave error: %.4f" %additional_text, transform=ax.transAxes)
@@ -577,7 +580,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     plt.close()
 
 
-def plot_drone_traj(pose_client, plot_loc, ind):
+def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     if (pose_client.isCalibratingEnergy):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
@@ -681,13 +684,23 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     predicted_bones = last_frame_plot_info["est"]
     bones_GT = last_frame_plot_info["GT"]
 
+    if test_set == "drone_flight":
+        multip = 1
+    else:
+        multip = -1
+
     X = np.concatenate([bones_GT[0,:], predicted_bones[0,:]])
     Y = np.concatenate([bones_GT[1,:], predicted_bones[1,:]])
-    Z = np.concatenate([-bones_GT[2,:], -predicted_bones[2,:]])
+    Z = np.concatenate([multip*bones_GT[2,:], multip*predicted_bones[2,:]])
+
+    ind_offset = ind
+    if ind > 7:
+        ind_offset = 7
+    alphas = np.linspace(0.01,1,ind_offset-1)
 
     #plot drone
     drone_x, drone_y, drone_z = [],[],[]
-    for frame_ind in range (0, len(plot_info)):
+    for frame_ind in range (len(plot_info)-ind_offset, len(plot_info)):
         frame_plot_info = plot_info[frame_ind]
         drone = frame_plot_info["drone"].squeeze()
         drone_x.append(drone[0])
@@ -696,28 +709,31 @@ def plot_drone_traj(pose_client, plot_loc, ind):
 
         X = np.concatenate([X, [drone[0]]])
         Y = np.concatenate([Y, [drone[1]]])
-        Z = np.concatenate([Z, [-drone[2]]])
+        Z = np.concatenate([Z, [multip*drone[2]]])
 
-    plotd, = ax.plot(drone_x, drone_y, drone_z, c='xkcd:black', marker='^', label="drone")
+    for i in range(ind_offset-1):
+        plotd, = ax.plot([drone_x[i], drone_x[i+1]], [drone_y[i], drone_y[i+1]], [drone_z[i], drone_z[i+1]], c='xkcd:black', marker='^', label="drone", alpha=alphas[i], markersize=2)
+    plotd, = ax.plot([drone_x[-1]], [drone_y[-1]], [drone_z[-1]], c='xkcd:black', marker='^', label="drone", alpha=1, markersize=7)
+
 
     #plot final frame human
     if not pose_client.USE_SINGLE_JOINT:
         for i, bone in enumerate(left_bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:light blue', label="GT left")
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:light blue', label="GT left")
         for i, bone in enumerate(right_bone_connections):
-            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', label="GT right")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(bones_GT[0,bone], bones_GT[1,bone], -bones_GT[2,bone], c='xkcd:royal blue')
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue')
 
         for i, bone in enumerate(left_bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
         for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', label="right left")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red')
         ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
     else:
-        plot1, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], -predicted_bones[2,:], c='xkcd:blood red')
+        plot1, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], multip*predicted_bones[2,:], c='xkcd:blood red')
         plot2, = ax.plot(bones_GT[0,:], bones_GT[1,:], -bones_GT[2,:], c='xkcd:royal blue')
         #ax.legend(handles=[plot1,plot2]
 
@@ -725,9 +741,6 @@ def plot_drone_traj(pose_client, plot_loc, ind):
     mid_x = (X.max()+X.min()) * 0.5
     mid_y = (Y.max()+Y.min()) * 0.5
     mid_z = (Z.max()+Z.min()) * 0.5
-    #ax.set_xlim(predicted_bones[0,0]-7, predicted_bones[0,0] +7)
-    #ax.set_ylim(predicted_bones[1,0]-7, predicted_bones[1,0] +7)
-    #ax.set_zlim(-predicted_bones[2,0]-2, -predicted_bones[2,0] +9)
 
     ax.set_xlim(mid_x - max_range, mid_x + max_range)
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
@@ -1059,22 +1072,24 @@ def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0, dpi=1000)
     plt.close(fig)
     
-def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, bone_connections):
+def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_locs, bone_connections):
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     superimposed_plot_loc = plot_loc + "/potential_projections_" + str(linecount) + '.png'
 
     if (len(pose2d_list) > 6):
-        nrows, ncols = 3, 3
+        nrows, ncols = 4, 4
     elif (len(pose2d_list) > 3):
         nrows, ncols = 3, 2
     else:
         nrows, ncols = 3, 1
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
 
-    im = plt.imread(photo_loc)
-    im = np.array(im[:,:,0:3])
-    for ind, pose in enumerate(pose2d_list):
+
+    for ind in range(16):
+        im = plt.imread(photo_locs[ind])
+        im = np.array(im[:,:,0:3])
+        pose = pose2d_list[ind].numpy()
         ax = axes.flat[ind]
         ax.imshow(im)
     
@@ -1089,27 +1104,27 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_loc, bone
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False) 
 
-    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0, dpi=1000)
     plt.close()
 
-def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_connections):
+def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_connections, SIZE_X, SIZE_Y):
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
     superimposed_plot_loc = plot_loc + "/potential_projections_noimage_" + str(linecount) + '.png'
 
     if (len(pose2d_list) > 6):
-        nrows, ncols = 3, 3
+        nrows, ncols = 4, 4
     elif (len(pose2d_list) > 3):
         nrows, ncols = 3, 2
     else:
         nrows, ncols = 3, 1
     fig, axes = plt.subplots(nrows=nrows, ncols=ncols)
 
-    im = np.zeros([SIZE_Y, SIZE_X])
-    for ind, pose in enumerate(pose2d_list):
+    im = np.zeros([int(SIZE_Y), int(SIZE_X)])
+    for ind in range(16):
+        pose = pose2d_list[ind].numpy()
         ax = axes.flat[ind]
         ax.imshow(im)
-    
         #plot part
         for _, bone in enumerate(left_bone_connections):    
             p1, = ax.plot( pose[0, bone], pose[1,bone], color = "r", linewidth=1, label="Left")   

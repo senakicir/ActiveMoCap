@@ -40,14 +40,12 @@ def read_gt_pose(input_file, test_set_name):
 
 def read_intrinsics(f_intrinsics):
     if f_intrinsics != None:
-        intrinsics_str = f_intrinsics.read().split('\t')
-        intrinsics_str.pop()
-        intrinsics = [float(value) for value in intrinsics_str]
-        return intrinsics[0], intrinsics[1], intrinsics[2]
+        intrinsics = pd.read_csv(f_intrinsics, sep='\t', header=None).values[0,:].astype('float')
+        return intrinsics[0], intrinsics[1], intrinsics[2], intrinsics[3], intrinsics[4]
     else:
         SIZE_X = 1024
         SIZE_Y = 576
-        return SIZE_X/2, SIZE_X/2, SIZE_Y/2
+        return SIZE_X/2, SIZE_X/2, SIZE_Y/2, int(SIZE_X), int(SIZE_Y)
 
 def get_pose_matrix(input_file, num_of_data, num_of_samples, dim):
     overall_matrix = read_pose_from_file(input_file, dim=dim, num_of_joints=15)
@@ -73,12 +71,14 @@ class DroneFlightClient(object):
 
         self.num_of_data, self.num_of_samples, self.transformation_matrix_tensor, self.inv_transformation_matrix_tensor = read_transformation_matrix(self.files["f_drone_pos"], self.test_set_name)
 
-        self.focal_length, self.px, self.py = read_intrinsics(self.files["f_intrinsics"])
+        self.focal_length, self.px, self.py, self.SIZE_X, self.SIZE_Y = read_intrinsics(self.files["f_intrinsics"])
         self.groundtruth_matrix =  read_gt_pose(self.files["f_groundtruth"], test_set_name)
         self.openpose_res_matrix = 0#get_pose_matrix(self.files["f_pose_2d"], self.num_of_data, self.num_of_samples, dim=2)
         self.liftnet_res = 0#read_pose_from_file(self.files["f_pose_lift"], dim=3, num_of_joints=15)
 
         self.DRONE_INITIAL_POS = np.zeros([3,1])     
+
+        
 
     def simPauseHuman(self, arg1):
         pass

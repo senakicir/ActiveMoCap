@@ -9,7 +9,7 @@ from Lift_Client import Lift_Client
 from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose
 
 class PoseEstimationClient(object):
-    def __init__(self, param, cropping_tool, animation, intrinsics_focal, intrinsics_px, intrinsics_py):
+    def __init__(self, param, loop_mode, animation, intrinsics_focal, intrinsics_px, intrinsics_py, image_size):
         self.param = param
         self.simulate_error_mode = False
 
@@ -60,9 +60,9 @@ class PoseEstimationClient(object):
         self.optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.adjusted_optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
-        self.liftPoseList = []
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE-1, 3, self.num_of_joints])
         self.boneLengths = torch.zeros([self.num_of_joints-1])
+        self.lift_pose_tensor = torch.zeros([self.ONLINE_WINDOW_SIZE-1, 3, self.num_of_joints])
         self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1])
 
         self.requiredEstimationData = []
@@ -73,7 +73,6 @@ class PoseEstimationClient(object):
 
         self.isCalibratingEnergy = True
 
-        self.cropping_tool = cropping_tool
         self.param_read_M = param["PARAM_READ_M"]
         if self.param_read_M:
             self.param_find_M = False
@@ -83,6 +82,10 @@ class PoseEstimationClient(object):
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.middle_pose = np.zeros([3, self.num_of_joints])
         self.future_pose = np.zeros([3, self.num_of_joints])
+
+        self.adj_current_pose = np.zeros([3, self.num_of_joints])
+        self.adj_middle_pose = np.zeros([3, self.num_of_joints])
+        self.adj_future_pose = np.zeros([3, self.num_of_joints])
 
         self.result_shape = [3, self.num_of_joints]
         self.result_size = np.prod(np.array(self.result_shape))
@@ -99,7 +102,6 @@ class PoseEstimationClient(object):
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
         self.weights_future = param["WEIGHTS_FUTURE"]
-        
 
         self.loss_dict_calib = ["proj"]
         if self.USE_SYMMETRY_TERM:  
@@ -116,15 +118,24 @@ class PoseEstimationClient(object):
         self.intrinsics_focal = intrinsics_focal
         self.intrinsics_px = intrinsics_px
         self.intrinsics_py = intrinsics_py
+        self.SIZE_X, self.SIZE_Y = image_size
 
         self.projection_client = Projection_Client(test_set=self.animation, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py)
         self.lift_client = Lift_Client()
+
+        if self.animation == "drone_flight":
+            self.cropping_tool = None
+        else:
+            self.cropping_tool = Crop(loop_mode = loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
 
     def reset_crop(self, loop_mode):
-        self.cropping_tool = Crop(loop_mode=loop_mode)
+        if self.animation == "drone_flight":
+            self.cropping_tool = None
+        else:
+            self.cropping_tool = Crop(loop_mode = loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
 
     def reset(self, plot_loc):
         if self.param_find_M:
@@ -190,36 +201,46 @@ class PoseEstimationClient(object):
         self.result_size =  np.prod(np.array(self.result_shape))
 
     def addNewFrame(self, pose_2d, pose_2d_gt, inv_transformation_matrix, linecount, pose_3d_gt, pose3d_lift):
-        self.liftPoseList.insert(0, pose3d_lift)
         self.requiredEstimationData.insert(0, [pose_2d, pose_2d_gt, inv_transformation_matrix])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
         self.poses_3d_gt[0,:] = pose_3d_gt.copy()
         self.poses_3d_gt[1:,:] = temp.copy()
+
+        temp = self.lift_pose_tensor[:-1,:].clone() 
+        self.lift_pose_tensor[0,:] = pose3d_lift.clone()
+        self.lift_pose_tensor[1:,:] = temp.clone()
         
         if self.isCalibratingEnergy:
             if linecount >= self.PRECALIBRATION_LENGTH:
                 while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
                     self.requiredEstimationData.pop()
-                    self.liftPoseList.pop()
 
         else:
             if len(self.requiredEstimationData) > self.ONLINE_WINDOW_SIZE-1:
                 self.requiredEstimationData.pop()
-                self.liftPoseList.pop()
                 
     def update3dPos(self, optimized_poses, adjusted_optimized_poses):
         if (self.isCalibratingEnergy):
-            self.current_pose = adjusted_optimized_poses.copy()
-            self.middle_pose = adjusted_optimized_poses.copy()
-            self.future_pose = adjusted_optimized_poses.copy()
+            self.current_pose = optimized_poses.copy()
+            self.middle_pose = optimized_poses.copy()
+            self.future_pose = optimized_poses.copy()
+            self.adj_current_pose = adjusted_optimized_poses.copy()
+            self.adj_middle_pose = adjusted_optimized_poses.copy()
+            self.adj_future_pose = adjusted_optimized_poses.copy()
+
             self.optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE, axis=0).copy()
             self.adjusted_optimized_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :], self.ONLINE_WINDOW_SIZE, axis=0).copy()
 
         else:
-            self.current_pose =  adjusted_optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
-            self.middle_pose = adjusted_optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
-            self.future_pose =  adjusted_optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
+            self.current_pose =  optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
+            self.middle_pose = optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.future_pose =  optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
+
+            self.adj_current_pose =  adjusted_optimized_poses[CURRENT_POSE_INDEX, :,:].copy() #current pose
+            self.adj_middle_pose = adjusted_optimized_poses[MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.adj_future_pose =  adjusted_optimized_poses[FUTURE_POSE_INDEX, :,:].copy() #future pose
+
             self.optimized_poses = optimized_poses.copy()
             self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
         
@@ -249,7 +270,7 @@ class PoseEstimationClient(object):
 
  
     def deepcopy_PEC(self, trial_ind):
-        new_pose_client = PoseEstimationClient(self.param, None, self.animation, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py)
+        new_pose_client = PoseEstimationClient(self.param, None, self.animation, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py, (self.SIZE_X, self.SIZE_Y))
 
         new_pose_client.projection_client = self.projection_client.deepcopy_projection_client()
         new_pose_client.lift_client = self.lift_client.deepcopy_lift_client()
@@ -265,10 +286,7 @@ class PoseEstimationClient(object):
             new_inverse_transformation_matrix = inverse_transformation_matrix.clone()
             new_pose_client.requiredEstimationData.append([new_bone_2d, new_bone_2d_gt, new_inverse_transformation_matrix])
 
-        new_pose_client.liftPoseList = []
-        for lift_poses in self.liftPoseList:
-            new_pose_client.liftPoseList.append(lift_poses.clone())
-
+        new_pose_client.lift_pose_tensor = self.lift_pose_tensor.clone()
         new_pose_client.poses_3d_gt = self.poses_3d_gt.copy()
         new_pose_client.boneLengths = self.boneLengths.clone()
         new_pose_client.multiple_bone_lengths = self.multiple_bone_lengths.clone()
@@ -284,7 +302,12 @@ class PoseEstimationClient(object):
         new_pose_client.current_pose = self.current_pose.copy()
         new_pose_client.middle_pose = self.middle_pose.copy()
 
-        new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
+        new_pose_client.adj_future_pose = self.adj_future_pose.copy()
+        new_pose_client.adj_current_pose = self.adj_current_pose.copy()
+        new_pose_client.adj_middle_pose = self.adj_middle_pose.copy()
+
+        if self.animation != "drone_flight":
+            new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
 
         new_pose_client.quiet = True
         new_pose_client.simulate_error_mode = False

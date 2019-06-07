@@ -115,6 +115,13 @@ class FileManager(object):
 
     def get_photo_loc(self):
         return self.photo_loc
+
+    def get_photo_locs(self):
+        photo_locs = []
+        for viewpoint in range(16):
+            photo_locs.append(self.non_simulation_filenames["input_image_dir"] + '/img_' + str(0) + "_viewpoint_" + str(viewpoint) + '.png')
+        return photo_locs
+
     
     def close_files(self):
         self.f_drone_pos.close()

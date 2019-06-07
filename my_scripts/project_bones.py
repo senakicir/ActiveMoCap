@@ -44,13 +44,13 @@ class Projection_Client(object):
         self.flip_x_y_batch = (torch.cat((self.flip_x_y_single, torch.zeros(3,1)), dim=1)).repeat(self.window_size , 1, 1)
         self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
 
-    def reset_future(self, data_list, inv_transformation_matrix, potential_projected_est):
+    def reset_future(self, data_list, potential_inv_transformation_matrix, potential_projected_est):
         self.window_size = len(data_list)+1
         self.pose_2d_tensor = torch.zeros(self.window_size, 2, self.num_of_joints)
         self.inverse_transformation_matrix = torch.zeros(self.window_size , 4, 4)
 
-        self.pose_2d_tensor[0, :, :] = potential_projected_est
-        self.inverse_transformation_matrix[0,:,:] = inv_transformation_matrix
+        self.pose_2d_tensor[0, :, :] = potential_projected_est.clone()
+        self.inverse_transformation_matrix[0,:,:] = potential_inv_transformation_matrix.clone()
         queue_index = 1
         for bone_2d, _, inverse_transformation_matrix in data_list:
             self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
@@ -90,11 +90,11 @@ class Projection_Client(object):
 
     def take_single_backprojection(self, pose_2d, transformation_matrix, joint_names):
         ones_tensor = torch.ones([1, self.num_of_joints])*1.0
-        img_torso_size = torch.norm(pose_2d[:, joint_names.index('neck')] - pose_2d[:, joint_names.index('spine1')])
+        img_torso_size = torch.norm(pose_2d[:, joint_names.index('neck')] - pose_2d[:, joint_names.index('spine1')]).float()
         if img_torso_size == 0:
             return torch.normal(torch.zeros(3, self.num_of_joints), torch.ones(3, self.num_of_joints)*10).float()
 
-        z_val = ((self.focal_length * DEFAULT_TORSO_SIZE) / (img_torso_size))
+        z_val = ((self.focal_length * DEFAULT_TORSO_SIZE) / (img_torso_size)).float()
 
         bone_pos_3d = torch.zeros([3, self.num_of_joints])
         bone_pos_3d[0,:] = pose_2d[0,:]*z_val

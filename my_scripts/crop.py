@@ -1,31 +1,35 @@
 import numpy as np
 from math import ceil
 from square_bounding_box import *
-from helpers import SIZE_X, SIZE_Y, numpy_to_tuples
+from helpers import numpy_to_tuples
 import pdb
 
 crop_alpha = 0.5
 STABLE_FRAME = 20
 
 class Crop (object):
-    def __init__(self, bbox_init = [0,0,SIZE_X,SIZE_Y], loop_mode = "normal"):
+    def __init__(self, size_x, size_y, loop_mode = "normal", animation = None):
+        bbox_init = [0,0,size_x,size_y]
         self.old_bbox = bbox_init
         self.bbox = bbox_init
-        self.image_bounds = [0,0]
+        self.image_bounds = np.array([0,0])
         self.scales= [1]
         self.bounding_box_calculator = BoundingBox(3)
         self.bounding_box_margin = 3
         self.unstable = True
+        self.size_x = size_x
+        self.size_y = size_y
 
         if loop_mode != "normal":
             self.unstable = False
             global crop_alpha
             crop_alpha = 1
-            self.bbox = [SIZE_X//2-135,SIZE_Y//2-135,270,270]
+            self.bbox = [size_x//2-135,size_y//2-135,270,270]
             self.bounding_box_margin = 3
 
+
     def copy_cropping_tool(self):
-        new_cropper = Crop()
+        new_cropper = Crop(self.size_x, self.size_y)
 
         new_cropper.old_bbox = self.old_bbox
         new_cropper.bbox = self.bbox

@@ -122,8 +122,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
 
-    cropping_tool = Crop(loop_mode = loop_mode)
-    pose_client = PoseEstimationClient(energy_parameters, cropping_tool, animation=file_manager.anim_num, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py)
+    pose_client = PoseEstimationClient(energy_parameters, loop_mode, animation=file_manager.anim_num, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py, image_size=(airsim_client.SIZE_X, airsim_client.SIZE_Y))
     current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, model_settings=pose_client.model_settings())
     potential_states_fetcher = PotentialStatesFetcher(airsim_client, pose_client, active_parameters)
     
@@ -182,7 +181,6 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
             #    break        
 
         photo_loc = file_manager.get_photo_loc(airsim_client.linecount)
-
         take_photo(airsim_client, pose_client, current_state, file_manager)
 
         determine_calibration_mode(airsim_client.linecount, pose_client)
@@ -243,7 +241,7 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
         airsim_client.simPauseDrone(True)
 
         current_state.cam_pitch = cam_pitch
-        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
+        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
     
         file_manager.save_simulation_values(airsim_client.linecount)
 
@@ -291,7 +289,8 @@ def precalibration(current_state, pose_client, airsim_client, potential_states_f
             print("I was sleeping :(")
         airsim_client.simPauseDrone(True)
 
-        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
+
+        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
     
         file_manager.save_simulation_values(airsim_client, pose_client)
 
@@ -342,7 +341,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
 
             #print("WRITING ERROR NOW!")
             file_manager.write_openpose_error(current_state.bone_pos_gt)
-            plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
+            plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
             pose_client.calib_res_list.clear()
 
             #implement a human pause function in airsim
@@ -382,7 +381,8 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
                 take_photo(airsim_client, pose_client, current_state, file_manager, state_ind)
                 for trial_ind in range(potential_error_finder.num_of_noise_trials):
                     pose_client_copy = pose_client.deepcopy_PEC(trial_ind)
-                    determine_positions(airsim_client.linecount, pose_client_copy, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
+                    state_copy = current_state.deepcopy_state()
+                    determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager.plot_loc, file_manager.get_photo_loc())
                     potential_error_finder.append_error(trial_ind, pose_client_copy.adjusted_optimized_poses, pose_client_copy.poses_3d_gt)
                 file_manager.write_error_values(potential_error_finder.frame_overall_error_list, airsim_client.linecount)
                 potential_error_finder.record_noise_experiment_statistics(potential_states_fetcher, state_ind)
@@ -402,7 +402,8 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
                     potential_error_finder.find_correlations(potential_states_fetcher)
                     file_manager.write_correlation_values(airsim_client.linecount, potential_error_finder.correlation_current, potential_error_finder.cosine_current)
                     #plot_correlations(potential_error_finder, airsim_client.linecount, file_manager.plot_loc)
-                    potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager.plot_loc, "")
+
+                potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager, potential_error_finder.find_best_traj)
             elif potential_states_fetcher.trajectory == "constant_rotation":
                 goal_state = potential_states_fetcher.find_next_state_constant_rotation(airsim_client.linecount)    
             elif potential_states_fetcher.trajectory == "constant_angle":
@@ -430,12 +431,13 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
         #pose_client_sim.adjust_3d_pose(current_state, pose_client)
 
         determine_positions(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
+        end3 = time.time()
+        print("Finding pose at chosen loc took", end3-start3)
 
         airsim_client.linecount += 1
         print('linecount', airsim_client.linecount)
-        plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount)
-        end3 = time.time()
-        print("Finding pose at chosen loc took", end3-start3)
+        if not pose_client.quiet:
+            plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount, pose_client.animation)
 
         if not pose_client.isCalibratingEnergy:
             airsim_client.simPauseHuman(False)
