@@ -34,7 +34,7 @@ class Potential_Error_Finder(object):
         self.final_current_error = 0
         self.final_middle_error = 0
 
-    def append_error(self, trial_ind, adjusted_optimized_poses, poses_3d_gt):
+    def append_error(self, trial_ind, adjusted_optimized_poses, poses_3d_gt, CURRENT_POSE_INDEX, MIDDLE_POSE_INDEX):
         self.frame_overall_error_list[trial_ind]  = np.mean(np.mean(np.linalg.norm(adjusted_optimized_poses[1:,:,:] - poses_3d_gt, axis=1), axis=1))
         self.frame_current_error_list[trial_ind]  = np.mean(np.linalg.norm(adjusted_optimized_poses[CURRENT_POSE_INDEX,:,:] - poses_3d_gt[CURRENT_POSE_INDEX-1,:,:], axis=0)) 
         self.frame_middle_error_list[trial_ind] =  np.mean(np.linalg.norm(adjusted_optimized_poses[MIDDLE_POSE_INDEX,:,:] - poses_3d_gt[MIDDLE_POSE_INDEX-1,:,:], axis=0)) 
@@ -43,6 +43,11 @@ class Potential_Error_Finder(object):
         psf.overall_error_mean_list[state_ind],  psf.overall_error_std_list[state_ind] = np.mean(self.frame_overall_error_list), np.std(self.frame_overall_error_list)
         psf.current_error_mean_list[state_ind],  psf.current_error_std_list[state_ind] = np.mean(self.frame_current_error_list), np.std(self.frame_current_error_list)
         psf.middle_error_mean_list[state_ind],   psf.middle_error_std_list[state_ind]  = np.mean(self.frame_middle_error_list),  np.std(self.frame_middle_error_list)
+        
+        self.frame_overall_error_list = np.zeros([self.num_of_noise_trials,])
+        self.frame_current_error_list =  np.zeros([self.num_of_noise_trials,])
+        self.frame_middle_error_list =  np.zeros([self.num_of_noise_trials,])
+
         self.overall_error_across_trials.append(psf.overall_error_mean_list[state_ind])
         self.current_error_across_trials.append(psf.current_error_mean_list[state_ind])
         self.middle_error_across_trials.append(psf.middle_error_mean_list[state_ind])
@@ -72,6 +77,10 @@ class Potential_Error_Finder(object):
         middle_error_of_chosen_index = self.middle_error_across_trials[index]
         self.middle_error_list.append(middle_error_of_chosen_index)
         self.final_middle_error =  sum(self.middle_error_list)/len(self.middle_error_list)
+
+        self.overall_error_across_trials = [] 
+        self.current_error_across_trials = [] 
+        self.middle_error_across_trials = [] 
 
 
     def init_3d_pose(self, pose):

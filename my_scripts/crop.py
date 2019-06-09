@@ -5,7 +5,7 @@ from helpers import numpy_to_tuples
 import pdb
 
 crop_alpha = 0.5
-STABLE_FRAME = 20
+STABLE_FRAME = 10
 
 class Crop (object):
     def __init__(self, size_x, size_y, loop_mode = "normal", animation = None):

@@ -696,7 +696,9 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     ind_offset = ind
     if ind > 7:
         ind_offset = 7
-    alphas = np.linspace(0.01,1,ind_offset-1)
+    if ind > len(plot_info):
+        ind_offset = len(plot_info) 
+    alphas = np.linspace(0.01,1,ind_offset)
 
     #plot drone
     drone_x, drone_y, drone_z = [],[],[]
@@ -1240,7 +1242,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
     plt.close(fig)
 
 
-def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
+def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
@@ -1273,30 +1275,33 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
 
     #plot ellipses
     centers = []
+    state_inds = []
     for state_ind, potential_state in enumerate(potential_states):
         state_pos =  potential_state.position
         center = np.copy(state_pos)
         center[2] = -center[2]
         centers.append(center)
+        state_inds.append(potential_state.index)
     
-    if ind < 3:
+    if ind < calibration_length + 3:
         radii_list = np.zeros([len(covs), 3])
         for state_ind, cov in enumerate(covs):
             shaped_cov = shape_cov(cov, hip_index, num_of_joints, FUTURE_POSE_INDEX)
             _, s, _ = np.linalg.svd(shaped_cov)
-            radii = np.sqrt(s)
+            radii = 3*np.sqrt(s)
             radii_list[state_ind, :] = radii[0:3]
         global max_radii
         max_radii = np.max(radii_list)
 
-    for state_ind, center in enumerate(centers):
-        markersize=30
+    for center_ind, center in enumerate(centers):
+        state_ind = state_inds[center_ind]
+        markersize=3
         text_color="b"
         if (state_ind == potential_states_fetcher.goal_state_ind):
-            markersize=100
+            markersize=10
             text_color="r"
         if ellipses:
-            x, y, z = matrix_to_ellipse(matrix=shape_cov(covs[state_ind], hip_index, num_of_joints, FUTURE_POSE_INDEX), center=center)
+            x, y, z = matrix_to_ellipse(matrix=shape_cov(covs[center_ind], hip_index, num_of_joints, FUTURE_POSE_INDEX), center=center)
             ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
             ax.text(center[0], center[1], center[2], str(state_ind), color=text_color)
             if top_down:

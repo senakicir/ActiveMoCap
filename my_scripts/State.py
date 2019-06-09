@@ -15,11 +15,8 @@ INCREMENT_DEGREE_AMOUNT = radians(-20)
 INCREMENT_RADIUS = 3
 
 z_pos = -1.5
-DELTA_T = 0.2
 N = 4.0
-TIME_HORIZON = N*DELTA_T
 SAFE_RADIUS = 7
-TOP_SPEED = 3
 
 def find_current_polar_info(drone_pos, human_pos):
     polar_pos = drone_pos - human_pos  #subtrack the human_pos in order to find the current polar position vector.
@@ -34,8 +31,9 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 
 class State(object):
-    def __init__(self, use_single_joint, model_settings):
+    def __init__(self, use_single_joint, active_parameters, model_settings):
         self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = model_settings
+        self.active_parameters = active_parameters 
 
         self.left_arm_ind = self.joint_names.index('left_arm')
         self.right_arm_ind = self.joint_names.index('right_arm')
@@ -45,6 +43,9 @@ class State(object):
             self.right_arm_ind = 0
 
         self.radius = SAFE_RADIUS#np.linalg.norm(projected_distance_vect[0:2,]) #to do
+        
+        self.TOP_SPEED = active_parameters["TOP_SPEED"]
+        self.DELTA_T = active_parameters["DELTA_T"]
 
         #drone_polar_pos = np.array([0,0,0])#positions_[HUMAN_POS_IND, :] #find the drone initial angle (needed for trackbar)
         #self.some_angle = range_angle(np.arctan2(drone_polar_pos[1], drone_polar_pos[0]), 360, True)
@@ -70,7 +71,7 @@ class State(object):
 
     def deepcopy_state(self):
         model_settings =[self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index]
-        new_state = State(self.use_single_joint, model_settings)
+        new_state = State(self.use_single_joint, self.active_parameters,  model_settings)
 
         new_state.R_drone_gt = self.R_drone_gt.clone()
         new_state.C_drone_gt = self.C_drone_gt.clone()

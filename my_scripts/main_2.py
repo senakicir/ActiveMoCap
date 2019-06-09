@@ -10,14 +10,14 @@ if __name__ == "__main__":
     use_trackbar = False
     
     # simulation mode = "use_airsim", "saved_simulation"
-    simulation_mode = "use_airsim"
+    simulation_mode = "saved_simulation"
     if (simulation_mode == "use_airsim"):
         base_folder = "/Users/kicirogl/Documents/temp_main"
     elif (simulation_mode == "saved_simulation"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
 
     #loop_mode = 0-normal, 1-openpose, 2-teleport, 3-create_dataset
-    loop_mode = "normal"
+    loop_mode = "teleport"
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part = "whole"
     #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig 5-root_six
@@ -26,23 +26,21 @@ if __name__ == "__main__":
     minmax = True #True-min, False-max
     SEED_LIST = [41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
-    delta_t = 0.1
-    upper_lim = -3
+    upper_lim = -5
     lower_lim = -0.5 #-2.5
-    top_speed = 2
     UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
-
+    LOOKAHEAD_LIST = [0.5]
     go_distance = 3
-    LOOKAHEAD_LIST = [6]#[0.5]
+    top_speed = 3
     ftol = 1e-3
 
-    is_quiet = False
+    is_quiet = True
     
-    online_window_size = 6
-    calibration_length = 30
-    calibration_window_size = 20
-    precalibration_length = 10
-    length_of_simulation = 90
+    online_window_size = 3
+    calibration_length = 0
+    calibration_window_size =3
+    precalibration_length = 0
+    length_of_simulation = 60
     
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
     init_pose_mode = "backproj"
@@ -88,8 +86,7 @@ if __name__ == "__main__":
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
     #bone_len: 0-gt, 1- calib_res
-    modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt_with_noise", "bone_len": "calib_res"}
-
+    modes = {"mode_3d":"scipy", "mode_2d":"openpose", "mode_lift":"lift", "bone_len": "calib_res"}
 
     param_read_M = False
     if modes["mode_2d"] == "openpose":
@@ -106,18 +103,19 @@ if __name__ == "__main__":
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #active_sampling = "ellipse", "uniform"
 
-    active_sampling_mode = "ellipse"
+    active_sampling_mode = "uniform"
 
 
     active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, 
                         "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, 
                         "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim, "ACTIVE_SAMPLING_MODE":active_sampling_mode,
-                        "TOP_SPEED": top_speed, "DELTA_T": delta_t}
+                        "TOP_SPEED": top_speed}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["constant_rotation"]
+    TRAJECTORY_LIST = ["random", "go_to_best"]
+    
     ablation_study = False
     grid_search = False
     
@@ -141,6 +139,8 @@ if __name__ == "__main__":
         parameters["FOLDER_NAMES"] = folder_names
         
         weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0.33}
+        #weights_future =  {'proj':0.0003333, 'smooth': 0, 'bone': 0, 'lift': 0.33}
+
 
         if grid_search:
             weights_future['proj'] = smooth_weights[experiment_ind]

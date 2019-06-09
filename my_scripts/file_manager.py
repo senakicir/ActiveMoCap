@@ -106,7 +106,10 @@ class FileManager(object):
 
     def update_photo_loc(self, linecount, viewpoint):
         if (self.simulation_mode == "use_airsim"):
-            self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
+            if viewpoint == "":
+                self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + '.png'
+            else:
+                self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
         elif (self.simulation_mode == "saved_simulation"):
             if self.test_set_name == "drone_flight":
                 linecount = 0
@@ -117,6 +120,9 @@ class FileManager(object):
         return self.photo_loc
 
     def get_photo_locs(self):
+        if self.loop_mode == "normal":
+            return [self.photo_loc]*9
+
         photo_locs = []
         for viewpoint in range(16):
             photo_locs.append(self.non_simulation_filenames["input_image_dir"] + '/img_' + str(0) + "_viewpoint_" + str(viewpoint) + '.png')
@@ -181,6 +187,13 @@ class FileManager(object):
             liftnet_str += str(liftnet_res[0, i].item()) + '\t' + str(liftnet_res[1, i].item()) + '\t' + str(liftnet_res[2, i].item())
         self.f_liftnet_results.write(str(linecount)+ '\t'+ str(state_ind) + '\t' + liftnet_str + '\n')
 
+    def prepare_test_set_gt(self, current_state, linecount, state_ind):
+        f_drone_pos_str = ""
+        flattened_transformation_matrix = np.reshape(current_state.drone_transformation_matrix.numpy(), (16, ))
+        for i in range (16):
+            f_drone_pos_str += str(float(flattened_transformation_matrix[i])) + '\t'
+
+        self.f_drone_pos.write(str(linecount)+ '\t' + str(state_ind) + '\t' + f_drone_pos_str + '\n')
 
     def record_gt_pose(self, gt_3d_pose, linecount):
         f_groundtruth_str = ""
