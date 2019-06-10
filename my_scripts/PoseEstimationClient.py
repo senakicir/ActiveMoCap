@@ -135,7 +135,7 @@ class PoseEstimationClient(object):
 
         if self.loop_mode == "teleport":
             self.save_errors_after = self.ONLINE_WINDOW_SIZE
-        elif self.loop_mode == "normal":
+        elif self.loop_mode == "normal" or self.loop_mode == "normal_teleport":
             self.save_errors_after = self.CALIBRATION_LENGTH
 
 

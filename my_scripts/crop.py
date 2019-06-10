@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 from math import ceil
 from square_bounding_box import *
 from helpers import numpy_to_tuples
@@ -12,7 +13,7 @@ class Crop (object):
         bbox_init = [0,0,size_x,size_y]
         self.old_bbox = bbox_init
         self.bbox = bbox_init
-        self.image_bounds = np.array([0,0])
+        self.image_bounds = torch.zeros([2,])
         self.scales= [1]
         self.bounding_box_calculator = BoundingBox(3)
         self.bounding_box_margin = 3
@@ -123,10 +124,11 @@ class Crop (object):
         return pose_2d
     
 class SimpleCrop (Crop):
-    def __init__(self, pose_2d):
-        Crop.__init__(self)
+    def __init__(self, pose_2d, size_x, size_y):
+        Crop.__init__(self, size_x, size_y)
         self.bounding_box_calculator = BoundingBox(margin=0.5)
         self.bbox = self.bounding_box_calculator.get_bounding_box(pose_2d)     
         global crop_alpha
         crop_alpha = 1
         self.unstable = False
+        self.scales = [0.5, 0.75, 1]

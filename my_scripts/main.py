@@ -16,8 +16,8 @@ if __name__ == "__main__":
     elif (simulation_mode == "saved_simulation"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
 
-    #loop_mode = 0-normal, 1-openpose, 2-teleport, 3-create_dataset
-    loop_mode = "normal"
+    #loop_mode = 0-normal, normal_teleport, 1-openpose, 2-teleport, 3-create_dataset
+    loop_mode = "normal_teleport"
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part = "whole"
     #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig 5-root_six
@@ -29,11 +29,13 @@ if __name__ == "__main__":
     delta_t = 0.1
     upper_lim = -3
     lower_lim = -0.5 #-2.5
-    top_speed = 2
-    UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
-
+    top_speed = 2.5
     go_distance = 3
-    LOOKAHEAD_LIST = [6]#[0.5]
+    if loop_mode == "normal_teleport":
+        go_distance = 0.5
+
+    UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
+    LOOKAHEAD_LIST = [1]#[6]#[0.5]
     ftol = 1e-3
 
     is_quiet = False
@@ -42,7 +44,7 @@ if __name__ == "__main__":
     calibration_length = 30
     calibration_window_size = 20
     precalibration_length = 10
-    length_of_simulation = 90
+    length_of_simulation = 120
     
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
     init_pose_mode = "backproj"
@@ -97,7 +99,7 @@ if __name__ == "__main__":
 
     param_find_M = False
 
-    ANIMATIONS = ["02_01", "05_08", "38_03"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01", "05_08", "38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -106,7 +108,7 @@ if __name__ == "__main__":
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #active_sampling = "ellipse", "uniform"
 
-    active_sampling_mode = "ellipse"
+    active_sampling_mode = "uniform"
 
 
     active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, 
@@ -117,7 +119,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["constant_rotation"]
+    TRAJECTORY_LIST = [ "constant_angle"]
     ablation_study = False
     grid_search = False
     
@@ -140,12 +142,14 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0.33}
+        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
+        #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:
             weights_future['proj'] = smooth_weights[experiment_ind]
             weights['proj'] =  smooth_weights[experiment_ind]
         if ablation_study:
+            weights_future["bone"]=0.33
             if experiment_ind == 0:
                 weights_future["proj"]=0
             elif experiment_ind == 1:

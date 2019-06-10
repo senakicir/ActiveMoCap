@@ -24,21 +24,22 @@ if __name__ == "__main__":
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
-    SEED_LIST = [41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
+    SEED_LIST = [41]#, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
+    delta_t = 0.1
     upper_lim = -5
     lower_lim = -0.5 #-2.5
     UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
     LOOKAHEAD_LIST = [0.5]
     go_distance = 3
-    top_speed = 3
+    top_speed = 2.5
     ftol = 1e-3
 
-    is_quiet = True
+    is_quiet = False
     
     online_window_size = 3
     calibration_length = 0
-    calibration_window_size =3
+    calibration_window_size = 3
     precalibration_length = 0
     length_of_simulation = 60
     
@@ -46,7 +47,7 @@ if __name__ == "__main__":
     init_pose_mode = "backproj"
 
     find_best_traj = False
-    num_of_noise_trials = 5
+    num_of_noise_trials = 8
 
     noise_2d_std = 3
     noise_lift_std = 0.05
@@ -70,9 +71,9 @@ if __name__ == "__main__":
     #projection_method: "scaled, normal, normalized"
     projection_method = "normalized" 
     if projection_method == "normal" or projection_method == "normalized":
-        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.33, 'lift': 0.333}
     elif projection_method == "scaled":
-        weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
+        weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.33, 'lift': 0.25}
 
     #modes: 0- "constant", "adaptive"
     reconstruction_energy = "constant"
@@ -94,7 +95,7 @@ if __name__ == "__main__":
 
     param_find_M = False
 
-    ANIMATIONS = ["02_01", "05_08", "38_03"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -103,28 +104,29 @@ if __name__ == "__main__":
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #active_sampling = "ellipse", "uniform"
 
-    active_sampling_mode = "uniform"
+    active_sampling_mode = "ellipse"
 
 
     active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, 
                         "MINMAX":minmax, "THETA_LIST":theta_list, "PHI_LIST":phi_list, "POSITION_GRID":position_grid, 
                         "GO_DISTANCE":go_distance, "UPPER_LIM":upper_lim, "LOWER_LIM":lower_lim, "ACTIVE_SAMPLING_MODE":active_sampling_mode,
-                        "TOP_SPEED": top_speed}
+                        "TOP_SPEED": top_speed, "DELTA_T": delta_t}
     Z_POS_LIST = [-2.5]#, -4, -5, -6]
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["random", "go_to_best"]
+    TRAJECTORY_LIST = ["constant_rotation"]
     
     ablation_study = False
     grid_search = False
     
     if ablation_study:
-        num_of_experiments = 4
+        num_of_experiments = 2
         is_quiet = True
         TRAJECTORY_LIST = ["active"]
+        #change trajectory list ind to 0 
     elif grid_search:
-        num_of_experiments = 8
+        num_of_experiments = 3
         smooth_weights = torch.logspace(-4,-1,num_of_experiments)
         is_quiet = True
         TRAJECTORY_LIST = ["constant_rotation"]
@@ -138,7 +140,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0.33}
+        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
         #weights_future =  {'proj':0.0003333, 'smooth': 0, 'bone': 0, 'lift': 0.33}
 
 
@@ -146,14 +148,12 @@ if __name__ == "__main__":
             weights_future['proj'] = smooth_weights[experiment_ind]
             weights['proj'] =  smooth_weights[experiment_ind]
         if ablation_study:
+            weights_future["bone"]=0.33
             if experiment_ind == 0:
-                weights_future["proj"]=0
-            elif experiment_ind == 1:
                 weights_future["smooth"]=0
-            elif experiment_ind == 2:
-                weights_future["bone"]=0
-            elif experiment_ind == 3:
+            elif experiment_ind == 1:
                 weights_future["lift"]=0
+           
             
 
         energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ONLINE_WINDOW_SIZE": online_window_size, 
@@ -172,7 +172,7 @@ if __name__ == "__main__":
         active_parameters["Z_POS"] = Z_POS_LIST[0]
         active_parameters["LOOKAHEAD"] = LOOKAHEAD_LIST[0]
 
-        active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[experiment_ind]
+        active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[0]
 
         fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
 
