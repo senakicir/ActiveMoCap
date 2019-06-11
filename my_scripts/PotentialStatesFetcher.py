@@ -163,6 +163,8 @@ class PotentialStatesFetcher(object):
         side_vec = np.cross(unit_z, new_drone_vec) 
         up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
         side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
+        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
 
         use_keys =  key_indices.copy()
         use_weights = key_weights.copy()
@@ -197,15 +199,19 @@ class PotentialStatesFetcher(object):
             [weight_side, weight_up] = use_weights[key]
 
             pos = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm*weight_up + side_vec_norm*weight_side)
-            
+            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up + side_vec_norm_go*weight_side)
+
             potential_drone_vec = pos-self.future_human_pos[:, self.hip_index]
             norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
             norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
 
+            #movement_vec = (norm_pos - current_drone_pos)
+            #movement_vec_amp = self.go_distance*movement_vec/np.linalg.norm(movement_vec)
+            #go_pos = current_drone_pos+movement_vec_amp
 
-            movement_vec = (norm_pos - current_drone_pos)
-            movement_vec_amp = self.go_distance*movement_vec/np.linalg.norm(movement_vec)
-            go_pos = current_drone_pos+movement_vec_amp
+            potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
+            norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
+            go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
 
             if key == "c" or key == "l" or key == "r":
                 go_pos[2] = current_drone_pos[2]
@@ -245,6 +251,10 @@ class PotentialStatesFetcher(object):
 
         up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
         side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
+        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
+        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
+
+
 
         use_keys =  key_indices.copy()
         use_weights = key_weights.copy()
@@ -356,15 +366,22 @@ class PotentialStatesFetcher(object):
             [weight_side, weight_up] = use_weights[key]
 
             pos = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm*weight_up + side_vec_norm*weight_side)
-            
+            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up + side_vec_norm_go*weight_side)
+
+
             potential_drone_vec = pos-self.future_human_pos[:, self.hip_index]
             norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
             norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
 
 
-            movement_vec = (norm_pos - current_drone_pos)
-            movement_vec_amp = self.go_distance*movement_vec/np.linalg.norm(movement_vec)
-            go_pos = current_drone_pos+movement_vec_amp
+            #movement_vec = (norm_pos - current_drone_pos)
+            #movement_vec_amp = self.go_distance*movement_vec/np.linalg.norm(movement_vec)
+            #go_pos = current_drone_pos+movement_vec_amp
+                        
+            potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
+            norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
+            go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
+
 
             if key == "c" or key == "l" or key == "r":
                 go_pos[2] = current_drone_pos[2]

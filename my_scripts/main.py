@@ -24,18 +24,19 @@ if __name__ == "__main__":
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
-    SEED_LIST = [41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
+    SEED_LIST = [2, 12, 1995]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
     delta_t = 0.1
     upper_lim = -3
     lower_lim = -0.5 #-2.5
-    top_speed = 2.5
-    go_distance = 3
+    top_speed = 1.5
+    go_distance = 2
+    LOOKAHEAD_LIST = [0.5]
     if loop_mode == "normal_teleport":
         go_distance = 0.5
+        LOOKAHEAD_LIST = [0.5]#[6]#[0.5]
 
     UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
-    LOOKAHEAD_LIST = [1]#[6]#[0.5]
     ftol = 1e-3
 
     is_quiet = False
@@ -99,7 +100,7 @@ if __name__ == "__main__":
 
     param_find_M = False
 
-    ANIMATIONS = ["02_01", "05_08", "38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["38_03"]# ["02_01","38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -119,7 +120,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = [ "constant_angle"]
+    TRAJECTORY_LIST = [ "active"]#, "constant_angle"]
     ablation_study = False
     grid_search = False
     

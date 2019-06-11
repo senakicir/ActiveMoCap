@@ -1285,7 +1285,7 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
         for state_ind, cov in enumerate(covs):
             shaped_cov = shape_cov(cov, hip_index, num_of_joints, 0)
             _, s, _ = np.linalg.svd(shaped_cov)
-            radii = 5*np.sqrt(s)
+            radii = 3*np.sqrt(s)
             radii_list[state_ind, :] = radii[0:3]
         global max_radii
         max_radii = np.max(radii_list)

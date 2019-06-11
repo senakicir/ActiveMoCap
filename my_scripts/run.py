@@ -470,7 +470,6 @@ def set_position(goal_state, airsim_client, current_state, pose_client, loop_mod
 
 
     elif loop_mode == "normal":
-
         #if (airsim_client.linecount < 5):
         #drone_speed = TOP_SPEED * airsim_client.linecount/5
         unpause_function(airsim_client, pose_client)

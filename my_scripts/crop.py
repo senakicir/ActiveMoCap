@@ -16,7 +16,7 @@ class Crop (object):
         self.image_bounds = torch.zeros([2,])
         self.scales= [1]
         self.bounding_box_calculator = BoundingBox(3)
-        self.bounding_box_margin = 3
+        self.bounding_box_margin = 3.5
         self.unstable = True
         self.size_x = size_x
         self.size_y = size_y

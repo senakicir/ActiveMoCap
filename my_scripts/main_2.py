@@ -37,9 +37,9 @@ if __name__ == "__main__":
 
     is_quiet = False
     
-    online_window_size = 3
+    online_window_size = 6
     calibration_length = 0
-    calibration_window_size = 3
+    calibration_window_size = 6
     precalibration_length = 0
     length_of_simulation = 60
     
@@ -87,7 +87,7 @@ if __name__ == "__main__":
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
     #bone_len: 0-gt, 1- calib_res
-    modes = {"mode_3d":"scipy", "mode_2d":"openpose", "mode_lift":"lift", "bone_len": "calib_res"}
+    modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt_with_noise", "bone_len": "calib_res"}
 
     param_read_M = False
     if modes["mode_2d"] == "openpose":
@@ -95,7 +95,7 @@ if __name__ == "__main__":
 
     param_find_M = False
 
-    ANIMATIONS = ["drone_flight"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["constant_rotation"]
+    TRAJECTORY_LIST = ["active"]
     
     ablation_study = False
     grid_search = False
