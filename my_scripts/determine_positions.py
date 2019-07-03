@@ -15,8 +15,8 @@ from PoseEstimationClient import PoseEstimationClient
 from Lift_Client import calculate_bone_directions, calculate_bone_directions_simple, scale_with_bone_lengths
 from crop import SimpleCrop
 
-import openpose as openpose_module
-import liftnet as liftnet_module
+#import openpose as openpose_module
+#import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -39,8 +39,9 @@ def determine_positions(linecount, pose_client, current_state, plot_loc, photo_l
 
 def determine_2d_positions(pose_client, current_state, return_heatmaps=True, input_image = 0, linecount=0):    
     if (pose_client.modes["mode_2d"] != "openpose"):
-        cropped_image, _ = pose_client.cropping_tool.crop(input_image, linecount)
-        bone_2d_gt, heatmaps = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=cropped_image, cropping_tool=pose_client.cropping_tool, return_heatmaps=(pose_client.modes["mode_lift"]=="lift"))
+        if pose_client.cropping_tool != None:
+            input_image, _ = pose_client.cropping_tool.crop(input_image, linecount)
+        bone_2d_gt, heatmaps = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=input_image, cropping_tool=pose_client.cropping_tool, return_heatmaps=(pose_client.modes["mode_lift"]=="lift"))
         bone_2d = bone_2d_gt.clone()
         if (pose_client.modes["mode_2d"] == "gt_with_noise"):
             noise_std= pose_client.NOISE_2D_STD
@@ -49,13 +50,14 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, inp
         if pose_client.animation == "drone_flight":
             cropped_pose_2d, heatmap_2d, _, _ = find_2d_pose_openpose(input_image, scales=[0.5,0.75,1])
             pose_client.cropping_tool = SimpleCrop(numpy_to_tuples(cropped_pose_2d), pose_client.SIZE_X, pose_client.SIZE_Y)
-            cropped_image = pose_client.cropping_tool.crop_function(input_image)
-            bone_2d, heatmaps, _, _ = find_2d_pose_openpose(cropped_image, scales=pose_client.cropping_tool.scales)
-            bone_2d_gt, _ = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=cropped_image, cropping_tool=pose_client.cropping_tool.copy_cropping_tool(), return_heatmaps=False)
+            input_image = pose_client.cropping_tool.crop_function(input_image)
+            bone_2d, heatmaps, _, _ = find_2d_pose_openpose(input_image, scales=pose_client.cropping_tool.scales)
+            bone_2d_gt, _ = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=input_image, cropping_tool=pose_client.cropping_tool.copy_cropping_tool(), return_heatmaps=False)
 
         else:
-            cropped_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
-            bone_2d, heatmaps, _, _ = find_2d_pose_openpose(cropped_image,  scales)
+            if pose_client.cropping_tool != None:
+                input_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
+            bone_2d, heatmaps, _, _ = find_2d_pose_openpose(input_image,  scales)
             bone_2d_gt, _ = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=input_image, cropping_tool=pose_client.cropping_tool.copy_cropping_tool(), return_heatmaps=(pose_client.modes["mode_lift"]=="lift"))
 
     pose_client.openpose_error = np.mean(np.linalg.norm(bone_2d_gt-bone_2d, axis=0))
@@ -64,7 +66,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, inp
         leg_joints, _, _ = return_leg_joints()
         pose_client.openpose_arm_error = np.mean(np.linalg.norm(bone_2d_gt[:, arm_joints]-bone_2d[:, arm_joints], axis=0))
         pose_client.openpose_leg_error = np.mean(np.linalg.norm(bone_2d_gt[:, leg_joints]-bone_2d[:, leg_joints], axis=0))
-    return bone_2d.clone(), bone_2d_gt.clone(), heatmaps, cropped_image
+    return bone_2d.clone(), bone_2d_gt.clone(), heatmaps, input_image
 
 def find_2d_pose_gt(projection_client, current_state, input_image, cropping_tool, return_heatmaps=True):
     bone_pos_3d_GT, inv_transformation_matrix, _ = current_state.get_frame_parameters()
@@ -214,6 +216,7 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, p
         else:
             pose3d_init = pose_client.optimized_poses.copy()
             pose3d_init = np.reshape(a = pose3d_init, newshape = [result_size,], order = "C")
+
         objective = objective_online
         objective_jacobian = objective_online.jacobian
 

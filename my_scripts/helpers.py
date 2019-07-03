@@ -554,7 +554,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
             plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
         for i, bone in enumerate(middle_bone_connections):
             ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^')
-        ax.legend(handles=[plot1, plot1_r, plot2, plot2_r])
+        ax.legend(handles=[plot1, plot1_r, plot2, plot2_r], loc='upper right')
     else:
         plot1, = ax.plot(bones_GT[0,:], bones_GT[1,:], multip*bones_GT[2,:], c='xkcd:royal blue', marker='^')
         plot2, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], multip*predicted_bones[2,:], c='xkcd:blood red', marker='^')
@@ -564,15 +564,16 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
+    
+    if (additional_text != None):
+        ax.text2D(0, 0.38, "mean error: %.4f" %additional_text, transform=ax.transAxes)
+    #if (error != -1):
+        #ax.text2D(0, 0.3, "error: %.4f" %error, transform=ax.transAxes)
+       # if (additional_text != None):
+          #  ax.text2D(0, 0.35, "running ave error: %.4f" %additional_text, transform=ax.transAxes)
 
-
-    if (error != -1):
-        ax.text2D(0, 0.3, "error: %.4f" %error, transform=ax.transAxes)
-        if (additional_text != None):
-            ax.text2D(0, 0.35, "running ave error: %.4f" %additional_text, transform=ax.transAxes)
-
-    plt.title("3D Human Pose")
-    plot_3d_pos_loc = location + name + str(ind) + '.pdf'
+   # plt.title("3D Human Pose")
+    plot_3d_pos_loc = location + name + str(ind) + '.png'
     plt.savefig(plot_3d_pos_loc)
     plt.close()
 
@@ -580,11 +581,11 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
 def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     if (pose_client.isCalibratingEnergy):
         plot_info = pose_client.calib_res_list
-        file_name = plot_loc + '/drone_traj_'+ str(ind) + '.pdf'
+        file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
     else:
         plot_info = pose_client.online_res_list
-        file_name = plot_loc + '/drone_traj_'+ str(ind) + '.pdf'
-    file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.pdf'
+        file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
+    file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.png'
     
     bone_connections, _, _, _ = pose_client.model_settings()
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
@@ -626,7 +627,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     # for i, bone in enumerate(left_bone_connections):
     #     plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
     # for i, bone in enumerate(right_bone_connections):
-    #     plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+    #     plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="estimate right")
     # for i, bone in enumerate(middle_bone_connections):
     #     ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
 
@@ -727,7 +728,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
         for i, bone in enumerate(left_bone_connections):
             plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
         for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', label="estimate right")
         for i, bone in enumerate(middle_bone_connections):
             ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red')
         #ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
@@ -839,7 +840,7 @@ def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
 
 def matrix_to_ellipse(matrix, center):
     _, s, rotation = np.linalg.svd(matrix)
-    radii = 3*np.sqrt(s)/max_radii
+    radii = 0.3*s/max_radii
 
     # now carry on with EOL's answer
     u = np.linspace(0.0, 2.0 * np.pi, 100)
@@ -927,7 +928,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     for i, bone in enumerate(left_bone_connections):
         plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:light red', label="estimate left")
     for i, bone in enumerate(right_bone_connections):
-        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="right left")
+        plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red', label="estimate right")
     for i, bone in enumerate(middle_bone_connections):
         ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], -predicted_bones[2,bone], c='xkcd:blood red')
 
@@ -950,7 +951,7 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     center[2]= -center[2]
     x,y,z = matrix_to_ellipse(pose_client.measurement_cov, center)
     ax.plot_wireframe(x, y, z,  rstride=4, cstride=4, color='b', alpha=0.2)
-    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
+    ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd], loc='upper right')
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.45
     mid_x = (X.max()+X.min()) * 0.5
@@ -1139,7 +1140,77 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_co
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
 
-def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_std, plot_future, plot_log=True, custom_name=None):
+def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, custom_name=None):
+    if custom_name == None:
+        name = '/potential_errors_'
+    else: 
+        name = '/'+custom_name
+    hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
+    current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
+    
+    potential_states = potential_states_fetcher.potential_states_try
+    middle_error_list = potential_states_fetcher.middle_error_mean_list
+
+    fig = plt.figure(figsize=(4,4))
+  
+    cmap = cm.cool
+
+    norm = colors.Normalize(vmin=(np.min(middle_error_list)), vmax=(np.max(middle_error_list)))
+    ax = fig.add_subplot(111, projection='3d')
+
+    #for ax limits
+    X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
+    Y = np.array([current_human_pos[1], future_human_pos[1], gt_human_pos[1]])
+    Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
+
+    #plot ellipses
+    for state_ind, potential_state in enumerate(potential_states):
+        state_pos =  potential_state.position
+        center = np.copy(state_pos)
+        center[2] = -center[2]
+
+        X = np.concatenate([X, np.array([center[0]])])
+        Y = np.concatenate([Y, np.array([center[1]])])
+        Z = np.concatenate([Z, np.array([center[2]])])
+
+        markersize=30
+        text_color="b"
+        if (state_ind == potential_states_fetcher.goal_state_ind):
+            markersize=100
+            text_color="r"
+ 
+        plot5=ax.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[middle_error_list[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
+        #point_text = '{0:d}:{1:.3f}'.format(state_ind, middle_error_list[state_ind])
+        #ax.text(center[0], center[1], center[2], point_text, color=text_color, fontsize=10)
+
+        if state_ind == 0:
+            plt.colorbar(plot5, ax=ax)#, shrink = 0.8)    
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title("Average Error")
+    plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
+    plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
+
+    file_name = plot_loc + name + str(linecount) + ".pdf"
+    file_name2 = plot_loc + name + str(linecount) + ".png"
+    plt.savefig(file_name)
+    plt.savefig(file_name2)
+    plt.close(fig)
+
+
+def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, linecount, plot_std, plot_future, plot_log=False, custom_name=None):
     if custom_name == None:
         name = '/potential_errors_'
     else: 
@@ -1160,7 +1231,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
 
     if not plot_std and not plot_future:
         fig_size=(6,8)
-        titles = ["Overall Uncertainty", "Overall Error Mean"]
+        titles = ["Uncertainties", "Average Error"]
         lists = [uncertainty_list_whole, overall_error_list]
         num_of_rows, num_of_col = 2, 1
     elif not plot_std and plot_future:
@@ -1215,6 +1286,8 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
             if plot_log:
                 a_list = np.log(a_list)
             plot5=axes[list_ind].scatter([center[0]], [center[1]], [center[2]], marker='^', c=[a_list[state_ind]], cmap=cmap, norm=norms[list_ind], s=markersize, alpha=1)
+            point_text = '{0:d}:{1:.3f}'.format(state_ind, a_list[state_ind])
+
             if state_ind == 0:
                 plt.colorbar(plot5, ax=axes[list_ind])#, shrink = 0.8)    
 
@@ -1231,10 +1304,10 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, plot_st
         ax.set_ylabel('Y')
         ax.set_zlabel('Z')
         ax.set_title(titles[ind])
-        plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
-        plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
+        plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="Estimate")
+        plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT")
 
-    file_name = plot_loc + name + str(linecount) + ".pdf"
+    file_name = plot_loc + name + str(linecount) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
 
@@ -1280,15 +1353,15 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
         centers.append(center)
         state_inds.append(potential_state.index)
     
-    if ind < calibration_length + 3:
-        radii_list = np.zeros([len(covs), 3])
-        for state_ind, cov in enumerate(covs):
-            shaped_cov = shape_cov(cov, hip_index, num_of_joints, 0)
-            _, s, _ = np.linalg.svd(shaped_cov)
-            radii = 3*np.sqrt(s)
-            radii_list[state_ind, :] = radii[0:3]
-        global max_radii
-        max_radii = np.max(radii_list)
+   # if ind < calibration_length + 3:
+     #   radii_list = np.zeros([len(covs), 3])
+      #  for state_ind, cov in enumerate(covs):
+       #     shaped_cov = shape_cov(cov, hip_index, num_of_joints, 0)
+       #     _, s, _ = np.linalg.svd(shaped_cov)
+        #    radii = 0.2*s
+        #    radii_list[state_ind, :] = radii[0:3]
+        #global max_radii
+       # max_radii = np.max(radii_list)
 
     for center_ind, center in enumerate(centers):
         state_ind = state_inds[center_ind]
@@ -1313,7 +1386,7 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
                 ax.plot([center[0]], [center[1]], [center[2]], marker='^', c=text_color, markersize=markersize)
                 ax.text(center[0], center[1], center[2], str(state_ind))
                 if top_down:
-                    ax_top_down.text(center[0], center[1], str(state_ind))
+                        ax_top_down.text(center[0], center[1], str(state_ind))
 
 
         X = np.concatenate([X, np.array([center[0]])])
@@ -1342,7 +1415,7 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
 
     #ax.legend(handles=[plot1, plot2, plot3])
 
-    file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".pdf"
+    file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
 

@@ -36,10 +36,11 @@ if __name__ == "__main__":
     ftol = 1e-3
 
     is_quiet = False
-    
-    online_window_size = 6
+
+    estimation_window_size = 2
+    future_window_size = 1
     calibration_length = 0
-    calibration_window_size = 6
+    calibration_window_size = 3
     precalibration_length = 0
     length_of_simulation = 60
     
@@ -47,7 +48,7 @@ if __name__ == "__main__":
     init_pose_mode = "backproj"
 
     find_best_traj = False
-    num_of_noise_trials = 8
+    num_of_noise_trials = 5
 
     noise_2d_std = 3
     noise_lift_std = 0.05
@@ -91,11 +92,11 @@ if __name__ == "__main__":
 
     param_read_M = False
     if modes["mode_2d"] == "openpose":
-        param_read_M = True
+        param_read_M = False
 
     param_find_M = False
 
-    ANIMATIONS = ["02_01"]#["02_01"]#, "05_08", "38_03", "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -104,7 +105,7 @@ if __name__ == "__main__":
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #active_sampling = "ellipse", "uniform"
 
-    active_sampling_mode = "ellipse"
+    active_sampling_mode = "uniform"
 
 
     active_parameters ={"HESSIAN_PART":hessian_part, "UNCERTAINTY_CALC_METHOD":uncertainty_calc_method, 
@@ -140,9 +141,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
-        #weights_future =  {'proj':0.0003333, 'smooth': 0, 'bone': 0, 'lift': 0.33}
-
+        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0}
 
         if grid_search:
             weights_future['proj'] = smooth_weights[experiment_ind]
@@ -156,9 +155,10 @@ if __name__ == "__main__":
            
             
 
-        energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ONLINE_WINDOW_SIZE": online_window_size, 
-                            "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, 
-                            "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, 
+        energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ESTIMATION_WINDOW_SIZE": estimation_window_size, 
+                            "FUTURE_WINDOW_SIZE": future_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, 
+                            "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, 
+                            "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, 
                             "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": ftol, "WEIGHTS": weights,
                             "INIT_POSE_MODE": init_pose_mode, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, 
                             "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis,

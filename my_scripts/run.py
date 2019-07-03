@@ -314,15 +314,18 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
             torch_seed_state = torch.get_rng_state()
             np_seed_state = np.random.get_state()
             for state_ind in range(0, len(potential_states_fetcher.potential_states_try)):
+                #if potential_states_fetcher.trajectory == "go_to_best":
+                    #torch.set_rng_state(torch_seed_state)
+                   # np.random.set_state(np_seed_state)
                 goal_state = potential_states_fetcher.potential_states_try[state_ind]
                 for trial_ind in range(potential_error_finder.num_of_noise_trials):
                     pose_client_copy = pose_client.deepcopy_PEC(trial_ind)
                     state_copy = current_state.deepcopy_state()
 
                     set_position(goal_state, airsim_client, state_copy, pose_client_copy, loop_mode="teleport")
-                    take_photo(airsim_client, pose_client_copy, state_copy, file_manager, state_ind)
+                    take_photo(airsim_client, pose_client_copy, state_copy, file_manager, state_ind)           
+                    determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager.plot_loc, file_manager.get_photo_loc()) 
 
-                    determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager.plot_loc, file_manager.get_photo_loc())
                     potential_error_finder.append_error(trial_ind, pose_client_copy.adjusted_optimized_poses, 
                                                         pose_client_copy.poses_3d_gt, pose_client_copy.CURRENT_POSE_INDEX, pose_client_copy.MIDDLE_POSE_INDEX)
                 file_manager.write_error_values(potential_error_finder.frame_overall_error_list, airsim_client.linecount)
@@ -355,6 +358,7 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
                 goal_state = potential_states_fetcher.find_random_next_state()    
             elif potential_states_fetcher.trajectory == "go_to_best":
                 best_index = np.argmin(potential_states_fetcher.middle_error_mean_list)
+                print("best index is", best_index)
                 goal_state = potential_states_fetcher.choose_state(best_index)   
             elif potential_states_fetcher.trajectory == "go_to_worst":
                 worst_index = np.argmax(potential_states_fetcher.middle_error_mean_list)
@@ -362,9 +366,10 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
 
             file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_list_whole, airsim_client.linecount)
         
-        #if airsim_client.linecount > pose_client.ONLINE_WINDOW_SIZE and potential_error_finder.find_best_traj:
-        #    potential_error_finder.find_average_error_over_trials(goal_state.index)
-        #    file_manager.write_average_error_over_trials(airsim_client.linecount, potential_error_finder)
+        if airsim_client.linecount > pose_client.ONLINE_WINDOW_SIZE and potential_error_finder.find_best_traj:
+            potential_error_finder.find_average_error_over_trials(goal_state.index)
+            file_manager.write_average_error_over_trials(airsim_client.linecount, potential_error_finder)
+            #plot_potential_errors(potential_states_fetcher, file_manager.plot_loc, airsim_client.linecount, custom_name=None)
 
         start3 = time.time()
         #set_position(goal_state, airsim_client, current_state, loop_mode=loop_mode)
@@ -372,8 +377,9 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
 
         take_photo(airsim_client, pose_client, current_state, file_manager, goal_state.index)
         #pose_client_sim.adjust_3d_pose(current_state, pose_client)
-
+        
         determine_positions(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
+        
         end3 = time.time()
         print("Finding pose at chosen loc took", end3-start3)
 

@@ -38,6 +38,8 @@ class Potential_Error_Finder(object):
         self.frame_overall_error_list[trial_ind]  = np.mean(np.mean(np.linalg.norm(adjusted_optimized_poses[1:,:,:] - poses_3d_gt, axis=1), axis=1))
         self.frame_current_error_list[trial_ind]  = np.mean(np.linalg.norm(adjusted_optimized_poses[CURRENT_POSE_INDEX,:,:] - poses_3d_gt[CURRENT_POSE_INDEX-1,:,:], axis=0)) 
         self.frame_middle_error_list[trial_ind] =  np.mean(np.linalg.norm(adjusted_optimized_poses[MIDDLE_POSE_INDEX,:,:] - poses_3d_gt[MIDDLE_POSE_INDEX-1,:,:], axis=0)) 
+       # print("error", trial_ind,":", self.frame_middle_error_list[trial_ind])
+
 
     def record_noise_experiment_statistics(self, psf, state_ind):
         psf.overall_error_mean_list[state_ind],  psf.overall_error_std_list[state_ind] = np.mean(self.frame_overall_error_list), np.std(self.frame_overall_error_list)

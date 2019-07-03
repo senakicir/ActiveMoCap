@@ -24,11 +24,8 @@ def read_transformation_matrix(f_drone_pos, test_set):
             transformation_matrix_tensor[linecount, samplecount, :, :] = torch.from_numpy(np.reshape(transformation_matrix[ind, :], (4,4))).float()
             inv_transformation_matrix_tensor[linecount, samplecount, :, :] = torch.inverse(transformation_matrix_tensor[linecount, samplecount, :,:] )
             ind += 1
-  
-    num_of_samples = 18
-    transformation_matrix_tensor = transformation_matrix_tensor[:,:num_of_samples,:,:]
-    inv_transformation_matrix_tensor = inv_transformation_matrix_tensor[:,:num_of_samples,:,:]
-    return num_of_files, num_of_samples, transformation_matrix_tensor, inv_transformation_matrix_tensor
+
+    return num_of_files, num_of_samples//2, transformation_matrix_tensor[:, 0:num_of_samples//2, :, :], inv_transformation_matrix_tensor[:, 0:num_of_samples//2, :, :]
 
 def read_pose_from_file(input_file, dim, num_of_joints):
     whole_file = pd.read_csv(input_file, sep='\t', header=None).values[:,1:-1].astype('float')

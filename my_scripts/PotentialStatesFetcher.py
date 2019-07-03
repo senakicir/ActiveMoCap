@@ -1,4 +1,4 @@
-from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors
+from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_online
@@ -721,8 +721,8 @@ class PotentialStatesFetcher(object):
             plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 
             if plot_potential_errors_bool:
-                plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")
-                plot_potential_errors(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=False)
+                plot_potential_errors_and_uncertainties(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")
+                plot_potential_errors_and_uncertainties(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=False)
             #self.plot_projections(linecount, plot_loc)
 
     def plot_projections(self, linecount, plot_loc):

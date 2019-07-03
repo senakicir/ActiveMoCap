@@ -75,7 +75,7 @@ class pose3d_calibration_parallel_wrapper():
         data_list = pose_client.requiredEstimationData
 
         projection_client = pose_client.projection_client
-        projection_client.reset(data_list, pose_client.simulate_error_mode, pose_client.NOISE_2D_STD)
+        projection_client.reset(data_list, pose_client.NOISE_2D_STD)
 
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
@@ -114,10 +114,10 @@ class pose3d_online_parallel_wrapper():
     def reset(self, pose_client):
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
-        projection_client.reset(data_list, pose_client.simulate_error_mode, pose_client.NOISE_2D_STD)
+        projection_client.reset(data_list, pose_client.NOISE_2D_STD)
         lift_client = pose_client.lift_client
         if pose_client.USE_LIFT_TERM:
-            lift_client.reset(pose_client.lift_pose_tensor, pose_client.poses_3d_gt, pose_client.simulate_error_mode, pose_client.NOISE_LIFT_STD)
+            lift_client.reset(pose_client.lift_pose_tensor, pose_client.poses_3d_gt, pose_client.NOISE_LIFT_STD)
 
         if pose_client.USE_TRAJECTORY_BASIS:
             self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel_traj(pose_client, projection_client, lift_client, future_proj=False)

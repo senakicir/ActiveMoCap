@@ -24,7 +24,7 @@ if __name__ == "__main__":
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
-    SEED_LIST = [2, 12, 1995]#, 100, 150, 200, 190, 0]
+    SEED_LIST = [12]# 41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
     delta_t = 0.1
     upper_lim = -3
@@ -33,15 +33,17 @@ if __name__ == "__main__":
     go_distance = 2
     LOOKAHEAD_LIST = [0.5]
     if loop_mode == "normal_teleport":
-        go_distance = 0.5
-        LOOKAHEAD_LIST = [0.5]#[6]#[0.5]
+        go_distance = 3#0.5
+        LOOKAHEAD_LIST = [3]#[0.5]#[6]#[0.5]
 
     UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
     ftol = 1e-3
 
     is_quiet = False
     
-    online_window_size = 6
+    estimation_window_size = 5
+    future_window_size = 1
+
     calibration_length = 30
     calibration_window_size = 20
     precalibration_length = 10
@@ -75,7 +77,7 @@ if __name__ == "__main__":
     #projection_method: "scaled, normal, normalized"
     projection_method = "normalized" 
     if projection_method == "normal" or projection_method == "normalized":
-        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0}
     elif projection_method == "scaled":
         weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
 
@@ -96,11 +98,11 @@ if __name__ == "__main__":
 
     param_read_M = False
     if modes["mode_2d"] == "openpose":
-        param_read_M = True
+        param_read_M = False
 
     param_find_M = False
 
-    ANIMATIONS = ["38_03"]# ["02_01","38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01"]#["64_11"]# ["02_01","38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -143,7 +145,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
+        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0}
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:
@@ -161,9 +163,10 @@ if __name__ == "__main__":
                 weights_future["lift"]=0
             
 
-        energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ONLINE_WINDOW_SIZE": online_window_size, 
-                            "CALIBRATION_WINDOW_SIZE": calibration_window_size, "CALIBRATION_LENGTH": calibration_length, 
-                            "PRECALIBRATION_LENGTH": precalibration_length, "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, 
+        energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ESTIMATION_WINDOW_SIZE": estimation_window_size, 
+                            "FUTURE_WINDOW_SIZE": future_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, 
+                            "CALIBRATION_LENGTH": calibration_length, "PRECALIBRATION_LENGTH": precalibration_length, 
+                            "PARAM_FIND_M": param_find_M, "PARAM_READ_M": param_read_M, 
                             "QUIET": is_quiet, "MODES": modes, "MODEL": "mpi", "METHOD": "trf", "FTOL": ftol, "WEIGHTS": weights,
                             "INIT_POSE_MODE": init_pose_mode, "NOISE_2D_STD": noise_2d_std, "USE_SYMMETRY_TERM": use_symmetry_term, 
                             "USE_SINGLE_JOINT": use_single_joint, "SMOOTHNESS_MODE": smoothness_mode, "USE_TRAJECTORY_BASIS": use_trajectory_basis,

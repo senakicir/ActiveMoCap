@@ -11,7 +11,7 @@ from math import radians, cos, sin, acos
 from helpers import joint_names_mpi, bones_mpi
 from sklearn.cluster import KMeans
 import os
-
+import pdb
 
 THETA_LIST = list(range(270, 180, -20))
 PHI_LIST = list(range(0, 360, 20))
@@ -189,8 +189,10 @@ openpose_err = pd.read_csv("openpose_error.txt", sep='\t', skiprows=1, header=No
 error_values = openpose_err[:,(90-USE):90]
 pose_values = openpose_err[:,90:]
 
-arm_error_values = pd.read_csv("openpose_arm_error.txt", sep='\t', header=None).iloc[1:,(90-USE):-1].values.astype('float')                
-leg_error_values = pd.read_csv("openpose_leg_error.txt", sep='\t', header=None).iloc[1:,(90-USE):-1].values.astype('float')     
+pdb.set_trace()
+
+#arm_error_values = pd.read_csv("openpose_arm_error.txt", sep='\t', header=None).iloc[1:,(90-USE):-1].values.astype('float')                
+#leg_error_values = pd.read_csv("openpose_leg_error.txt", sep='\t', header=None).iloc[1:,(90-USE):-1].values.astype('float')     
 
 #find error mean, var
 mean_err = np.mean(error_values, axis=0)
@@ -246,13 +248,13 @@ display_pose_clusters(cluster_centers)
 labels = kmeans.labels_
 
 mean_err_cluster = np.zeros([num_of_clusters,USE])
-mean_err_arm_cluster = np.zeros([num_of_clusters,USE])
-mean_err_leg_cluster = np.zeros([num_of_clusters,USE])
+#mean_err_arm_cluster = np.zeros([num_of_clusters,USE])
+#mean_err_leg_cluster = np.zeros([num_of_clusters,USE])
 
 for clusters in range(num_of_clusters):
     mean_err_cluster[clusters, :] = np.mean(error_values[labels == clusters], axis=0)
-    mean_err_arm_cluster[clusters, :] = np.mean(arm_error_values[labels == clusters], axis=0)
-    mean_err_leg_cluster[clusters, :] = np.mean(leg_error_values[labels == clusters], axis=0)
+    #mean_err_arm_cluster[clusters, :] = np.mean(arm_error_values[labels == clusters], axis=0)
+    #mean_err_leg_cluster[clusters, :] = np.mean(leg_error_values[labels == clusters], axis=0)
 
 for clusters in range(num_of_clusters):
     drone_pos_arr = dome_experiment(cluster_centers[clusters, :, :])

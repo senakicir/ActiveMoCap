@@ -58,6 +58,7 @@ ffmpeg -framerate 1 -i 'potential_ellipses_False_%01d.png' -c:v libx264 -pix_fmt
 ffmpeg -framerate 1 -i 'potential_errors_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih:x=0:y=0:color=white" potential_errors.mp4
 
 
+ffmpeg -framerate 1 -start_number 30 -i 'potential_ellipses_True_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih:x=0:y=0:color=white" potential_ellipses_2.mp4
 ffmpeg -framerate 1 -i 'potential_ellipses_True_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih:x=0:y=0:color=white" potential_ellipses_2.mp4
 ffmpeg -framerate 2 -i 'drone_traj_2_%01d.png' -c:v libx264 -pix_fmt yuv420p -vf pad="width=iw:height=ih:x=0:y=0:color=white" drone_traj2.mp4
 

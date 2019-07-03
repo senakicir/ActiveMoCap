@@ -34,11 +34,7 @@ class Lift_Client(object):
     def deepcopy_lift_client(self):
         return Lift_Client()
 
-    def reset(self, lift_pose_tensor, bone_3d_pose_gt, simulate_error_mode, noise_lift_std):
-        #if simulate_error_mode:
-         #   temp = torch.from_numpy(bone_3d_pose_gt.copy()).float()
-         #   temp = add_noise_to_pose(temp, noise_lift_std)
-        #else:
+    def reset(self, lift_pose_tensor, bone_3d_pose_gt, noise_lift_std):
         self.pose3d_lift_directions = lift_pose_tensor.clone()
 
     def reset_future(self, lift_pose_tensor, potential_lift_directions, noise_lift_std):
