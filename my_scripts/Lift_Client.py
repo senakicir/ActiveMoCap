@@ -26,7 +26,6 @@ def calculate_bone_directions(bones, lift_bone_directions, batch):
 
 def calculate_bone_directions_simple(lift_bones, bone_lengths, bone_length_method, bone_connections, hip_index):
     lift_bone_rescaled = scale_with_bone_lengths(lift_bones, bone_lengths, bone_length_method, bone_connections)
-    #lift_bone_rescaled = lift_bones
     lift_bone_rescaled = lift_bone_rescaled - lift_bone_rescaled[:, hip_index].unsqueeze(1)
     return lift_bone_rescaled
 

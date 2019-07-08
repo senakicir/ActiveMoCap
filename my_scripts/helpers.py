@@ -577,6 +577,46 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     plt.savefig(plot_3d_pos_loc)
     plt.close()
 
+def plot_future_poses(poses, future_window_size, location, linecount, bone_connections, test_set):
+    fig = plt.figure(figsize=(4,4))
+    ax = fig.add_subplot(111, projection='3d')
+
+    X = poses[:future_window_size+1,0,:]
+    Y = poses[:future_window_size+1,1,:]
+    if test_set != "drone_flight":
+        Z = -poses[:future_window_size, 2,:]
+        multip = -1
+    else:
+        Z = poses[:future_window_size, 2,:]
+        multip = 1
+
+        
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.8
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.view_init(elev=30., azim=135)
+
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    
+    plots = []
+    color_list = ['xkcd:brown', 'xkcd:blood red','xkcd:deep pink','xkcd:pinkish', 'xkcd:light pink']
+    for ind, future_window_ind in enumerate(range(future_window_size,-1,-1)):
+        for i, bone in enumerate(bone_connections):
+            a_plot, = ax.plot(poses[future_window_ind,0,bone], poses[future_window_ind,1,bone],
+                      multip*poses[future_window_ind,2,bone], c=color_list[ind], label=str(ind), marker='^')
+        plots.append(a_plot)
+        ax.legend(handles=plots, loc='upper right')
+
+    plot_3d_pos_loc = location + "/future_poses" + str(linecount) + '.png'
+    plt.savefig(plot_3d_pos_loc)
+    plt.close()
+
 
 def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     if (pose_client.isCalibratingEnergy):

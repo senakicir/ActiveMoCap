@@ -110,7 +110,7 @@ class PotentialStatesFetcher(object):
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
 
-        self.future_human_pos = pose_client.future_pose
+        self.future_human_pos = pose_client.current_pose
         self.current_human_pos = pose_client.current_pose
 
         self.potential_states_try = []

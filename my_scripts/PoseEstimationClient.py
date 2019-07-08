@@ -30,7 +30,8 @@ class PoseEstimationClient(object):
         self.FUTURE_WINDOW_SIZE = param["FUTURE_WINDOW_SIZE"]
         self.ONLINE_WINDOW_SIZE = self.ESTIMATION_WINDOW_SIZE+self.FUTURE_WINDOW_SIZE 
 
-        self.CURRENT_POSE_INDEX = 1
+        self.CURRENT_POSE_INDEX = self.FUTURE_WINDOW_SIZE
+        self.FUTURE_POSE_INDEX = 0
         self.MIDDLE_POSE_INDEX = (self.ESTIMATION_WINDOW_SIZE)//2
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]

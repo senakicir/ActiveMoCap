@@ -103,14 +103,16 @@ class pose3d_online_parallel(torch.nn.Module):
 
         bone_connections, _, self.NUM_OF_JOINTS, self.hip_index = pose_client.model_settings()
         self.bone_connections = np.array(bone_connections)
-        self.window_size = pose_client.ONLINE_WINDOW_SIZE
+        self.ESTIMATION_WINDOW_SIZE = pose_client.ESTIMATION_WINDOW_SIZE
+        self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
+        self.ONLINE_WINDOW_SIZE = pose_client.ONLINE_WINDOW_SIZE
 
         self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape), requires_grad=True)
 
         if pose_client.animation == "noise":
             self.bone_lengths = pose_client.multiple_bone_lengths
         else:
-            self.bone_lengths = (pose_client.boneLengths).repeat(self.window_size,1)
+            self.bone_lengths = (pose_client.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
 
         self.loss_dict = pose_client.loss_dict_online
         
@@ -145,9 +147,9 @@ class pose3d_online_parallel(torch.nn.Module):
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
 
-        self.n = list(range(1, self.window_size))
+        self.n = list(range(1, self.ONLINE_WINDOW_SIZE))
         self.n.append(0)
-        self.m = list(range(1, self.window_size-1))
+        self.m = list(range(1, self.ONLINE_WINDOW_SIZE-1))
         self.m.append(0)
 
     def forward(self):
@@ -155,11 +157,11 @@ class pose3d_online_parallel(torch.nn.Module):
 
         #projection loss
         if not self.future_proj:
-            projected_2d = self.projection_client.take_projection(self.pose3d[1:,:,:])
-            output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, (self.window_size-1)*self.NUM_OF_JOINTS)
+            projected_2d = self.projection_client.take_projection(self.pose3d[self.FUTURE_WINDOW_SIZE:,:,:])
+            output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
         else:
             projected_2d = self.projection_client.take_projection(self.pose3d)
-            output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.window_size*self.NUM_OF_JOINTS)
+            output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
 
         if self.use_bone_term and not self.use_single_joint:
             if self.bone_len_method == "no_sqrt":
@@ -168,36 +170,36 @@ class pose3d_online_parallel(torch.nn.Module):
                 bone_len_func = calculate_bone_lengths_sqrt
             #bone length consistency 
             length_of_bone = bone_len_func(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
-            output["bone"] = mse_loss(length_of_bone, self.bone_lengths, self.window_size*self.NUM_OF_JOINTS)
+            output["bone"] = mse_loss(length_of_bone, self.bone_lengths, self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
         
         #smoothness term
         if self.smoothness_mode == "velocity":
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
-            output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], (self.window_size-2)*self.NUM_OF_JOINTS)
+            output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], (self.ONLINE_WINDOW_SIZE-2)*self.NUM_OF_JOINTS)
         elif self.smoothness_mode == "position":
-            output["smooth"] = mse_loss(self.pose3d[1:, :, :], self.pose3d[:-1, :, :], (self.window_size-1)*self.NUM_OF_JOINTS)
+            output["smooth"] = mse_loss(self.pose3d[1:, :, :], self.pose3d[:-1, :, :], (self.ONLINE_WINDOW_SIZE-1)*self.NUM_OF_JOINTS)
         elif self.smoothness_mode == "all_connected":
             vel_tensor = self.pose3d[:, :, :] - self.pose3d[self.n, :, :]
-            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], self.window_size*self.NUM_OF_JOINTS)
+            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.n,:,:], self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
         elif self.smoothness_mode == "only_velo_connected":
             vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
-            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], (self.window_size-1)*self.NUM_OF_JOINTS)
+            output["smooth"] = mse_loss(vel_tensor[:,:,:], vel_tensor[self.m,:,:], (self.ONLINE_WINDOW_SIZE-1)*self.NUM_OF_JOINTS)
 
         #lift term  
         if not self.use_single_joint and self.use_lift_term:
             if self.lift_method == "complex":
                 if not self.future_proj:
-                    pose_est_directions = calculate_bone_directions(self.pose3d[1:,:,:], self.lift_bone_directions, batch=True)
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  (self.window_size-1)*self.NUM_OF_JOINTS)
+                    pose_est_directions = calculate_bone_directions(self.pose3d[self.FUTURE_WINDOW_SIZE:,:,:], self.lift_bone_directions, batch=True)
+                    output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
                 else:
                     pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  (self.window_size)*self.NUM_OF_JOINTS)
+                    output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
 
             elif self.lift_method == "simple":
                 if not self.future_proj:
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d[1:, :, :]-self.pose3d[1:, :, self.hip_index].unsqueeze(2),  (self.window_size-1)*self.NUM_OF_JOINTS)
+                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d[self.FUTURE_WINDOW_SIZE:, :, :]-self.pose3d[self.FUTURE_WINDOW_SIZE:, :, self.hip_index].unsqueeze(2),  self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
                 else:
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d-self.pose3d[:, :, self.hip_index].unsqueeze(2),  self.window_size*self.NUM_OF_JOINTS)
+                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d-self.pose3d[:, :, self.hip_index].unsqueeze(2),  self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
 
 
         overall_output = 0
