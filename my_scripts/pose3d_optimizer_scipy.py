@@ -1,5 +1,5 @@
 from helpers import * 
-from project_bones import Projection_Client
+from Projection_Client import Projection_Client
 import pose3d_optimizer as pytorch_optimizer 
 from scipy.optimize._numdiff import approx_derivative, group_columns
 from Lift_Client import Lift_Client, calculate_bone_directions, calculate_bone_directions_simple
@@ -82,14 +82,15 @@ class pose3d_calibration_parallel_wrapper():
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
-    def reset_future(self, pose_client, potential_state):
+    def reset_future(self, pose_client, potential_trajectory):
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
+        future_window = pose_client.FUTURE_WINDOW_SIZE
 
-        #future state 
-        future_pose = torch.from_numpy(pose_client.future_pose.copy()).float()
+        #future state: this is all wrong!!!
+        future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix)
+        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_state.inv_transformation_matrix)
         projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
@@ -127,22 +128,21 @@ class pose3d_online_parallel_wrapper():
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
-    def reset_future(self, pose_client, potential_state):
+    def reset_future(self, pose_client, potential_trajectory):
         self.bone_connections, _, _, self.hip_index = pose_client.model_settings()
         
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
         lift_client = pose_client.lift_client
-        future_pose = torch.from_numpy(pose_client.future_pose.copy()).float()
+        future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix)
-        projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
+        projection_client.reset_future(data_list, future_poses, potential_trajectory)
         
         if pose_client.USE_LIFT_TERM:
             if pose_client.LIFT_METHOD == "complex":
-                potential_pose3d_lift_directions = calculate_bone_directions(future_pose, np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 
+                potential_pose3d_lift_directions = calculate_bone_directions(future_poses, np.array(return_lift_bone_connections(self.bone_connections)), batch=True) 
             if pose_client.LIFT_METHOD == "simple":
-                potential_pose3d_lift_directions = calculate_bone_directions_simple(future_pose, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index)
+                potential_pose3d_lift_directions = calculate_bone_directions_simple(future_poses, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index, batch=True)
             lift_client.reset_future(pose_client.lift_pose_tensor, potential_pose3d_lift_directions, pose_client.NOISE_LIFT_STD)
             
         if pose_client.USE_TRAJECTORY_BASIS:

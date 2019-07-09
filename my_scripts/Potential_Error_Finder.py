@@ -10,7 +10,6 @@ class Potential_Error_Finder(object):
         self.find_best_traj = general_param["FIND_BEST_TRAJ"]
         self.predefined_traj_len = general_param["PREDEFINED_TRAJ_LEN"]
         self.num_of_noise_trials = general_param["NUM_OF_NOISE_TRIALS"]
-
         self.animation = general_param["ANIMATION_NUM"]
 
         self.frame_overall_error_list = np.zeros([self.num_of_noise_trials,])

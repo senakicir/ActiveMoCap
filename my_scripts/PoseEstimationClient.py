@@ -4,7 +4,7 @@ import torch
 import numpy as np
 from crop import Crop
 from square_bounding_box import *
-from project_bones import Projection_Client
+from Projection_Client import Projection_Client
 from Lift_Client import Lift_Client
 from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose
 
@@ -89,11 +89,11 @@ class PoseEstimationClient(object):
 
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.middle_pose = np.zeros([3, self.num_of_joints])
-        self.future_pose = np.zeros([3, self.num_of_joints])
+        self.future_poses = np.zeros([self.FUTURE_WINDOW_SIZE,3, self.num_of_joints])
 
         self.adj_current_pose = np.zeros([3, self.num_of_joints])
         self.adj_middle_pose = np.zeros([3, self.num_of_joints])
-        self.adj_future_pose = np.zeros([3, self.num_of_joints])
+        self.adj_future_poses = np.zeros([self.FUTURE_WINDOW_SIZE, 3, self.num_of_joints])
 
         self.result_shape = [3, self.num_of_joints]
         self.result_size = np.prod(np.array(self.result_shape))
@@ -128,7 +128,7 @@ class PoseEstimationClient(object):
         self.intrinsics_py = intrinsics_py
         self.SIZE_X, self.SIZE_Y = image_size
 
-        self.projection_client = Projection_Client(test_set=self.animation, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py)
+        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py)
         self.lift_client = Lift_Client()
 
         if self.animation == "drone_flight":
@@ -256,10 +256,10 @@ class PoseEstimationClient(object):
         if (self.isCalibratingEnergy):
             self.current_pose = optimized_poses.copy()
             self.middle_pose = optimized_poses.copy()
-            self.future_pose = optimized_poses.copy()
+            self.future_poses = optimized_poses.copy()
             self.adj_current_pose = adjusted_optimized_poses.copy()
             self.adj_middle_pose = adjusted_optimized_poses.copy()
-            self.adj_future_pose = adjusted_optimized_poses.copy()
+            self.adj_future_poses = adjusted_optimized_poses.copy()
 
             self.optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :].copy(), self.ONLINE_WINDOW_SIZE, axis=0)
             self.adjusted_optimized_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :].copy(), self.ONLINE_WINDOW_SIZE, axis=0)
@@ -267,9 +267,11 @@ class PoseEstimationClient(object):
         else:
             self.current_pose =  optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.middle_pose = optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.future_poses = optimized_poses[:self.FUTURE_WINDOW_SIZE, :,:].copy() #future_poses
 
             self.adj_current_pose =  adjusted_optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.adj_middle_pose = adjusted_optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
+            self.adj_future_poses = adjusted_optimized_poses[:self.FUTURE_WINDOW_SIZE, :,:].copy() #future_poses
 
             self.optimized_poses = optimized_poses.copy()
             self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
@@ -282,7 +284,7 @@ class PoseEstimationClient(object):
 
     def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
         if (linecount != 0):
-            current_frame_init = self.future_pose.copy()
+            current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
         else:
             if self.INIT_POSE_MODE == "gt":
                 current_frame_init = pose_3d_gt.copy()
@@ -329,11 +331,11 @@ class PoseEstimationClient(object):
         new_pose_client.error_2d = self.error_2d.copy()
         new_pose_client.middle_pose_error = self.middle_pose_error.copy()
 
-        new_pose_client.future_pose = self.future_pose.copy()
+        new_pose_client.future_poses = self.future_poses.copy()
         new_pose_client.current_pose = self.current_pose.copy()
         new_pose_client.middle_pose = self.middle_pose.copy()
 
-        new_pose_client.adj_future_pose = self.adj_future_pose.copy()
+        new_pose_client.adj_future_poses = self.adj_future_poses.copy()
         new_pose_client.adj_current_pose = self.adj_current_pose.copy()
         new_pose_client.adj_middle_pose = self.adj_middle_pose.copy()
 

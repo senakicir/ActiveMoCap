@@ -3,7 +3,7 @@ import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_online
 from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
-from project_bones import Projection_Client, C_cam_torch, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
+from Projection_Client import Projection_Client, C_cam_torch, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
 import time as time
 import torch
 
@@ -57,6 +57,15 @@ class PotentialState_Drone_Flight(object):
     def get_goal_pos_yaw_pitch(self, arg):
         return self.position, 0, 0
 
+class Potential_Trajectory(object):
+    def __init__(self, index):
+        self.index = index
+        self.states = {}
+
+    def append_to_traj(self, future_ind, potential_state):
+        self.states[future_ind] = potential_state
+
+
 
 class PotentialStatesFetcher(object):
     def __init__(self, airsim_client, pose_client, active_parameters):
@@ -71,6 +80,7 @@ class PotentialStatesFetcher(object):
         self.target_z_pos = active_parameters["Z_POS"]
         self.lookahead = active_parameters["LOOKAHEAD"]
         self.go_distance = active_parameters["GO_DISTANCE"]
+        self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
         self.ACTIVE_SAMPLING_MODE = active_parameters["ACTIVE_SAMPLING_MODE"]
 
         self.trajectory = active_parameters["TRAJECTORY"]
@@ -113,10 +123,10 @@ class PotentialStatesFetcher(object):
         self.future_human_pos = pose_client.current_pose
         self.current_human_pos = pose_client.current_pose
 
-        self.potential_states_try = []
-        self.potential_states_go = []
+        #self.potential_states_try = []
+        self.potential_trajectory_list = []
 
-        self.potential_hessians_normal = []
+        self.gopotential_hessians_normal = []
 
         self.potential_covs_future = []
         self.potential_covs_middle = []
@@ -144,7 +154,7 @@ class PotentialStatesFetcher(object):
             self.number_of_samples = len(self.drone_flight_states)
 
 
-    def get_potential_positions_really_spherical_future(self):
+    def get_potential_positions_sample(self, sampling="uniform"):
 
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
@@ -168,233 +178,35 @@ class PotentialStatesFetcher(object):
 
         use_keys =  key_indices.copy()
         use_weights = key_weights.copy()
-            
-        if current_drone_pos[2]  > self.LOWER_LIM: #about to crash
-            use_keys.pop("c")
-            use_keys.pop("l")
-            use_keys.pop("r")
-            use_keys.pop("d")
-            use_keys.pop("ld")
-            use_keys.pop("rd")
+           
+        if sampling = "ellipse"        
+            prev_goal_index = self.goal_state_ind
+            for key, value in key_indices.items():
+                if prev_goal_index == value:
+                    prev_goal_key = key
+            use_weights = adjust_using_prev_pos(prev_goal_key, use_weights)
+        use_keys = remove_key_values(use_keys, current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
 
-        elif current_drone_pos[2] + 1 > self.LOWER_LIM: #about to crash
-            use_keys.pop("d")
-            use_keys.pop("ld")
-            use_keys.pop("rd")
-
-        if current_drone_pos[2]  < self.UPPER_LIM:
-            use_keys.pop("c")
-            use_keys.pop("l")
-            use_keys.pop("r")
-            use_keys.pop("u")
-            use_keys.pop("lu")
-            use_keys.pop("ru")
-        elif current_drone_pos[2] -1 < self.UPPER_LIM:
-            use_keys.pop("u")
-            use_keys.pop("lu")
-            use_keys.pop("ru")
-                      
         for key, value in use_keys.items():
             ind = value
-            [weight_side, weight_up] = use_weights[key]
+            [weight_side, weight_up] = use_weights[key] 
+            potential_trajectory = Potential_Trajectory(ind)
+            for future_pos_ind in range(self.FUTURE_WINDOW_SIZE):
+                pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up*(future_pos_ind+1) + side_vec_norm_go*(future_pos_ind+1)*weight_side)
 
-            pos = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm*weight_up + side_vec_norm*weight_side)
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up + side_vec_norm_go*weight_side)
+                potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
+                norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
+                go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
 
-            potential_drone_vec = pos-self.future_human_pos[:, self.hip_index]
-            norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-            norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
+                if key == "c" or key == "l" or key == "r":
+                    go_pos[2] = current_drone_pos[2]
 
-            #movement_vec = (norm_pos - current_drone_pos)
-            #movement_vec_amp = self.go_distance*movement_vec/np.linalg.norm(movement_vec)
-            #go_pos = current_drone_pos+movement_vec_amp
-
-            potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
-            norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-            go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-
-            if key == "c" or key == "l" or key == "r":
-                go_pos[2] = current_drone_pos[2]
-                
-            new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-            new_pitch = pi/2 -new_theta
-            _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-            self.potential_states_try.append(PotentialState(position=norm_pos.copy(), orientation=new_phi+pi, pitch=new_pitch, index=ind))
-
-            new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-            new_pitch_go = pi/2 -new_theta_go
-            _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-            self.potential_states_go.append(PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind))
-
-    def get_potential_positions_ellipse(self):
-        prev_goal_index = self.goal_state_ind
-        for key, value in key_indices.items():
-            if prev_goal_index == value:
-                prev_goal_key = key
-
-        
-        new_radius = SAFE_RADIUS
-        unit_z = np.array([0,0,-1])
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
-        unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
-
-        up_vec = np.cross(unit_horizontal, new_drone_vec)
-        side_vec = np.cross(unit_z, new_drone_vec) 
-
-        up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
-        side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
-        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
-
-
-
-        use_keys =  key_indices.copy()
-        use_weights = key_weights.copy()
-
-        second_deg = 1/2
-        third_deg = 1/3
-        fourth_deg = 1/5
-        fifth_deg = 1/8 
-        if prev_goal_key == "l":
-            use_weights["r"] = use_weights["r"].copy()*fifth_deg
-            use_weights["u"] = use_weights["u"].copy()*third_deg
-            use_weights["d"] = use_weights["d"].copy()*third_deg
-            use_weights["ru"] = use_weights["ru"].copy()*fourth_deg
-            use_weights["rd"] = use_weights["rd"].copy()*fourth_deg
-            use_weights["lu"] = use_weights["lu"].copy()*second_deg
-            use_weights["ld"] = use_weights["ld"].copy()*second_deg
-        
-        if prev_goal_key == "r":
-            use_weights["l"] = use_weights["l"].copy()*fifth_deg
-            use_weights["u"] = use_weights["u"].copy()*third_deg
-            use_weights["d"] = use_weights["d"].copy()*third_deg
-            use_weights["lu"] = use_weights["lu"].copy()*fourth_deg
-            use_weights["ld"] = use_weights["ld"].copy()*fourth_deg
-            use_weights["ru"] = use_weights["ru"].copy()*second_deg
-            use_weights["rd"] = use_weights["rd"].copy()*second_deg
-                
-        if prev_goal_key == "u":
-            use_weights["d"] = use_weights["d"].copy()*fifth_deg
-            use_weights["l"] = use_weights["l"].copy()*third_deg
-            use_weights["r"] = use_weights["r"].copy()*third_deg
-            use_weights["lu"] = use_weights["lu"].copy()*second_deg
-            use_weights["ru"] = use_weights["ru"].copy()*second_deg
-            use_weights["ld"] = use_weights["ld"].copy()*fourth_deg
-            use_weights["rd"] = use_weights["rd"].copy()*fourth_deg
-
-        if prev_goal_key == "d":
-            use_weights["u"] = use_weights["u"].copy()*fifth_deg
-            use_weights["l"] = use_weights["l"].copy()*third_deg
-            use_weights["r"] = use_weights["r"].copy()*third_deg
-            use_weights["ld"] = use_weights["ld"].copy()*second_deg
-            use_weights["rd"] = use_weights["rd"].copy()*second_deg
-            use_weights["lu"] = use_weights["lu"].copy()*fourth_deg
-            use_weights["ru"] = use_weights["ru"].copy()*fourth_deg
-
-        if prev_goal_key == "ru":
-            use_weights["ld"] = use_weights["ld"].copy()*fifth_deg
-            use_weights["r"] = use_weights["r"].copy()*second_deg
-            use_weights["u"] = use_weights["u"].copy()*second_deg
-            use_weights["rd"] = use_weights["rd"].copy()*third_deg
-            use_weights["lu"] = use_weights["lu"].copy()*third_deg
-            use_weights["l"] = use_weights["l"].copy()*fourth_deg
-            use_weights["d"] = use_weights["d"].copy()*fourth_deg
-
-        if prev_goal_key == "rd":
-            use_weights["lu"] = use_weights["lu"].copy()*fifth_deg
-            use_weights["r"] = use_weights["r"].copy()*second_deg
-            use_weights["d"] = use_weights["d"].copy()*second_deg
-            use_weights["ru"] = use_weights["ru"].copy()*third_deg
-            use_weights["ld"] = use_weights["ld"].copy()*third_deg
-            use_weights["l"] = use_weights["l"].copy()*fourth_deg
-            use_weights["u"] = use_weights["u"].copy()*fourth_deg
-
-        if prev_goal_key == "lu":
-            use_weights["rd"] = use_weights["rd"].copy()*fifth_deg
-            use_weights["l"] = use_weights["l"].copy()*second_deg
-            use_weights["u"] = use_weights["u"].copy()*second_deg
-            use_weights["ld"] = use_weights["ld"].copy()*third_deg
-            use_weights["ru"] = use_weights["ru"].copy()*third_deg
-            use_weights["r"] = use_weights["r"].copy()*fourth_deg
-            use_weights["d"] = use_weights["d"].copy()*fourth_deg
-
-        if prev_goal_key == "ld":
-            use_weights["ru"] = use_weights["ru"].copy()*fifth_deg
-            use_weights["l"] = use_weights["l"].copy()*second_deg
-            use_weights["d"] = use_weights["d"].copy()*second_deg
-            use_weights["lu"] = use_weights["lu"].copy()*third_deg
-            use_weights["rd"] = use_weights["rd"].copy()*third_deg
-            use_weights["r"] = use_weights["r"].copy()*fourth_deg
-            use_weights["u"] = use_weights["u"].copy()*fourth_deg
-
-        if current_drone_pos[2]  > self.LOWER_LIM: #about to crash
-            use_keys.pop("c")
-            use_keys.pop("l")
-            use_keys.pop("r")
-            use_keys.pop("d")
-            use_keys.pop("ld")
-            use_keys.pop("rd")
-
-        elif current_drone_pos[2] + 1 > self.LOWER_LIM: #about to crash
-            use_keys.pop("d")
-            use_keys.pop("ld")
-            use_keys.pop("rd")
-
-        if current_drone_pos[2]  < self.UPPER_LIM:
-            use_keys.pop("c")
-            use_keys.pop("l")
-            use_keys.pop("r")
-            use_keys.pop("u")
-            use_keys.pop("lu")
-            use_keys.pop("ru")
-        elif current_drone_pos[2] -1 < self.UPPER_LIM:
-            use_keys.pop("u")
-            use_keys.pop("lu")
-            use_keys.pop("ru")
-
-                      
-        for key, value in use_keys.items():
-            ind = value
-            [weight_side, weight_up] = use_weights[key]
-
-            pos = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm*weight_up + side_vec_norm*weight_side)
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up + side_vec_norm_go*weight_side)
-
-
-            potential_drone_vec = pos-self.future_human_pos[:, self.hip_index]
-            norm_potential_drone_vec = potential_drone_vec * new_radius /np.linalg.norm(potential_drone_vec)
-            norm_pos = norm_potential_drone_vec + self.future_human_pos[:, self.hip_index]
-
-
-            #movement_vec = (norm_pos - current_drone_pos)
-            #movement_vec_amp = self.go_distance*movement_vec/np.linalg.norm(movement_vec)
-            #go_pos = current_drone_pos+movement_vec_amp
-                        
-            potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
-            norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-            go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-
-
-            if key == "c" or key == "l" or key == "r":
-                go_pos[2] = current_drone_pos[2]
-                
-            new_theta = acos((norm_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-            new_pitch = pi/2 -new_theta
-            _, new_phi = find_current_polar_info(norm_pos, self.future_human_pos[:, self.hip_index])
-            self.potential_states_try.append(PotentialState(position=norm_pos.copy(), orientation=new_phi+pi, pitch=new_pitch, index=ind))
-
-            new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-            new_pitch_go = pi/2 -new_theta_go
-            _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-            self.potential_states_go.append(PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind))
+                new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
+                new_pitch_go = pi/2 -new_theta_go
+                _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
+                potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
+                potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
+            self.potential_trajectory_list.append(potential_trajectory)
 
     def choose_constant_rotation(self):
         for potential_state in self.potential_states_go:
@@ -422,7 +234,6 @@ class PotentialStatesFetcher(object):
         if current_drone_pos[2] -1 < baseline_lim_up:
             self.goUp = False
             self.goal_state_ind = key_indices["d"]
-
 
         if self.goUp:
             pos_go = current_drone_pos + np.array([0,0,-1])
@@ -565,8 +376,8 @@ class PotentialStatesFetcher(object):
     
     def find_hessians_for_potential_states(self, pose_client):
         self.counter += 1
-        for potential_state in self.potential_states_try:
-            self.objective.reset_future(pose_client, potential_state)
+        for potential_trajectory in self.potential_trajectory_list:
+            self.objective.reset_future(pose_client, potential_trajectory)
             if pose_client.USE_TRAJECTORY_BASIS:
                 hess2 = self.objective.hessian(pose_client.optimized_traj)
             else:
@@ -574,39 +385,13 @@ class PotentialStatesFetcher(object):
             self.potential_hessians_normal.append(hess2)
 
             inv_hess2 = np.linalg.inv(hess2)
-
-            #if self.counter ==5 :
-                #import IPython
-                #IPython.embed()
-
-                #hess_modified = hess2.copy()
-                #for i in range(100,140):
-                #    print(hess2[i,i])
-                #    hess_modified[i,i] = 2
-                #hess_modified[235,10] = 2
-                #hess_modified[100:140,100:140] = 2
-                #inv_hess_modified = np.linalg.inv(hess_modified)
-
-                #import matplotlib.pyplot as plt
-                #fig = plt.figure()
-                #plt.subplot(131)
-                #im1 = plt.imshow(inv_hess2)
-                #plt.subplot(132)
-                #fig.colorbar(im1)
-                #im2 = plt.imshow(inv_hess_modified)
-                #plt.subplot(133)
-                #fig.colorbar(im2)
-                #im3 = plt.imshow(np.sqrt(np.abs(inv_hess2-inv_hess_modified)))
-                #fig.colorbar(im3)
-                #plt.show()
-                #plt.close()
  
-            self.potential_covs_future.append({"inv_hess": choose_frame_from_cov(inv_hess2, pose_client.FUTURE_POSE_INDEX, self.number_of_joints), "potential_state": potential_state})
-            self.potential_covs_middle.append({"inv_hess" :choose_frame_from_cov(inv_hess2, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints), "potential_state": potential_state})
-            self.potential_covs_whole.append({"inv_hess":inv_hess2, "potential_state": potential_state})
+            self.potential_covs_future.append({"inv_hess": choose_frame_from_cov(inv_hess2, pose_client.FUTURE_POSE_INDEX, self.number_of_joints), "potential_trajectory": potential_trajectory})
+            self.potential_covs_middle.append({"inv_hess" :choose_frame_from_cov(inv_hess2, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints), "potential_trajectory": potential_trajectory})
+            self.potential_covs_whole.append({"inv_hess":inv_hess2, "potential_trajectory": potential_trajectory})
 
-            future_pose = torch.from_numpy(self.future_human_pos).float() 
-            self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
+            #future_pose = torch.from_numpy(self.future_human_pos).float() 
+            #self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
         return self.potential_covs_whole, self.potential_hessians_normal
 
     def find_best_potential_state(self):
@@ -615,17 +400,17 @@ class PotentialStatesFetcher(object):
             uncertainty_dict = {}
             for x in potential_cov_list:
                 cov = x["inv_hess"]
-                potential_state = x["potential_state"]
+                potential_trajectory = x["potential_trajectory"]
 
                 if self.uncertainty_calc_method == "sum_eig":
-                    _, s, _ = np.linalg.svd(cov)
-                    uncertainty_dict[potential_state.index] = (np.sum(s)) 
+                    _, s, _ = np.linalg.svd(cov)xw
+                    uncertainty_dict[potential_trajectory.index] = (np.sum(s)) 
                 elif self.uncertainty_calc_method == "add_diag":
                     s = np.diag(cov)
-                    uncertainty_dict[potential_state.index] = (np.sum(s))
+                    uncertainty_dict[potential_trajectory.index] = (np.sum(s))
                 elif self.uncertainty_calc_method == "multip_eig":
                     _, s, _ = np.linalg.svd(cov)
-                    uncertainty_dict[potential_state.index] = s[0]*s[1]*s[2]
+                    uncertainty_dict[potential_trajectory.index] = s[0]*s[1]*s[2]
                     #import matplotlib.pyplot as plt
                     #fig =  plt.figure()
                     #print("largest three eigenvals", s[0], s[1], s[2])
@@ -633,7 +418,7 @@ class PotentialStatesFetcher(object):
                     #plt.show()
                     #plt.close()
                 elif self.uncertainty_calc_method == "determinant":
-                    uncertainty_dict[potential_state.index] = np.linalg.det(s)
+                    uncertainty_dict[potential_trajectory.index] = np.linalg.det(s)
                     #cov_shaped = shape_cov_general(cov, self.model, 0)
                     #uncertainty_joints = np.zeros([self.number_of_joints,])
                     #for joint_ind in range(self.number_of_joints):
@@ -642,10 +427,10 @@ class PotentialStatesFetcher(object):
                     #uncertainty_list.append(np.mean(uncertainty_joints))
                 elif self.uncertainty_calc_method == "max_eig":
                     _, s, _ = np.linalg.svd(cov)
-                    uncertainty_dict[potential_state.index] = (np.max(s)) 
+                    uncertainty_dict[potential_trajectory.index] = (np.max(s)) 
                 elif self.uncertainty_calc_method == "root_six":
                     _, s, _ = np.linalg.svd(cov)
-                    uncertainty_dict[potential_state.index] = np.sum(np.power(s, 1/6)) 
+                    uncertainty_dict[potential_trajectory.index] = np.sum(np.power(s, 1/6)) 
             if part == "future":
                 self.uncertainty_list_future = uncertainty_dict.copy()
             elif part == "whole":
@@ -661,10 +446,10 @@ class PotentialStatesFetcher(object):
         else:
             self.goal_state_ind = max(final_dict, key=final_dict.get)
         #print("uncertainty list var:", np.std(final_dict.values()), "uncertainty list min max", np.min(final_dict.values()), np.max(final_dict.values()), "best ind", self.goal_state_ind)
-        for potential_states in self.potential_states_go:
-            if potential_states.index == self.goal_state_ind:
-                goal_state = potential_states
-        return goal_state, self.goal_state_ind
+        for potential_trajectory in self.potential_trajectory_list:
+            if potential_trajectory.index == self.goal_state_ind:
+                goal_trajectory = potential_trajectory
+        return goal_trajectory, self.goal_state_ind
 
     def find_random_next_state(self):
         random_ind = np.random.randint(0, len(self.potential_states_go)-1)
@@ -727,3 +512,112 @@ class PotentialStatesFetcher(object):
 
     def plot_projections(self, linecount, plot_loc):
         plot_potential_projections_noimage(self.potential_pose2d_list, linecount, plot_loc, self.bone_connections, self.SIZE_X, self.SIZE_Y)
+
+
+def remove_key_values(use_keys, current_drone_pos_z, lower_lim, upper_lim):
+    if current_drone_pos_z  > lower_lim: #about to crash
+        use_keys.pop("c")
+        use_keys.pop("l")
+        use_keys.pop("r")
+        use_keys.pop("d")
+        use_keys.pop("ld")
+        use_keys.pop("rd")
+
+    elif current_drone_pos_z + 1 > lower_lim: #about to crash
+        use_keys.pop("d")
+        use_keys.pop("ld")
+        use_keys.pop("rd")
+
+    if current_drone_pos_z  < upper_lim:
+        use_keys.pop("c")
+        use_keys.pop("l")
+        use_keys.pop("r")
+        use_keys.pop("u")
+        use_keys.pop("lu")
+        use_keys.pop("ru")
+
+    elif current_drone_pos_z -1 < upper_lim:
+        use_keys.pop("u")
+        use_keys.pop("lu")
+        use_keys.pop("ru")
+
+    return use_keys
+
+def adjust_using_prev_pos(prev_goal_key, use_weights):
+    second_deg = 1/2
+    third_deg = 1/3
+    fourth_deg = 1/5
+    fifth_deg = 1/8 
+    if prev_goal_key == "l":
+        use_weights["r"] = use_weights["r"].copy()*fifth_deg
+        use_weights["u"] = use_weights["u"].copy()*third_deg
+        use_weights["d"] = use_weights["d"].copy()*third_deg
+        use_weights["ru"] = use_weights["ru"].copy()*fourth_deg
+        use_weights["rd"] = use_weights["rd"].copy()*fourth_deg
+        use_weights["lu"] = use_weights["lu"].copy()*second_deg
+        use_weights["ld"] = use_weights["ld"].copy()*second_deg
+    
+    if prev_goal_key == "r":
+        use_weights["l"] = use_weights["l"].copy()*fifth_deg
+        use_weights["u"] = use_weights["u"].copy()*third_deg
+        use_weights["d"] = use_weights["d"].copy()*third_deg
+        use_weights["lu"] = use_weights["lu"].copy()*fourth_deg
+        use_weights["ld"] = use_weights["ld"].copy()*fourth_deg
+        use_weights["ru"] = use_weights["ru"].copy()*second_deg
+        use_weights["rd"] = use_weights["rd"].copy()*second_deg
+            
+    if prev_goal_key == "u":
+        use_weights["d"] = use_weights["d"].copy()*fifth_deg
+        use_weights["l"] = use_weights["l"].copy()*third_deg
+        use_weights["r"] = use_weights["r"].copy()*third_deg
+        use_weights["lu"] = use_weights["lu"].copy()*second_deg
+        use_weights["ru"] = use_weights["ru"].copy()*second_deg
+        use_weights["ld"] = use_weights["ld"].copy()*fourth_deg
+        use_weights["rd"] = use_weights["rd"].copy()*fourth_deg
+
+    if prev_goal_key == "d":
+        use_weights["u"] = use_weights["u"].copy()*fifth_deg
+        use_weights["l"] = use_weights["l"].copy()*third_deg
+        use_weights["r"] = use_weights["r"].copy()*third_deg
+        use_weights["ld"] = use_weights["ld"].copy()*second_deg
+        use_weights["rd"] = use_weights["rd"].copy()*second_deg
+        use_weights["lu"] = use_weights["lu"].copy()*fourth_deg
+        use_weights["ru"] = use_weights["ru"].copy()*fourth_deg
+
+    if prev_goal_key == "ru":
+        use_weights["ld"] = use_weights["ld"].copy()*fifth_deg
+        use_weights["r"] = use_weights["r"].copy()*second_deg
+        use_weights["u"] = use_weights["u"].copy()*second_deg
+        use_weights["rd"] = use_weights["rd"].copy()*third_deg
+        use_weights["lu"] = use_weights["lu"].copy()*third_deg
+        use_weights["l"] = use_weights["l"].copy()*fourth_deg
+        use_weights["d"] = use_weights["d"].copy()*fourth_deg
+
+    if prev_goal_key == "rd":
+        use_weights["lu"] = use_weights["lu"].copy()*fifth_deg
+        use_weights["r"] = use_weights["r"].copy()*second_deg
+        use_weights["d"] = use_weights["d"].copy()*second_deg
+        use_weights["ru"] = use_weights["ru"].copy()*third_deg
+        use_weights["ld"] = use_weights["ld"].copy()*third_deg
+        use_weights["l"] = use_weights["l"].copy()*fourth_deg
+        use_weights["u"] = use_weights["u"].copy()*fourth_deg
+
+    if prev_goal_key == "lu":
+        use_weights["rd"] = use_weights["rd"].copy()*fifth_deg
+        use_weights["l"] = use_weights["l"].copy()*second_deg
+        use_weights["u"] = use_weights["u"].copy()*second_deg
+        use_weights["ld"] = use_weights["ld"].copy()*third_deg
+        use_weights["ru"] = use_weights["ru"].copy()*third_deg
+        use_weights["r"] = use_weights["r"].copy()*fourth_deg
+        use_weights["d"] = use_weights["d"].copy()*fourth_deg
+
+    if prev_goal_key == "ld":
+        use_weights["ru"] = use_weights["ru"].copy()*fifth_deg
+        use_weights["l"] = use_weights["l"].copy()*second_deg
+        use_weights["d"] = use_weights["d"].copy()*second_deg
+        use_weights["lu"] = use_weights["lu"].copy()*third_deg
+        use_weights["rd"] = use_weights["rd"].copy()*third_deg
+        use_weights["r"] = use_weights["r"].copy()*fourth_deg
+        use_weights["u"] = use_weights["u"].copy()*fourth_deg
+    
+    return use_weights

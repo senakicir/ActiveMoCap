@@ -3,7 +3,7 @@ from State import *
 from NonAirSimClient import *
 from pose3d_optimizer import *
 from pose3d_optimizer_scipy import *
-from project_bones import *
+from Projection_Client import Projection_Client
 import numpy as np
 import cv2 as cv
 import torch as torch

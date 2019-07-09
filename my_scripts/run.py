@@ -2,7 +2,7 @@ from helpers import *
 from PoseEstimationClient import PoseEstimationClient
 from Potential_Error_Finder import Potential_Error_Finder
 from pose3d_optimizer import *
-from project_bones import *
+from Projection_Client import Projection_Client
 from determine_positions import *
 from PotentialStatesFetcher import PotentialStatesFetcher, PotentialState
 from State import State
