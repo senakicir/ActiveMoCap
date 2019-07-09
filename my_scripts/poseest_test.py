@@ -2,7 +2,7 @@ from helpers import *
 from State import *
 from NonAirSimClient import *
 from pose3d_optimizer import *
-from project_bones import *
+from Projection_Client import *
 from determine_positions import *
 
 
