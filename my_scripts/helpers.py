@@ -1062,6 +1062,7 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
+
 def plot_potential_hessians(hessians, linecount, plot_loc, custom_name = None):
     if custom_name == None:
         name = '/potential_covs_'
@@ -1249,6 +1250,54 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, custom_
     plt.savefig(file_name2)
     plt.close(fig)
 
+def plot_potential_trajectories(current_human_pose, gt_human_pose, potential_trajectory_list, plot_loc, linecount):
+    current_human_pos = current_human_pose[0:2, hip_index]
+    gt_human_pos = gt_human_pose[0:2, hip_index]
+
+    fig = plt.figure(figsize=(4,4))
+    ax = fig.add_subplot(111, projection='3d')
+
+    #for ax limits
+    X = np.array([current_human_pos[0], gt_human_pos[0]])
+    Y = np.array([current_human_pos[1], gt_human_pos[1]])
+    Z = np.array([-current_human_pos[2], -gt_human_pos[2]])
+
+    #plot trajectories
+    for trajectory_ind, potential_trajectory in enumerate(potential_trajectory_list):
+        drone_positions = potential_trajectory.drone_positions
+        drone_positions = -drone_positions[:, 2]
+        drone_positions_numpy = drone_positions.numpy()
+        #for plot lim
+        X = np.concatenate([X, drone_positions_numpy[:,0]])
+        Y = np.concatenate([Y, drone_positions_numpy[:,1]])
+        Z = np.concatenate([Z, drone_positions_numpy[:,2]])
+
+        markersize=30
+        text_color="b"
+        if (state_ind == potential_states_fetcher.goal_state_ind):
+            markersize=100
+            text_color="r"
+
+        plot3=ax.scatter([drone_positions_numpy[:,0]], [drone_positions_numpy[:,1]], [drone_positions_numpy[:,2]], marker='^', c="xkcd:pink", s=markersize, alpha=1)
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+    ax.set_title("Average Error")
+    plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
+    plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
+
+    file_name = plot_loc + name + str(linecount) + ".png"
+    plt.savefig(file_name)
+    plt.close(fig)
 
 def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, linecount, plot_std, plot_future, plot_log=False, custom_name=None):
     if custom_name == None:

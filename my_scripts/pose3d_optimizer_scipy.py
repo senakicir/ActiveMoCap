@@ -90,8 +90,8 @@ class pose3d_calibration_parallel_wrapper():
         #future state: this is all wrong!!!
         future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_state.inv_transformation_matrix)
-        projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
+        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_trajectory.inv_transformation_matrix)
+        projection_client.reset_future(data_list, potential_trajectory.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}

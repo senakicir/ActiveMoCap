@@ -1,4 +1,4 @@
-from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties
+from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_online
@@ -57,15 +57,19 @@ class PotentialState_Drone_Flight(object):
     def get_goal_pos_yaw_pitch(self, arg):
         return self.position, 0, 0
 
-class Potential_Trajectory(object):
+class Potential_Trajectory(object, future_window_size):
     def __init__(self, index):
         self.index = index
         self.states = {}
+        self.inv_transformation_matrix = torch.zeros(future_window_size, 4, 4)
+        self.drone_positions = torch.zeros(future_window_size, 3)
+        self.pitches = torch.zeros(future_window_size,)
 
     def append_to_traj(self, future_ind, potential_state):
         self.states[future_ind] = potential_state
-
-
+        self.inv_transformation_matrix[future_ind, :, :] = potential_state.inv_transformation_matrix
+        self.drone_positions[future_ind, :] = potential_state.position
+        self.pitches[future_ind] = potential_state.pitch
 
 class PotentialStatesFetcher(object):
     def __init__(self, airsim_client, pose_client, active_parameters):
@@ -502,8 +506,9 @@ class PotentialStatesFetcher(object):
             #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
-            plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
-            plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
+            plot_potential_trajectories(self.current_human_pos, self.human_GT, self.potential_trajectory_list, plot_loc, linecount)            
+            #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
+            #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 
             if plot_potential_errors_bool:
                 plot_potential_errors_and_uncertainties(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")
