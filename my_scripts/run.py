@@ -180,6 +180,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
 def normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode):
     airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+    trajectory = potential_states_fetcher.trajectory 
+
     time.sleep(0.5)
 
     airsim_client.simPauseHuman(True)
@@ -192,47 +194,30 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
 
-        potential_states_fetcher.reset(pose_client, airsim_client, current_state)
+       # if airsim_client.online_linecount % pose_client.FUTURE_WINDOW_SIZE == 0 or pose_client.isCalibratingEnergy:
+        potential_states_fetcher.reset(pose_client, airsim_client, current_state, airsim_client.linecount, loop_mode)
+        potential_states_fetcher.get_potential_positions_sample()
 
-        trajectory = potential_states_fetcher.trajectory 
-        if airsim_client.linecount < pose_client.PRECALIBRATION_LENGTH:
-            goal_state = potential_states_fetcher.precalibration()
+        if pose_client.isCalibratingEnergy:
+            goal_state = potential_states_fetcher.calibration_mode(airsim_client.linecount, airsim_client.online_linecount)
         else:
-            if potential_states_fetcher.ACTIVE_SAMPLING_MODE == "uniform":
-                potential_states_fetcher.get_potential_positions_really_spherical_future()
-            elif potential_states_fetcher.ACTIVE_SAMPLING_MODE == "ellipse":
-                potential_states_fetcher.get_potential_positions_ellipse()
-
-            if pose_client.isCalibratingEnergy:
-                goal_state = potential_states_fetcher.choose_constant_rotation()
-            else:
-                if (trajectory == "active"):
-                    potential_states_fetcher.find_hessians_for_potential_states(pose_client)
-                    goal_state, _ = potential_states_fetcher.find_best_potential_state()
-                    potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
-                if (trajectory == "constant_rotation"):
-                    goal_state = potential_states_fetcher.choose_constant_rotation()
-                if (trajectory == "random"): 
-                    goal_state = potential_states_fetcher.find_random_next_state()
-                if (trajectory == "constant_angle"):
-                    goal_state = potential_states_fetcher.constant_angle_baseline_future()
-
-            #if (trajectory == "wobbly_rotation"):
-            #    goal_state = potential_states_fetcher.wobbly_baseline()
-            #if (trajectory == "updown"):
-            #    goal_state = potential_states_fetcher.up_down_baseline()
-            #if (trajectory == "leftright"):
-            #    goal_state = potential_states_fetcher.left_right_baseline()
+            if (trajectory == "active"):
+                goal_state = potential_states_fetcher.find_next_state_active(pose_client, airsim_client.online_linecount)
+                potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
+            if (trajectory == "constant_rotation"):
+                goal_state = potential_states_fetcher.choose_constant_rotation(airsim_client.online_linecount)
+            if (trajectory == "random"): 
+                goal_state = potential_states_fetcher.find_random_next_state(airsim_client.online_linecount)
+            if (trajectory == "constant_angle"):
+                goal_state = potential_states_fetcher.constant_angle_baseline_future(airsim_client.online_linecount)
 
         set_position(goal_state, airsim_client, current_state, pose_client, loop_mode=loop_mode)
         if not pose_client.quiet and airsim_client.linecount > 0:
             plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
         #file_manager.save_simulation_values(airsim_client.linecount)
 
-        airsim_client.linecount += 1
-        print('linecount', airsim_client.linecount)
-
-
+        airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
+        print('linecount', airsim_client.linecount, "online linecount", airsim_client.online_linecount)
        
 def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     #animations_to_test = ["64_06", "02_01", "05_08", "38_03"]
@@ -271,7 +256,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 file_manager.append_openpose_error(pose_client.openpose_error, pose_client.openpose_arm_error,  pose_client.openpose_leg_error)
                 #file_manager.save_simulation_values(airsim_client, pose_client)
 
-                airsim_client.linecount += 1
+                airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
                 #print('linecount', airsim_client.linecount)
 
             #print("WRITING ERROR NOW!")
@@ -305,7 +290,7 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
 
     take_photo(airsim_client, pose_client, current_state, file_manager, 0)
     initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
-    airsim_client.linecount += 1
+    airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
 
 
     while airsim_client.linecount < airsim_client.length_of_simulation:    
@@ -393,7 +378,7 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
             airsim_client.simPauseHuman(True)
             #pose_client_sim.update_internal_3d_pose()
 
-        airsim_client.linecount += 1
+        airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
         print('linecount', airsim_client.linecount)
         
         potential_states_fetcher.reset(pose_client, airsim_client, current_state)
@@ -432,7 +417,7 @@ def create_test_set(current_state, pose_client, airsim_client, potential_states_
             #openpose_res, liftnet_res = determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
             file_manager.prepare_test_set_gt(current_state, airsim_client.linecount, state_ind)
 
-        airsim_client.linecount += 1
+        airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
         print('linecount', airsim_client.linecount)
 
 
@@ -473,7 +458,6 @@ def set_position(goal_state, airsim_client, current_state, pose_client, loop_mod
         current_state.cam_pitch = goal_state.pitch
 
         airsim_client.simPauseDrone(True)
-
 
     elif loop_mode == "normal":
         #if (airsim_client.linecount < 5):

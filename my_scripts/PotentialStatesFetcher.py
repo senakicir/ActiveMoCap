@@ -45,6 +45,9 @@ class PotentialState(object):
     def get_goal_pos_yaw_pitch(self, curr_drone_orientation):
         desired_yaw_deg = find_delta_yaw((curr_drone_orientation)[2],  self.orientation)
         return self.position , desired_yaw_deg*1, self.pitch   
+    
+    def deep_copy(self):
+        return PotentialState(self.position, self.orientation, self.pitch, self.index)
 
 class PotentialState_Drone_Flight(object):
     def __init__(self, transformation_matrix, index):
@@ -57,18 +60,18 @@ class PotentialState_Drone_Flight(object):
     def get_goal_pos_yaw_pitch(self, arg):
         return self.position, 0, 0
 
-class Potential_Trajectory(object, future_window_size):
-    def __init__(self, index):
+class Potential_Trajectory(object):
+    def __init__(self, index, future_window_size):
         self.index = index
         self.states = {}
         self.inv_transformation_matrix = torch.zeros(future_window_size, 4, 4)
-        self.drone_positions = torch.zeros(future_window_size, 3)
+        self.drone_positions = torch.zeros(future_window_size, 3, 1)
         self.pitches = torch.zeros(future_window_size,)
 
     def append_to_traj(self, future_ind, potential_state):
-        self.states[future_ind] = potential_state
+        self.states[future_ind] = potential_state.deep_copy()
         self.inv_transformation_matrix[future_ind, :, :] = potential_state.inv_transformation_matrix
-        self.drone_positions[future_ind, :] = potential_state.position
+        self.drone_positions[future_ind, :, :] = potential_state.potential_C_drone
         self.pitches[future_ind] = potential_state.pitch
 
 class PotentialStatesFetcher(object):
@@ -87,6 +90,8 @@ class PotentialStatesFetcher(object):
         self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
         self.ACTIVE_SAMPLING_MODE = active_parameters["ACTIVE_SAMPLING_MODE"]
 
+        self.PRECALIBRATION_LENGTH = pose_client.PRECALIBRATION_LENGTH
+
         self.trajectory = active_parameters["TRAJECTORY"]
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
@@ -103,8 +108,9 @@ class PotentialStatesFetcher(object):
 
         self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
-        self.counter = 0 
         self.goal_state_ind = 0 
+        self.goal_state = None
+        self.goal_trajectory = None
         self.visited_ind_list =[]
 
 
@@ -119,7 +125,7 @@ class PotentialStatesFetcher(object):
         self.current_error_std_list = np.zeros(self.number_of_samples)
         self.middle_error_std_list = np.zeros(self.number_of_samples)        
 
-    def reset(self, pose_client, airsim_client, current_state):
+    def reset(self, pose_client, airsim_client, current_state, linecount, loop_mode):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
@@ -127,21 +133,20 @@ class PotentialStatesFetcher(object):
         self.future_human_pos = pose_client.current_pose
         self.current_human_pos = pose_client.current_pose
 
-        #self.potential_states_try = []
+        if (pose_client.isCalibratingEnergy):
+            self.objective = objective_calib
+        else:
+            self.objective = objective_online
+
+        self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
+
         self.potential_trajectory_list = []
-
-        self.gopotential_hessians_normal = []
-
+        self.potential_hessians_normal = []
         self.potential_covs_future = []
         self.potential_covs_middle = []
         self.potential_covs_whole = []
 
         self.potential_pose2d_list = []
-
-        if (pose_client.isCalibratingEnergy):
-            self.objective = objective_calib
-        else:
-            self.objective = objective_online
 
         self.overall_error_mean_list = np.zeros(self.number_of_samples)
         self.current_error_mean_list = np.zeros(self.number_of_samples)
@@ -149,6 +154,7 @@ class PotentialStatesFetcher(object):
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
         self.current_error_std_list = np.zeros(self.number_of_samples)
         self.middle_error_std_list = np.zeros(self.number_of_samples)        
+        self.goal_state = None
         
         self.uncertainty_list_whole = []
         self.uncertainty_list_future = []
@@ -158,8 +164,7 @@ class PotentialStatesFetcher(object):
             self.number_of_samples = len(self.drone_flight_states)
 
 
-    def get_potential_positions_sample(self, sampling="uniform"):
-
+    def get_potential_positions_sample(self):
         new_radius = SAFE_RADIUS
         unit_z = np.array([0,0,-1])
 
@@ -183,7 +188,7 @@ class PotentialStatesFetcher(object):
         use_keys =  key_indices.copy()
         use_weights = key_weights.copy()
            
-        if sampling = "ellipse"        
+        if self.ACTIVE_SAMPLING_MODE == "ellipse":
             prev_goal_index = self.goal_state_ind
             for key, value in key_indices.items():
                 if prev_goal_index == value:
@@ -194,9 +199,10 @@ class PotentialStatesFetcher(object):
         for key, value in use_keys.items():
             ind = value
             [weight_side, weight_up] = use_weights[key] 
-            potential_trajectory = Potential_Trajectory(ind)
-            for future_pos_ind in range(self.FUTURE_WINDOW_SIZE):
-                pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up*(future_pos_ind+1) + side_vec_norm_go*(future_pos_ind+1)*weight_side)
+            potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE)
+            for future_pos_ind in range(self.FUTURE_WINDOW_SIZE-1, -1, -1):
+                future_weight = self.FUTURE_WINDOW_SIZE - future_pos_ind
+                pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up*future_weight + side_vec_norm_go*future_weight*weight_side)
 
                 potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
                 norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
@@ -210,45 +216,73 @@ class PotentialStatesFetcher(object):
                 _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
                 potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
                 potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
+
             self.potential_trajectory_list.append(potential_trajectory)
 
-    def choose_constant_rotation(self):
-        for potential_state in self.potential_states_go:
-            if potential_state.index == key_indices["r"]:
-                goal_state = potential_state
-        self.goal_state_ind = key_indices["r"]
-        return goal_state
+    def choose_constant_rotation(self, online_linecount):
+        #for potential_trajectory in self.potential_trajectory_list:
+        #    if potential_trajectory.index == key_indices["r"]:
+        #        self.goal_state =  potential_trajectory.states[self.immediate_future_ind]
+        #self.goal_state_ind = key_indices["r"]
+        for potential_trajectory in self.potential_trajectory_list:
+            if potential_trajectory.index == key_indices["r"]:
+                self.goal_trajectory = potential_trajectory
+        self.move_along_trajectory()
+        return self.goal_state
 
-    def constant_angle_baseline_future(self):       
-        for potential_state in self.potential_states_go:
-            if potential_state.index == key_indices["c"]:
-                goal_state = potential_state
-        self.goal_state_ind = key_indices["c"]
-        return goal_state
-
-    def precalibration(self):
+    def choose_go_up_down(self, online_linecount):
         new_radius = SAFE_RADIUS
         baseline_lim_up = -3
         baseline_lim_down = -1
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        if current_drone_pos[2] + 1 > baseline_lim_down: #about to crash
+        
+        if self.current_drone_pos[2] + 1 > baseline_lim_down: #about to crash
             self.goUp = True
             self.goal_state_ind = key_indices["u"]
-        if current_drone_pos[2] -1 < baseline_lim_up:
+        if self.current_drone_pos[2] -1 < baseline_lim_up:
             self.goUp = False
             self.goal_state_ind = key_indices["d"]
 
-        if self.goUp:
-            pos_go = current_drone_pos + np.array([0,0,-1])
-        else:
-            pos_go = current_drone_pos + np.array([0,0,1])
+        for potential_trajectory in self.potential_trajectory_list:
+            if potential_trajectory.index == self.goal_state_ind:
+                self.goal_trajectory = potential_trajectory
+        self.move_along_trajectory()
+        return self.goal_state
 
-        new_theta_go = acos((pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch_go = pi/2 -new_theta_go
-        _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = PotentialState(position=pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=0)
-        return goal_state
+    def constant_angle_baseline_future(self, online_linecount):       
+        #for potential_trajectory in self.potential_trajectory_list:
+        #    if potential_trajectory.index == key_indices["c"]:
+        #        goal_state = potential_trajectory[self.immediate_future_ind]
+        #self.goal_state_ind = key_indices["c"]
+        #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
+        for potential_trajectory in self.potential_trajectory_list:
+            if potential_trajectory.index == key_indices["c"]:
+                self.goal_trajectory = potential_trajectory
+        self.move_along_trajectory()
+        return self.goal_state
+
+    def find_random_next_state(self, online_linecount):
+        #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
+        random_ind = np.random.randint(0, len(self.potential_trajectory_list)-1)
+        self.goal_trajectory = self.potential_trajectory_list[random_ind]
+        self.move_along_trajectory()
+        return self.goal_state
+
+    def find_next_state_active(self, pose_client, online_linecount):
+        #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
+        self.find_hessians_for_potential_states(pose_client)
+        self.find_best_potential_state()
+        self.move_along_trajectory()
+        return self.goal_state
+
+    def move_along_trajectory(self):
+        self.goal_state = self.goal_trajectory.states[self.immediate_future_ind]
+        self.immediate_future_ind -= 1
+
+    def calibration_mode(self, linecount, online_linecount):
+        if linecount < self.PRECALIBRATION_LENGTH:
+            return self.choose_go_up_down(online_linecount)
+        else:
+            return self.choose_constant_rotation(online_linecount)
 
     def dome_experiment(self):
         if self.is_using_airsim:
@@ -261,125 +295,7 @@ class PotentialStatesFetcher(object):
             self.potential_states_go = self.drone_flight_states.copy()
         return self.potential_states_try
 
-    def up_down_baseline(self):
-        new_radius = SAFE_RADIUS
-        baseline_lim_up = self.updown_lim[0]
-        baseline_lim_down = self.updown_lim[1]
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
-        unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
-
-        up_vec = np.cross(unit_horizontal, new_drone_vec)
-        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
-
-        if current_drone_pos[2] + 1 > baseline_lim_down: #about to crash
-            self.goUp = True
-        if current_drone_pos[2] -1 < baseline_lim_up:
-            self.goUp = False
-
-        if self.goUp:
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + -up_vec_norm_go
-        else:
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + up_vec_norm_go
-        potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
-        norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-        norm_pos_go = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-
-        new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch_go = pi/2 -new_theta_go
-        _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index]) #used to be norm_pos_go
-        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=0)
-        return goal_state
-
-    def left_right_baseline(self):
-
-        new_radius = SAFE_RADIUS
-        unit_z = np.array([0,0,-1])
-        wobble_lim_up = -6
-        wobble_lim_down = -2
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        side_vec = np.cross(unit_z, new_drone_vec) 
-        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
-
-        if current_drone_pos[2] + 1 > wobble_lim_down: #about to crash
-            self.goUp = True
-        if current_drone_pos[2] - 1 < wobble_lim_up:
-            self.goUp = False
-
-        if self.goUp:
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + (-up_vec_norm_go*up_vec_weight - side_vec_norm_go)/sqrt(up_vec_weight*up_vec_weight+1)
-        else:
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + (up_vec_norm_go*up_vec_weight - side_vec_norm_go)/sqrt(up_vec_weight*up_vec_weight+1)
-        potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
-        norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-        norm_pos_go = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-
-        new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch_go = pi/2 -new_theta_go
-        _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=0)
-        return goal_state
-
-    def wobbly_baseline(self):
-
-        new_radius = SAFE_RADIUS
-        unit_z = np.array([0,0,-1])
-        wobble_lim_up = self.updown_lim[0]
-        wobble_lim_down =self.updown_lim[1]
-        up_vec_weight = self.wobble_freq
-
-        current_drone_pos = np.copy(self.current_drone_pos)
-
-        drone_vec = current_drone_pos - self.future_human_pos[:, self.hip_index]
-        cur_radius = np.linalg.norm(drone_vec)
-
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
-        unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
-
-        up_vec = np.cross(unit_horizontal, new_drone_vec)
-        side_vec = np.cross(unit_z, new_drone_vec) 
-        up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
-        side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
-
-        if current_drone_pos[2] + 1 > wobble_lim_down: #about to crash
-            self.goUp = True
-        if current_drone_pos[2] - 1 < wobble_lim_up:
-            self.goUp = False
-
-        if self.goUp:
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + (-up_vec_norm_go*up_vec_weight - side_vec_norm_go)/sqrt(up_vec_weight*up_vec_weight+1)
-        else:
-            pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] + (up_vec_norm_go*up_vec_weight - side_vec_norm_go)/sqrt(up_vec_weight*up_vec_weight+1)
-
-        potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
-        norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-        norm_pos_go = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-
-        new_theta_go = acos((norm_pos_go[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch_go = pi/2 -new_theta_go
-        _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
-        goal_state = PotentialState(position=norm_pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=0)
-
-        return goal_state
-
-    
     def find_hessians_for_potential_states(self, pose_client):
-        self.counter += 1
         for potential_trajectory in self.potential_trajectory_list:
             self.objective.reset_future(pose_client, potential_trajectory)
             if pose_client.USE_TRAJECTORY_BASIS:
@@ -407,7 +323,7 @@ class PotentialStatesFetcher(object):
                 potential_trajectory = x["potential_trajectory"]
 
                 if self.uncertainty_calc_method == "sum_eig":
-                    _, s, _ = np.linalg.svd(cov)xw
+                    _, s, _ = np.linalg.svd(cov)
                     uncertainty_dict[potential_trajectory.index] = (np.sum(s)) 
                 elif self.uncertainty_calc_method == "add_diag":
                     s = np.diag(cov)
@@ -452,23 +368,14 @@ class PotentialStatesFetcher(object):
         #print("uncertainty list var:", np.std(final_dict.values()), "uncertainty list min max", np.min(final_dict.values()), np.max(final_dict.values()), "best ind", self.goal_state_ind)
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.index == self.goal_state_ind:
-                goal_trajectory = potential_trajectory
-        return goal_trajectory, self.goal_state_ind
-
-    def find_random_next_state(self):
-        random_ind = np.random.randint(0, len(self.potential_states_go)-1)
-        goal_state = self.potential_states_go[random_ind]
-        for potential_state in self.potential_states_go:
-            if potential_state.index == goal_state.index:
-                self.goal_state_ind = goal_state.index
-        return goal_state
+                self.goal_trajectory = potential_trajectory
 
     def find_next_state_constant_rotation(self, linecount):
         if self.animation != "drone_flight":
             self.goal_state_ind = (linecount)%(len(self.potential_states_go))
             for potential_states in self.potential_states_go:
                 if potential_states.index == self.goal_state_ind:
-                    goal_state = potential_states
+                    self.goal_state = potential_states
         else:
             prev_goal_state_ind = self.goal_state_ind
             for potential_states in self.potential_states_go:
@@ -482,21 +389,22 @@ class PotentialStatesFetcher(object):
                 if potential_states.index not in self.visited_ind_list:
                     if  min_dist > dist_to_next_position:
                         min_dist = dist_to_next_position
-                        goal_state = potential_states
-                        self.goal_state_ind = goal_state.index
+                        self.goal_state = potential_states
+                        self.goal_state_ind = self.goal_state.index
 
             if len(self.visited_ind_list) == len(self.potential_states_go)-5:
                 self.visited_ind_list.pop(0)
             self.visited_ind_list.append(self.goal_state_ind)
 
-        return goal_state
+        return self.goal_state
 
-    def choose_state(self, index):
+    def choose_state(self, index, future_step):
         self.goal_state_ind = index
-        for potential_states in self.potential_states_go:
-            if potential_states.index == self.goal_state_ind:
-                goal_state = potential_states
-        return goal_state
+        for potential_trajectory in self.potential_trajectory_list:
+            if potential_trajectory.index == self.goal_state_ind:
+                self.goal_state = potential_trajectory.states[self.immediate_future_ind]
+        return self.goal_state
+
 
     def plot_everything(self, linecount, file_manager, calibration_length, plot_potential_errors_bool):
         plot_loc = file_manager.plot_loc
@@ -506,7 +414,7 @@ class PotentialStatesFetcher(object):
             #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
-            plot_potential_trajectories(self.current_human_pos, self.human_GT, self.potential_trajectory_list, plot_loc, linecount)            
+            plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
             #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
             #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 

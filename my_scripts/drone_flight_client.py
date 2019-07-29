@@ -61,6 +61,7 @@ class DroneFlightClient(object):
     def __init__(self, length_of_simulation, test_set_name, non_simulation_files):
         #take filenames and save them
         self.linecount = 0
+        self.online_linecount = 0
         self.chosen_sample = 0
         self.length_of_simulation = length_of_simulation
 
@@ -111,6 +112,7 @@ class DroneFlightClient(object):
 
     def reset(self):
         self.linecount = 0
+        self.online_linecount = 0
         self.chosen_sample = 0
         self.current_openpose_res = 0
         self.end = False
@@ -123,6 +125,11 @@ class DroneFlightClient(object):
 
     def get_linecount(self):
         return self.linecount
+
+    def increment_linecount(self, isCalibratingEnergy):
+        self.linecount += 1
+        if not isCalibratingEnergy:
+            self.online_linecount += 1
 
     def get_drone_flight_states(self):
         linecount_ind = self.linecount 

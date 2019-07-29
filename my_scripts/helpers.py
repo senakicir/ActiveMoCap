@@ -1250,9 +1250,9 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, custom_
     plt.savefig(file_name2)
     plt.close(fig)
 
-def plot_potential_trajectories(current_human_pose, gt_human_pose, potential_trajectory_list, plot_loc, linecount):
-    current_human_pos = current_human_pose[0:2, hip_index]
-    gt_human_pos = gt_human_pose[0:2, hip_index]
+def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_ind, potential_trajectory_list, hip_index, plot_loc, linecount):
+    current_human_pos = current_human_pose[:, hip_index]
+    gt_human_pos = gt_human_pose[:, hip_index]
 
     fig = plt.figure(figsize=(4,4))
     ax = fig.add_subplot(111, projection='3d')
@@ -1263,22 +1263,23 @@ def plot_potential_trajectories(current_human_pose, gt_human_pose, potential_tra
     Z = np.array([-current_human_pos[2], -gt_human_pos[2]])
 
     #plot trajectories
-    for trajectory_ind, potential_trajectory in enumerate(potential_trajectory_list):
-        drone_positions = potential_trajectory.drone_positions
-        drone_positions = -drone_positions[:, 2]
+    for _, potential_trajectory in enumerate(potential_trajectory_list):
+        drone_positions = potential_trajectory.drone_positions.clone()
+        trajectory_ind = potential_trajectory.index
+        drone_positions[:,2,:] = -drone_positions[:, 2, :]
         drone_positions_numpy = drone_positions.numpy()
         #for plot lim
-        X = np.concatenate([X, drone_positions_numpy[:,0]])
-        Y = np.concatenate([Y, drone_positions_numpy[:,1]])
-        Z = np.concatenate([Z, drone_positions_numpy[:,2]])
+        X = np.concatenate([X, drone_positions_numpy[:,0,0]])
+        Y = np.concatenate([Y, drone_positions_numpy[:,1,0]])
+        Z = np.concatenate([Z, drone_positions_numpy[:,2,0]])
 
-        markersize=30
-        text_color="b"
-        if (state_ind == potential_states_fetcher.goal_state_ind):
-            markersize=100
-            text_color="r"
+        markersize=3
+        markercolor="xkcd:pink"
+        if (trajectory_ind == goal_state_ind):
+            markersize=7
+            markercolor="xkcd:red"
 
-        plot3=ax.scatter([drone_positions_numpy[:,0]], [drone_positions_numpy[:,1]], [drone_positions_numpy[:,2]], marker='^', c="xkcd:pink", s=markersize, alpha=1)
+        plot3=ax.plot(drone_positions_numpy[:,0,0], drone_positions_numpy[:,1,0], drone_positions_numpy[:,2,0], marker='^', c=markercolor, markersize=markersize, alpha=1)
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     mid_x = (X.max()+X.min()) * 0.5
@@ -1295,7 +1296,7 @@ def plot_potential_trajectories(current_human_pose, gt_human_pose, potential_tra
     plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
     plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
 
-    file_name = plot_loc + name + str(linecount) + ".png"
+    file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
 

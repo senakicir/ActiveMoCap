@@ -24,17 +24,19 @@ if __name__ == "__main__":
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
-    SEED_LIST = [12]# 41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
+    SEED_LIST = [41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
     delta_t = 0.1
     upper_lim = -3
-    lower_lim = -0.5 #-2.5
+    lower_lim = -0.5
     top_speed = 1.5
-    go_distance = 2
-    LOOKAHEAD_LIST = [0.5]
+
     if loop_mode == "normal_teleport":
-        go_distance = 3#0.5
-        LOOKAHEAD_LIST = [3]#[0.5]#[6]#[0.5]
+        go_distance = 0.5
+        LOOKAHEAD_LIST = [0.5]#[6]#[0.5]
+    elif loop_mode == "teleport":
+        go_distance = 1
+        LOOKAHEAD_LIST = [1]
 
     UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
     ftol = 1e-3
@@ -42,11 +44,11 @@ if __name__ == "__main__":
     is_quiet = False
     
     estimation_window_size = 5
-    future_window_size = 4
+    future_window_size = 1
 
     calibration_length = 30
-    calibration_window_size = 10
-    precalibration_length = 5
+    calibration_window_size = 20
+    precalibration_length = 10
     length_of_simulation = 120
     
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
@@ -77,7 +79,7 @@ if __name__ == "__main__":
     #projection_method: "scaled, normal, normalized"
     projection_method = "normalized" 
     if projection_method == "normal" or projection_method == "normalized":
-        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0}
+        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
     elif projection_method == "scaled":
         weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
 
@@ -122,7 +124,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = [ "constant_rotation"]#, "constant_angle"]
+    TRAJECTORY_LIST = ["active", "constant_rotation", "random"]
     ablation_study = False
     grid_search = False
     
@@ -134,7 +136,7 @@ if __name__ == "__main__":
         num_of_experiments = 8
         smooth_weights = torch.logspace(-4,-1,num_of_experiments)
         is_quiet = True
-        TRAJECTORY_LIST = ["constant_rotation"]
+        TRAJECTORY_LIST = ["active"]
         SEED_LIST = [41, 5, 2]
     else:
         num_of_experiments = len(TRAJECTORY_LIST)
@@ -145,7 +147,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0}
+        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:

@@ -12,11 +12,13 @@ def scale_with_bone_lengths(pose_to_scale, bone_lengths, bone_length_method, bon
 
     if batch:
         scale = torch.sum(bone_lengths)/torch.sum(our_pose_bone_lengths, dim=1)
+        scale = (scale.unsqueeze(1)).unsqueeze(2)
+        scale = scale.repeat(1,pose_to_scale.shape[1],pose_to_scale.shape[2])
     else:
         scale = torch.sum(bone_lengths)/torch.sum(our_pose_bone_lengths)
 
     if bone_length_method == "no_sqrt":
-        return np.sqrt(scale)*pose_to_scale
+        return torch.sqrt(scale)*pose_to_scale
     elif bone_length_method == "sqrt":
         return scale*pose_to_scale
 
@@ -46,6 +48,6 @@ class Lift_Client(object):
 
     def reset_future(self, lift_pose_tensor, potential_lift_directions, noise_lift_std):
         temp = lift_pose_tensor.clone()
-        self.pose3d_lift_directions = torch.cat((potential_lift_directions.unsqueeze(0), temp), dim=0)
+        self.pose3d_lift_directions = torch.cat((potential_lift_directions, temp), dim=0)
 
         

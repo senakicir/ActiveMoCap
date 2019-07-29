@@ -31,8 +31,8 @@ class PoseEstimationClient(object):
         self.ONLINE_WINDOW_SIZE = self.ESTIMATION_WINDOW_SIZE+self.FUTURE_WINDOW_SIZE 
 
         self.CURRENT_POSE_INDEX = self.FUTURE_WINDOW_SIZE
-        self.FUTURE_POSE_INDEX = 0
-        self.MIDDLE_POSE_INDEX = (self.ESTIMATION_WINDOW_SIZE)//2
+        self.FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE-1
+        self.MIDDLE_POSE_INDEX = self.FUTURE_WINDOW_SIZE+(self.ESTIMATION_WINDOW_SIZE)//2
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
@@ -209,8 +209,8 @@ class PoseEstimationClient(object):
 
     def calculate_store_errors(self, linecount):
         self.errors = {}
-        self.errors["current_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[self.CURRENT_POSE_INDEX-1, :, :] - self.adj_current_pose, axis=0))
-        self.errors["middle_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[self.MIDDLE_POSE_INDEX-1, :, :] - self.adj_middle_pose, axis=0))
+        self.errors["current_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[0, :, :] - self.adj_current_pose, axis=0))
+        self.errors["middle_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[self.ESTIMATION_WINDOW_SIZE//2, :, :] - self.adj_middle_pose, axis=0))
         self.errors["ave_current_error"], self.errors["ave_middle_error"] = -1, -1
         if linecount > self.save_errors_after:
             self.error_3d.append(self.errors["current_error"])
@@ -256,10 +256,10 @@ class PoseEstimationClient(object):
         if (self.isCalibratingEnergy):
             self.current_pose = optimized_poses.copy()
             self.middle_pose = optimized_poses.copy()
-            self.future_poses = optimized_poses.copy()
+            self.future_poses = np.repeat(optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
             self.adj_current_pose = adjusted_optimized_poses.copy()
             self.adj_middle_pose = adjusted_optimized_poses.copy()
-            self.adj_future_poses = adjusted_optimized_poses.copy()
+            self.adj_future_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
 
             self.optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :].copy(), self.ONLINE_WINDOW_SIZE, axis=0)
             self.adjusted_optimized_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :].copy(), self.ONLINE_WINDOW_SIZE, axis=0)
