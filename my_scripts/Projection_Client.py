@@ -55,23 +55,53 @@ class Projection_Client(object):
         camera_intrinsics = self.K_torch.repeat(self.FUTURE_WINDOW_SIZE , 1,1)
         flip_x_y = (torch.cat((self.flip_x_y_single, torch.zeros(3,1)), dim=1)).repeat(self.FUTURE_WINDOW_SIZE , 1, 1)
         self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = self.take_batch_projection(future_poses,
-                potential_trajectory.inv_transformation_matrix, ones_tensor, camera_intrinsics, flip_x_y)
+                potential_trajectory.inv_transformation_matrix, ones_tensor, camera_intrinsics, flip_x_y).clone()
        
         queue_index = self.FUTURE_WINDOW_SIZE
-        for bone_2d, _, inverse_transformation_matrix in data_list:
-            self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
-            self.inverse_transformation_matrix[queue_index, :, :]= inverse_transformation_matrix.clone()
+        for one_pose_2d, _, one_inverse_transformation_matrix in data_list:
+            self.pose_2d_tensor[queue_index, :, :] = one_pose_2d.clone()
+            self.inverse_transformation_matrix[queue_index, :, :]= one_inverse_transformation_matrix.clone()
             queue_index += 1
 
         self.ones_tensor = torch.ones(self.online_window_size, 1, self.num_of_joints)
         self.flip_x_y_batch = (torch.cat((self.flip_x_y_single, torch.zeros(3,1)), dim=1)).repeat(self.online_window_size , 1, 1)
         self.camera_intrinsics = self.K_torch.repeat(self.online_window_size , 1,1)
 
+    def old_reset_future(self, data_list, potential_inv_transformation_matrix, potential_projected_est):
+        self.window_size = len(data_list)+1
+        self.pose_2d_tensor = torch.zeros(self.window_size, 2, self.num_of_joints)
+        self.inverse_transformation_matrix = torch.zeros(self.window_size , 4, 4)
+
+        self.pose_2d_tensor[0, :, :] = potential_projected_est.clone()
+        self.inverse_transformation_matrix[0,:,:] = potential_inv_transformation_matrix.clone()
+        queue_index = 1
+        for bone_2d, _, inverse_transformation_matrix in data_list:
+            self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
+            self.inverse_transformation_matrix[queue_index, :, :]= inverse_transformation_matrix.clone()
+            queue_index += 1
+
+        self.ones_tensor = torch.ones(self.window_size, 1, self.num_of_joints)
+        self.flip_x_y_batch = (torch.cat((self.flip_x_y_single, torch.zeros(3,1)), dim=1)).repeat(self.window_size , 1, 1)
+        self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
+
+
     def deepcopy_projection_client(self):
         return Projection_Client(self.test_set, self.FUTURE_WINDOW_SIZE, self.num_of_joints, self.focal_length, self.px, self.py) 
 
     def take_projection(self, pose_3d):
-        return self.take_batch_projection(pose_3d, self.inverse_transformation_matrix, self.ones_tensor, self.camera_intrinsics, self.flip_x_y_batch)
+        return self.old_take_projection(pose_3d)
+        #return self.take_batch_projection(pose_3d, self.inverse_transformation_matrix, self.ones_tensor, self.camera_intrinsics, self.flip_x_y_batch)
+
+    def old_take_projection(self, pose_3d):
+        P_world = torch.cat((pose_3d, self.ones_tensor), dim=1)
+        P_camera = self.old_world_to_camera(P_world, self.inverse_transformation_matrix)
+        proj_homog = torch.bmm(self.camera_intrinsics , P_camera)
+
+        z = proj_homog[:,2,:]
+        result = torch.zeros(self.window_size, 2, self.num_of_joints)
+        result[:,0,:] = proj_homog[:,0,:]/z
+        result[:,1,:] = proj_homog[:,1,:]/z
+        return result
 
     def take_single_projection(self, P_world, inv_transformation_matrix):
         ones_tensor = torch.ones([1, self.num_of_joints])*1.0
@@ -87,13 +117,11 @@ class Projection_Client(object):
         return result
 
     def take_batch_projection(self, P_world, inv_transformation_matrix, ones_tensor, camera_intrinsics, flip_x_y):
-        ones_tensor = torch.ones([1, self.num_of_joints])*1.0
-
         P_world = torch.cat((P_world, ones_tensor), dim=1)
         P_camera = self.world_to_camera(P_world, inv_transformation_matrix, flip_x_y)
         proj_homog = torch.bmm(camera_intrinsics, P_camera)
         
-        z = proj_homog[2,:]
+        z = proj_homog[:,2,:]
         result = torch.zeros([P_world.shape[0], 2, self.num_of_joints])
         result[:,0,:] = proj_homog[:,0,:]/z
         result[:,1,:] = proj_homog[:,1,:]/z
@@ -132,3 +160,12 @@ class Projection_Client(object):
         P_world_ = torch.mm(transformation_matrix, P_camera)
         P_world = P_world_.clone()
         return P_world[0:3,:]
+
+    def old_world_to_camera(self, P_world, inv_transformation_matrix):
+        if inv_transformation_matrix.dim() == 3:
+            P_camera = torch.bmm(inv_transformation_matrix, P_world)
+            P_camera = torch.bmm(self.flip_x_y_batch, P_camera)
+        else:
+            P_camera = torch.mm(inv_transformation_matrix, P_world)
+            P_camera = torch.mm(self.flip_x_y_single, P_camera[0:3,:])
+        return P_camera  
