@@ -42,7 +42,7 @@ if __name__ == "__main__":
     is_quiet = False
     
     estimation_window_size = 5
-    future_window_size = 4
+    future_window_size = 1
 
     calibration_length = 30
     calibration_window_size = 10

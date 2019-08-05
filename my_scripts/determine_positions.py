@@ -29,13 +29,14 @@ def adjust_with_M(M, pose, hip_index):
         root_pose = pose[:,:,hip_index]
         return np.matmul(pose-root_pose[:,:,np.newaxis], M) + root_pose[:,:,np.newaxis]
 
-def determine_positions(linecount, pose_client, current_state, plot_loc, photo_loc):
+def determine_positions(linecount, pose_client, current_state, file_manager):
     if (pose_client.modes["mode_3d"] == "scipy"):
-        cp = determine_3d_positions_energy_scipy(linecount, pose_client, current_state, plot_loc, photo_loc)
+        determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
     else:
         print("error! you removed this")
     current_state.update_human_info(pose_client.current_pose)
-    return cp
+    file_manager.record_reconstruction_values(pose_client.current_pose, linecount)
+    return pose_client.current_pose
 
 def determine_2d_positions(pose_client, current_state, return_heatmaps=True, input_image = 0, linecount=0):    
     if (pose_client.modes["mode_2d"] != "openpose"):
@@ -247,7 +248,6 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, p
 
     #lots of plot stuff
     errors = pose_client.calculate_store_errors(linecount)
-    print(adjusted_optimized_poses.shape)
 
     if (plot_loc != 0 and not pose_client.quiet): 
         start_plot_time = time.time()
@@ -264,7 +264,7 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, p
 
         if (not pose_client.isCalibratingEnergy and not pose_client.simulate_error_mode):
             plot_future_poses(adjusted_optimized_poses, pose_client.FUTURE_WINDOW_SIZE, plot_loc, linecount, bone_connections, pose_client.animation)
-            #plot_human(bone_pos_3d_GT, pose_client.adj_current_pose, plot_loc, linecount-pose_client.MIDDLE_POSE_INDEX+1, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, errors["middle_error"], custom_name="middle_pose_", label_names = ["GT", "Estimate"], additional_text = errors["ave_middle_error"])
+            plot_human(bone_pos_3d_GT, pose_client.adj_current_pose, plot_loc, linecount-pose_client.MIDDLE_POSE_INDEX+1, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, errors["middle_error"], custom_name="middle_pose_", label_names = ["GT", "Estimate"], additional_text = errors["ave_middle_error"])
             hip_joint = bone_pos_3d_GT[:,hip_index]
             #plot_human(pose3d_lift_directions.numpy(), bone_pos_3d_GT-hip_joint[:, np.newaxis], plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, -1, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
         end_plot_time = time.time()

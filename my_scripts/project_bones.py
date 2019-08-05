@@ -11,8 +11,9 @@ DEFAULT_TORSO_SIZE = 0.3
 C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]])
 
 class Projection_Client(object):
-    def __init__(self, test_set, num_of_joints, focal_length, px, py):
+    def __init__(self, test_set, future_window_size, num_of_joints, focal_length, px, py):
         self.test_set = test_set
+        self.future_window_size = future_window_size
         self.K_torch = (torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]]))
         self.K_inv_torch = torch.inverse(self.K_torch)
         self.focal_length = focal_length
@@ -60,7 +61,7 @@ class Projection_Client(object):
         self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
 
     def deepcopy_projection_client(self):
-        return Projection_Client(self.test_set, self.num_of_joints, self.focal_length, self.px, self.py) 
+        return Projection_Client(self.test_set, self.future_window_size, self.num_of_joints, self.focal_length, self.px, self.py) 
 
     def take_projection(self, pose_3d):
         P_world = torch.cat((pose_3d, self.ones_tensor), dim=1)

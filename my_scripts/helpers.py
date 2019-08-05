@@ -567,12 +567,12 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
     
     if (additional_text != None):
         ax.text2D(0, 0.38, "mean error: %.4f" %additional_text, transform=ax.transAxes)
-    #if (error != -1):
-        #ax.text2D(0, 0.3, "error: %.4f" %error, transform=ax.transAxes)
-       # if (additional_text != None):
-          #  ax.text2D(0, 0.35, "running ave error: %.4f" %additional_text, transform=ax.transAxes)
+    if (error != -1):
+        ax.text2D(0, 0.3, "error: %.4f" %error, transform=ax.transAxes)
+        if (additional_text != None):
+            ax.text2D(0, 0.35, "running ave error: %.4f" %additional_text, transform=ax.transAxes)
 
-   # plt.title("3D Human Pose")
+    plt.title("3D Human Pose")
     plot_3d_pos_loc = location + name + str(ind) + '.png'
     plt.savefig(plot_3d_pos_loc)
     plt.close()
