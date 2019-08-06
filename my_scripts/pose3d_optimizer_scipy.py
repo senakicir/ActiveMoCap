@@ -135,8 +135,9 @@ class pose3d_online_parallel_wrapper():
         lift_client = pose_client.lift_client
         future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_poses[-1,:,:], potential_traj.inv_transformation_matrix[-1,:,:])
+        potential_projected_est = projection_client.take_single_projection(future_poses[-1,:,:], potential_traj.inv_transformation_matrix[-1,:,:])
         projection_client.reset_future(data_list, potential_traj.inv_transformation_matrix[-1,:,:], potential_projected_est)
+        pose_client.potential_projected_est = potential_projected_est
         
         if pose_client.USE_LIFT_TERM:
             if pose_client.LIFT_METHOD == "complex":

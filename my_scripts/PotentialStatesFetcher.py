@@ -334,9 +334,9 @@ class PotentialStatesFetcher(object):
         self.move_along_trajectory()
         return self.goal_state
 
-    def find_next_state_active(self, pose_client, online_linecount):
+    def find_next_state_active(self, pose_client, online_linecount, file_manager):
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
-        self.find_hessians_for_potential_states(pose_client)
+        self.find_hessians_for_potential_states(pose_client, file_manager, online_linecount)
         self.find_best_potential_state()
         self.move_along_trajectory()
         return self.goal_state
@@ -361,9 +361,11 @@ class PotentialStatesFetcher(object):
             self.potential_states_go = self.drone_flight_states.copy()
         return self.potential_states_go
 
-    def find_hessians_for_potential_states(self, pose_client):
+    def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:
             self.objective.reset_future(pose_client, potential_trajectory)
+            file_manager.record_projection_est_values(pose_client.potential_projected_est, online_linecount)
+
             if pose_client.USE_TRAJECTORY_BASIS:
                 hess2 = self.objective.hessian(pose_client.optimized_traj)
             else:

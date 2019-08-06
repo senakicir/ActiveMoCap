@@ -70,6 +70,7 @@ class PoseEstimationClient(object):
         self.poses_3d_gt = np.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints])
         self.boneLengths = torch.zeros([self.num_of_joints-1])
         self.lift_pose_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints])
+        self.potential_projected_est = torch.zeros([2, self.num_of_joints])
 
         self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1])
 
@@ -338,6 +339,8 @@ class PoseEstimationClient(object):
         new_pose_client.adj_future_poses = self.adj_future_poses.copy()
         new_pose_client.adj_current_pose = self.adj_current_pose.copy()
         new_pose_client.adj_middle_pose = self.adj_middle_pose.copy()
+        new_pose_client.potential_projected_est = self.potential_projected_est.clone()
+
 
         if self.animation != "drone_flight":
             new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()

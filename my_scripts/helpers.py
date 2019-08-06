@@ -247,7 +247,8 @@ def reset_all_folders(animation_list, seed_list, base = ""):
                 "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  
                 "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt',
                 "f_liftnet_results": experiment_folder_name +  '/liftnet_results.txt',
-                "f_openpose_results": experiment_folder_name +  '/openpose_results.txt'}
+                "f_openpose_results": experiment_folder_name +  '/openpose_results.txt',
+                "f_projection_est": experiment_folder_name +  '/future_pose_2d_estimate.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name

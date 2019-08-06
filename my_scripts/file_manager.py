@@ -75,6 +75,7 @@ class FileManager(object):
         self.f_initial_drone_pos = open(self.filenames_anim["f_initial_drone_pos"], 'w')
         self.f_openpose_results = open(self.filenames_anim["f_openpose_results"], 'w')
         self.f_liftnet_results = open(self.filenames_anim["f_liftnet_results"], 'w')
+        self.f_projection_est = open(self.filenames_anim["f_projection_est"], 'w')
 
         if self.loop_mode ==  "openpose":
             self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
@@ -216,6 +217,12 @@ class FileManager(object):
         for i in range(pose_3d.shape[1]):
             f_reconstruction_str += str(pose_3d[0, i].item()) + '\t' + str(pose_3d[1, i].item()) + '\t' +  str(pose_3d[2, i].item()) + '\t'
         self.f_reconstruction.write(str(linecount)+ '\t' + f_reconstruction_str + '\n')
+
+    def record_projection_est_values(self, pose_2d, linecount):
+        f_projection_est_str = ""
+        for i in range(pose_2d.shape[1]):
+            f_projection_est_str += str(pose_2d[0, i].item()) + '\t' + str(pose_2d[1, i].item()) + '\t' 
+        self.f_projection_est.write(str(linecount)+ '\t' + f_projection_est_str + '\n')
 
     def write_all_values(self, pose_3d, pose_3d_gt, drone_pos, drone_orient, linecount, num_of_joints):
         f_reconstruction_str = ""

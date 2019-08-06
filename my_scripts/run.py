@@ -204,7 +204,7 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
             goal_state = potential_states_fetcher.calibration_mode(airsim_client.linecount, airsim_client.online_linecount)
         else:
             if (trajectory == "active"):
-                goal_state = potential_states_fetcher.find_next_state_active(pose_client, airsim_client.online_linecount)                    
+                goal_state = potential_states_fetcher.find_next_state_active(pose_client, airsim_client.online_linecount, file_manager)                    
                 file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_dict, airsim_client.linecount)
                 potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
             if (trajectory == "constant_rotation"):
