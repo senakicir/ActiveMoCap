@@ -46,7 +46,7 @@ if __name__ == "__main__":
     calibration_length = 30
     calibration_window_size = 20
     precalibration_length = 10
-    length_of_simulation = 50
+    length_of_simulation = 120
     
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
     init_pose_mode = "backproj"

@@ -59,6 +59,8 @@ class FileManager(object):
 
         #open files
         self.f_drone_pos = open(self.filenames_anim["f_drone_pos"], 'w')
+        self.f_drone_pos.write("linecount" + '\t' + "posx"+'\t' + "posy"+'\t' + "posz"+'\t' + "orient1"+'\t' + "orient2"+'\t' + "orient3" + '\n')
+
         self.f_groundtruth = open(self.filenames_anim["f_groundtruth"], 'w')
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_error = open(self.filenames_anim["f_error"], 'w')
@@ -201,8 +203,21 @@ class FileManager(object):
             f_groundtruth_str += str(gt_3d_pose[0, i].item()) + '\t' + str(gt_3d_pose[1, i].item()) + '\t' +  str(gt_3d_pose[2, i].item()) + '\t'
         self.f_groundtruth.write(str(linecount)+ '\t' + f_groundtruth_str + '\n')
 
+    def record_drone_info(self, drone_pos, drone_orient, linecount):
+        f_drone_pos_str = ""
+        for i in range(3):
+            f_drone_pos_str += str(drone_pos[i]) + '\t'
+        for i in range(3):
+            f_drone_pos_str += str(drone_orient[i]) + '\t'
+        self.f_drone_pos.write(str(linecount)+ '\t' + f_drone_pos_str + '\n')
 
-    def write_reconstruction_values(self, pose_3d, pose_3d_gt, drone_pos, drone_orient, linecount, num_of_joints):
+    def record_reconstruction_values(self, pose_3d, linecount):
+        f_reconstruction_str = ""
+        for i in range(pose_3d.shape[1]):
+            f_reconstruction_str += str(pose_3d[0, i].item()) + '\t' + str(pose_3d[1, i].item()) + '\t' +  str(pose_3d[2, i].item()) + '\t'
+        self.f_reconstruction.write(str(linecount)+ '\t' + f_reconstruction_str + '\n')
+
+    def write_all_values(self, pose_3d, pose_3d_gt, drone_pos, drone_orient, linecount, num_of_joints):
         f_reconstruction_str = ""
         f_groundtruth_str = ""
         for i in range(num_of_joints):
@@ -221,14 +236,12 @@ class FileManager(object):
         self.f_drone_pos.write(str(linecount)+ '\t' + f_drone_pos_str + '\n')
 
     def write_error_values(self, errors, linecount):
-        f_error_str = ""
-        for error in errors:
-            f_error_str += str(error) + '\t'
+        f_error_str = str(errors["middle_error"]) + '\t' + str(errors["ave_middle_error"]) 
         self.f_error.write(str(linecount)+ '\t' + f_error_str + '\n')
 
     def write_uncertainty_values(self, uncertainties, linecount):
         f_uncertainty_str = ""
-        for uncertainty in uncertainties:
+        for key, uncertainty in uncertainties.items():
             f_uncertainty_str += str(uncertainty) + '\t'
         self.f_uncertainty.write(str(linecount)+ '\t' + f_uncertainty_str + '\n')
 

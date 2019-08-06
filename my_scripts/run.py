@@ -183,6 +183,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
 def normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode):
     airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+    trajectory = potential_states_fetcher.trajectory 
+
     time.sleep(0.5)
 
     airsim_client.simPauseHuman(True)
@@ -195,38 +197,22 @@ def normal_simulation_loop(current_state, pose_client, airsim_client, potential_
         cam_pitch = current_state.get_required_pitch()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
 
-        potential_states_fetcher.reset(pose_client, airsim_client, current_state)
+        potential_states_fetcher.reset(pose_client, airsim_client, current_state, loop_mode)
+        potential_states_fetcher.get_potential_positions_sample()
 
-        trajectory = potential_states_fetcher.trajectory 
-        if airsim_client.linecount < pose_client.PRECALIBRATION_LENGTH:
-            goal_state = potential_states_fetcher.precalibration()
+        if pose_client.isCalibratingEnergy:
+            goal_state = potential_states_fetcher.calibration_mode(airsim_client.linecount, airsim_client.online_linecount)
         else:
-            if potential_states_fetcher.ACTIVE_SAMPLING_MODE == "uniform":
-                potential_states_fetcher.get_potential_positions_really_spherical_future()
-            elif potential_states_fetcher.ACTIVE_SAMPLING_MODE == "ellipse":
-                potential_states_fetcher.get_potential_positions_ellipse()
-
-            if pose_client.isCalibratingEnergy:
-                goal_state = potential_states_fetcher.choose_constant_rotation()
-            else:
-                if (trajectory == "active"):
-                    potential_states_fetcher.find_hessians_for_potential_states(pose_client)
-                    goal_state, _ = potential_states_fetcher.find_best_potential_state()
-                    file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_list_whole, airsim_client.linecount)
-                    potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
-                if (trajectory == "constant_rotation"):
-                    goal_state = potential_states_fetcher.choose_constant_rotation()
-                if (trajectory == "random"): 
-                    goal_state = potential_states_fetcher.find_random_next_state()
-                if (trajectory == "constant_angle"):
-                    goal_state = potential_states_fetcher.constant_angle_baseline_future()
-
-            #if (trajectory == "wobbly_rotation"):
-            #    goal_state = potential_states_fetcher.wobbly_baseline()
-            #if (trajectory == "updown"):
-            #    goal_state = potential_states_fetcher.up_down_baseline()
-            #if (trajectory == "leftright"):
-            #    goal_state = potential_states_fetcher.left_right_baseline()
+            if (trajectory == "active"):
+                goal_state = potential_states_fetcher.find_next_state_active(pose_client, airsim_client.online_linecount)                    
+                file_manager.write_uncertainty_values(potential_states_fetcher.uncertainty_dict, airsim_client.linecount)
+                potential_states_fetcher.plot_everything(airsim_client.linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
+            if (trajectory == "constant_rotation"):
+                goal_state = potential_states_fetcher.choose_constant_rotation(airsim_client.online_linecount)
+            if (trajectory == "random"): 
+                goal_state = potential_states_fetcher.find_random_next_state(airsim_client.online_linecount)
+            if (trajectory == "constant_angle"):
+                goal_state = potential_states_fetcher.constant_angle_baseline_future(airsim_client.online_linecount)
 
         set_position(goal_state, airsim_client, current_state, pose_client, loop_mode=loop_mode)
         if not pose_client.quiet and airsim_client.linecount > 0:
@@ -253,7 +239,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
         time.sleep(1)
         for _ in range(150): 
             airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-            potential_states_fetcher.reset(pose_client, airsim_client, current_state)
+            potential_states_fetcher.reset(pose_client, airsim_client, current_state, airsim_client.linecount, loop_mode)
             potential_states_fetcher.dome_experiment()
 
             for sample_ind in range(potential_states_fetcher.number_of_samples):
