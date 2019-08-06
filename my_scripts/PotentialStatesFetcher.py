@@ -185,6 +185,7 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
 
         self.potential_trajectory_list = []
+        self.potential_trajectory_list_try = []
 
         self.potential_pose2d_list = []
 
@@ -219,6 +220,8 @@ class PotentialStatesFetcher(object):
 
         up_vec = np.cross(unit_horizontal, new_drone_vec)
         side_vec = np.cross(unit_z, new_drone_vec) 
+        up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
+        side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
         up_vec_norm_go = up_vec* self.go_distance/np.linalg.norm(up_vec)
         side_vec_norm_go = side_vec* self.go_distance/np.linalg.norm(side_vec)
 
@@ -233,10 +236,10 @@ class PotentialStatesFetcher(object):
             use_weights = adjust_using_prev_pos(prev_goal_key, use_weights.copy())
         use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
 
-        for key, value in use_keys.items():
-            ind = value
+        for key, ind in use_keys.items():
             [weight_side, weight_up] = use_weights[key] 
             potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE)
+
             for future_pos_ind in range(self.FUTURE_WINDOW_SIZE-1, -1, -1):
                 future_weight = self.FUTURE_WINDOW_SIZE - future_pos_ind
                 pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up*future_weight + side_vec_norm_go*future_weight*weight_side)
@@ -253,8 +256,9 @@ class PotentialStatesFetcher(object):
                 _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
                 potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
                 potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
-
+                
             self.potential_trajectory_list.append(potential_trajectory)
+
 
             #debug
             #print("*******begin")
@@ -283,20 +287,33 @@ class PotentialStatesFetcher(object):
         return self.goal_state
 
     def choose_go_up_down(self, online_linecount):
+        current_drone_pos = self.current_drone_pos.copy()
         new_radius = SAFE_RADIUS
         baseline_lim_up = -3
         baseline_lim_down = -1
         
-        if self.current_drone_pos[2] + 1 > baseline_lim_down: #about to crash
+        if current_drone_pos[2] + 1 > baseline_lim_down: #about to crash
             self.goUp = True
             self.goal_state_ind = key_indices["u"]
-        if self.current_drone_pos[2] -1 < baseline_lim_up:
+        if current_drone_pos[2] -1 < baseline_lim_up:
             self.goUp = False
             self.goal_state_ind = key_indices["d"]
 
-        for potential_trajectory in self.potential_trajectory_list:
-            if potential_trajectory.index == self.goal_state_ind:
-                self.goal_trajectory = potential_trajectory
+        if self.goUp:
+            go_pos = current_drone_pos + np.array([0,0,-1])
+        else:
+            go_pos = current_drone_pos + np.array([0,0,1])
+
+
+        potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE)
+        new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
+        new_pitch_go = pi/2 -new_theta_go
+        _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
+
+        potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=self.goal_state_ind)
+        potential_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
+
+        self.goal_trajectory = potential_trajectory
         self.move_along_trajectory()
         return self.goal_state
 
@@ -356,7 +373,6 @@ class PotentialStatesFetcher(object):
                 hess2 = self.objective.hessian(pose_client.optimized_poses)
 
             potential_trajectory.set_cov(hess2, pose_client.FUTURE_POSE_INDEX, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints)
-
             #future_pose = torch.from_numpy(self.future_human_pos).float() 
             #self.potential_pose2d_list.append(pose_client.projection_client.take_single_projection(future_pose, potential_state.inv_transformation_matrix))
 
