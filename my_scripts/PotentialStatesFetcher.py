@@ -24,7 +24,6 @@ def sample_states_spherical(psf, new_radius, new_theta, new_phi, ind):
 
     goal_state = PotentialState(position=drone_pos.copy(), orientation=new_phi_go+pi, pitch=new_theta+pi/2, index=ind)
 
-    psf.potential_states_try.append(goal_state)
     psf.potential_states_go.append(goal_state)
 
 class PotentialState(object):
@@ -185,7 +184,6 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
 
         self.potential_trajectory_list = []
-        self.potential_trajectory_list_try = []
 
         self.potential_pose2d_list = []
 
@@ -360,9 +358,8 @@ class PotentialStatesFetcher(object):
                 sample_states_spherical(self, SAFE_RADIUS, theta, phi, ind)
                 ind += 1
         else:
-            self.potential_states_try = self.drone_flight_states.copy()
             self.potential_states_go = self.drone_flight_states.copy()
-        return self.potential_states_try
+        return self.potential_states_go
 
     def find_hessians_for_potential_states(self, pose_client):
         for potential_trajectory in self.potential_trajectory_list:

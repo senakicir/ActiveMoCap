@@ -82,14 +82,14 @@ class pose3d_calibration_parallel_wrapper():
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
-    def reset_future(self, pose_client, potential_state):
+    def reset_future(self, pose_client, potential_traj):
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
 
         #future state 
         future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_state.inv_transformation_matrix)
+        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_state.inv_transformation_matrix[0,:,:])
         projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
@@ -127,7 +127,7 @@ class pose3d_online_parallel_wrapper():
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
-    def reset_future(self, pose_client, potential_state):
+    def reset_future(self, pose_client, potential_traj):
         self.bone_connections, _, _, self.hip_index = pose_client.model_settings()
         
         data_list = pose_client.requiredEstimationData
@@ -135,8 +135,8 @@ class pose3d_online_parallel_wrapper():
         lift_client = pose_client.lift_client
         future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_poses[-1,:,:], potential_state.inv_transformation_matrix)
-        projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
+        potential_projected_est, _ = projection_client.take_single_projection(future_poses[-1,:,:], potential_traj.inv_transformation_matrix[-1,:,:])
+        projection_client.reset_future(data_list, potential_traj.inv_transformation_matrix[-1,:,:], potential_projected_est)
         
         if pose_client.USE_LIFT_TERM:
             if pose_client.LIFT_METHOD == "complex":
