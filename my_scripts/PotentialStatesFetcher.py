@@ -431,13 +431,13 @@ class PotentialStatesFetcher(object):
     def plot_everything(self, linecount, file_manager, calibration_length, plot_potential_errors_bool):
         plot_loc = file_manager.plot_loc
         #photo_locs = file_manager.get_photo_locs()
-        #if not self.is_quiet:
+        if not self.is_quiet:
             #plot_potential_hessians(self.potential_covs_normal, linecount, plot_loc, custom_name = "potential_covs_normal_")
             #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             #plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
-            #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
+            plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
             #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 
             #if plot_potential_errors_bool:

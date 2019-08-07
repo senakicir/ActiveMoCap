@@ -25,6 +25,7 @@ def cauchy_loss(input_1, input_2):
     return torch.sum(C)/N
 
 def find_residuals(input_1, input_2):
+
     return (torch.pow((input_1 - input_2),2)).view(-1)
 
 
@@ -161,6 +162,8 @@ class pose3d_online_parallel(torch.nn.Module):
             output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
         else:
             projected_2d = self.projection_client.take_projection(self.pose3d)
+            print("sum", torch.sum(torch.sum(torch.pow((projected_2d - self.projection_client.pose_2d_tensor),2), dim=1), dim=1))
+            #print("sum", torch.sum(self.projection_scales*torch.pow((projected_2d - self.projection_client.pose_2d_tensor),2)))
             output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
 
         if self.use_bone_term and not self.use_single_joint:

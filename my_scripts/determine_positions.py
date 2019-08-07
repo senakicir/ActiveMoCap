@@ -115,7 +115,7 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
     if pose_client.LIFT_METHOD == "complex":
         pose3d_lift_directions = calculate_bone_directions(pose3d_relative, np.array(return_lift_bone_connections(bone_connections)), batch=False) 
     if pose_client.LIFT_METHOD == "simple":
-        pose3d_lift_directions = calculate_bone_directions_simple(pose3d_relative, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections), hip_index) 
+        pose3d_lift_directions = calculate_bone_directions_simple(pose3d_relative, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections), hip_index, batch=False) 
 
     return pose3d_lift_directions
 

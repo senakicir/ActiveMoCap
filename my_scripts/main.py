@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #bone_len_method: "no_sqrt, sqrt"
     bone_len_method = "sqrt" 
     #projection_method: "scaled, normal, normalized"
-    projection_method = "normalized" 
+    projection_method = "normal" 
     if projection_method == "normal" or projection_method == "normalized":
         weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
     elif projection_method == "scaled":
@@ -141,14 +141,13 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
+        weights_future =  weights#{'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:
             weights_future['proj'] = smooth_weights[experiment_ind]
             weights['proj'] =  smooth_weights[experiment_ind]
         if ablation_study:
-            weights_future["bone"]=0.33
             if experiment_ind == 0:
                 weights_future["proj"]=0
             elif experiment_ind == 1:

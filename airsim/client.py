@@ -32,9 +32,9 @@ class VehicleClient:
 
         self.SIZE_X = 1024
         self.SIZE_Y = 576
-        self.focal_length = SIZE_X/2
-        self.px = SIZE_X/2
-        self.py = SIZE_Y/2
+        self.focal_length = self.SIZE_X/2
+        self.px = self.SIZE_X/2
+        self.py = self.SIZE_Y/2
         
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
@@ -126,9 +126,9 @@ class VehicleClient:
     def simGetCollisionInfo(self, vehicle_name = ''):
         return CollisionInfo.from_msgpack(self.client.call('simGetCollisionInfo', vehicle_name))
 
-    def simSetVehiclePose(self, pose, ignore_collison, vehicle_name = ''):
+    def simSetVehiclePose(self, pose, vehicle_name = ''):
         #sena was here
-        position = Vector3r(x_val=pose.position[0], y_val=pose.position[1]), z_val=pose.position[2]))
+        position = Vector3r(x_val=pose.position[0], y_val=pose.position[1], z_val=pose.position[2])
         orientation = to_quaternion(roll=0, pitch=0, yaw=pose.orientation)
         go_pose = Pose(position_val=position, orientation_val = orientation)
         ignore_collison = True

@@ -75,22 +75,23 @@ class pose3d_calibration_parallel_wrapper():
         data_list = pose_client.requiredEstimationData
 
         projection_client = pose_client.projection_client
-        projection_client.reset(data_list, pose_client.NOISE_2D_STD)
+        projection_client.reset(data_list)
 
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
-    def reset_future(self, pose_client, potential_traj):
+    def reset_future(self, pose_client, potential_trajectory):
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
+        future_window = pose_client.FUTURE_WINDOW_SIZE
 
-        #future state 
+        #future state: this is all wrong!!!
         future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_state.inv_transformation_matrix[0,:,:])
-        projection_client.reset_future(data_list, potential_state.inv_transformation_matrix, potential_projected_est)
+        potential_projected_est, _ = projection_client.take_single_projection(future_poses, potential_trajectory.inv_transformation_matrix)
+        projection_client.reset_future(data_list, potential_trajectory.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
         self.pltpts = {}
@@ -114,7 +115,7 @@ class pose3d_online_parallel_wrapper():
     def reset(self, pose_client):
         data_list = pose_client.requiredEstimationData
         projection_client = pose_client.projection_client
-        projection_client.reset(data_list, pose_client.NOISE_2D_STD)
+        projection_client.reset(data_list)
         lift_client = pose_client.lift_client
         if pose_client.USE_LIFT_TERM:
             lift_client.reset(pose_client.lift_pose_tensor, pose_client.poses_3d_gt, pose_client.NOISE_LIFT_STD)
@@ -127,7 +128,7 @@ class pose3d_online_parallel_wrapper():
         self.pltpts = {}
         self.result_shape = pose_client.result_shape
 
-    def reset_future(self, pose_client, potential_traj):
+    def reset_future(self, pose_client, potential_trajectory):
         self.bone_connections, _, _, self.hip_index = pose_client.model_settings()
         
         data_list = pose_client.requiredEstimationData
@@ -135,15 +136,13 @@ class pose3d_online_parallel_wrapper():
         lift_client = pose_client.lift_client
         future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
 
-        potential_projected_est = projection_client.take_single_projection(future_poses[-1,:,:], potential_traj.inv_transformation_matrix[-1,:,:])
-        projection_client.reset_future(data_list, potential_traj.inv_transformation_matrix[-1,:,:], potential_projected_est)
-        pose_client.potential_projected_est = potential_projected_est
+        projection_client.reset_future(data_list, future_poses, potential_trajectory)
         
         if pose_client.USE_LIFT_TERM:
             if pose_client.LIFT_METHOD == "complex":
-                potential_pose3d_lift_directions = calculate_bone_directions(future_poses[-1,:,:], np.array(return_lift_bone_connections(self.bone_connections)), batch=False) 
+                potential_pose3d_lift_directions = calculate_bone_directions(future_poses, np.array(return_lift_bone_connections(self.bone_connections)), batch=True) 
             if pose_client.LIFT_METHOD == "simple":
-                potential_pose3d_lift_directions = calculate_bone_directions_simple(future_poses[-1,:,:], pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index)
+                potential_pose3d_lift_directions = calculate_bone_directions_simple(future_poses, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index, batch=True)
             lift_client.reset_future(pose_client.lift_pose_tensor, potential_pose3d_lift_directions, pose_client.NOISE_LIFT_STD)
             
         if pose_client.USE_TRAJECTORY_BASIS:

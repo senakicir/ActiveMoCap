@@ -129,7 +129,7 @@ class PoseEstimationClient(object):
         self.intrinsics_py = intrinsics_py
         self.SIZE_X, self.SIZE_Y = image_size
 
-        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py)
+        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py, noise_2d_std=self.NOISE_2D_STD)
         self.lift_client = Lift_Client()
 
         if self.animation == "drone_flight":

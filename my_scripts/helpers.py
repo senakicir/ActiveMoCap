@@ -881,7 +881,7 @@ def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
 
 def matrix_to_ellipse(matrix, center):
     _, s, rotation = np.linalg.svd(matrix)
-    radii = 0.3*s/max_radii
+    radii = 0.01*s/max_radii
 
     # now carry on with EOL's answer
     u = np.linspace(0.0, 2.0 * np.pi, 100)
@@ -1367,8 +1367,9 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
         fig = plt.figure(figsize=(4,4))
         ax = fig.add_subplot(111, projection='3d')
 
-    potential_states = potential_states_fetcher.potential_states_try
-    covs = [potential_cov_dict["inv_hess"] for potential_cov_dict in (potential_states_fetcher.potential_covs_whole)]
+    potential_trajectory_list = potential_states_fetcher.potential_trajectory_list
+
+    covs = [potential_trajectory.potential_cov_dict["whole"] for potential_trajectory in potential_trajectory_list]
     if plot_errors:
         error_list = potential_states_fetcher.error_list
         cmap = cm.cool
@@ -1387,12 +1388,12 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
     #plot ellipses
     centers = []
     state_inds = []
-    for state_ind, potential_state in enumerate(potential_states):
-        state_pos =  potential_state.position
+    for potential_trajectory in potential_trajectory_list:
+        state_inds.append(potential_trajectory.index)
+        state_pos =  potential_trajectory.drone_positions[-1, :,0].numpy()
         center = np.copy(state_pos)
         center[2] = -center[2]
         centers.append(center)
-        state_inds.append(potential_state.index)
     
    # if ind < calibration_length + 3:
      #   radii_list = np.zeros([len(covs), 3])
