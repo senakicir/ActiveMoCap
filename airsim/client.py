@@ -13,7 +13,7 @@ import torch
 
 
 class VehicleClient:
-    def __init__(self, ip = "", port = 41451, timeout_value = 3600):
+    def __init__(self, length_of_simulation, ip = "", port = 41451, timeout_value = 3600):
         if (ip == ""):
             ip = "127.0.0.1"
         self.client = msgpackrpc.Client(msgpackrpc.Address(ip, port), timeout = timeout_value, pack_encoding = 'utf-8', unpack_encoding = 'utf-8')
@@ -24,6 +24,17 @@ class VehicleClient:
         self.requiredEstimationData = []
         self.isCalibratingEnergy = False
         self.linecount = 0 #sena was here
+        self.online_linecount = 0
+        self.length_of_simulation = length_of_simulation
+
+        self.is_using_airsim = True
+        self.end = False
+
+        self.SIZE_X = 1024
+        self.SIZE_Y = 576
+        self.focal_length = SIZE_X/2
+        self.px = SIZE_X/2
+        self.py = SIZE_Y/2
         
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
@@ -116,7 +127,12 @@ class VehicleClient:
         return CollisionInfo.from_msgpack(self.client.call('simGetCollisionInfo', vehicle_name))
 
     def simSetVehiclePose(self, pose, ignore_collison, vehicle_name = ''):
-        self.client.call('simSetVehiclePose', pose, ignore_collison, vehicle_name)
+        #sena was here
+        position = Vector3r(x_val=pose.position[0], y_val=pose.position[1]), z_val=pose.position[2]))
+        orientation = to_quaternion(roll=0, pitch=0, yaw=pose.orientation)
+        go_pose = Pose(position_val=position, orientation_val = orientation)
+        ignore_collison = True
+        self.client.call('simSetVehiclePose', go_pose, ignore_collison, vehicle_name)
     #sena was here
     def simSetVehiclePose_senaver(self, pose, vehicle_name = ''):
         self.client.call('simSetVehiclePose_senaver', pose, vehicle_name)
@@ -241,8 +257,8 @@ class VehicleClient:
 
 # -----------------------------------  Multirotor APIs ---------------------------------------------
 class MultirotorClient(VehicleClient, object):
-    def __init__(self):
-        super(MultirotorClient, self).__init__()
+    def __init__(self, length_of_simulation):
+        super(MultirotorClient, self).__init__(length_of_simulation)
 
     def takeoffAsync(self, timeout_sec = 20, vehicle_name = ''):
         return self.client.call_async('takeoff', timeout_sec, vehicle_name)  
