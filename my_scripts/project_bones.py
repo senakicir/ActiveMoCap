@@ -57,8 +57,8 @@ class Projection_Client(object):
         camera_intrinsics = self.K_torch.repeat(self.FUTURE_WINDOW_SIZE , 1,1)
         flip_x_y = (torch.cat((self.flip_x_y_single, torch.zeros(3,1)), dim=1)).repeat(self.FUTURE_WINDOW_SIZE , 1, 1)
         future_projection = self.take_batch_projection(future_poses, potential_trajectory.inv_transformation_matrix, ones_tensor, camera_intrinsics, flip_x_y) 
-        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = future_projection#add_noise_to_pose(future_projection, self.noise_2d_std)
-
+        #add some noise to future projection so that the error is not zero
+        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = add_noise_to_pose(future_projection, self.noise_2d_std)
        
         queue_index = self.FUTURE_WINDOW_SIZE
         for bone_2d, _, inverse_transformation_matrix in data_list:

@@ -162,7 +162,7 @@ class pose3d_online_parallel(torch.nn.Module):
             output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
         else:
             projected_2d = self.projection_client.take_projection(self.pose3d)
-            print("sum", torch.sum(torch.sum(torch.pow((projected_2d - self.projection_client.pose_2d_tensor),2), dim=1), dim=1))
+            #print("sum", torch.sum(torch.sum(torch.pow((projected_2d - self.projection_client.pose_2d_tensor),2), dim=1), dim=1))
             #print("sum", torch.sum(self.projection_scales*torch.pow((projected_2d - self.projection_client.pose_2d_tensor),2)))
             output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
 
@@ -173,7 +173,7 @@ class pose3d_online_parallel(torch.nn.Module):
                 bone_len_func = calculate_bone_lengths_sqrt
             #bone length consistency 
             length_of_bone = bone_len_func(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
-            output["bone"] = mse_loss(length_of_bone, self.bone_lengths, self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
+            output["bone"] = mse_loss(length_of_bone, self.bone_lengths, self.ONLINE_WINDOW_SIZE*(self.NUM_OF_JOINTS-1))
         
         #smoothness term
         if self.smoothness_mode == "velocity":

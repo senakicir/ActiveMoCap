@@ -10,6 +10,7 @@ from file_manager import FileManager
 from drone_flight_client import DroneFlightClient
 from crop import Crop
 import copy
+from PIL import Image
 
 import pprint
 import os
@@ -19,91 +20,156 @@ gt_hv = []
 est_hv = []
 photo_time = 0
 
-def get_client_gt_values(airsim_client, pose_client, X, file_manager):
-    drone_orientation_gt = np.array([X['droneOrient'].x_val, X['droneOrient'].y_val, X['droneOrient'].z_val])
+def get_client_gt_values(airsim_client, pose_client, simulated_value_dict, file_manager):
+    """
+    Description: 
+        Sort out values read from simulator and return them
 
-    gt_str = "" 
-    DRONE_INITIAL_POS = airsim_client.DRONE_INITIAL_POS
-    bone_ind = 0
+    Inputs: 
+        airsim_client: an object of type VehicleClient or DroneFlightClient
+        pose_client: an object of type PoseEstimationClient
+        simulated_value_dict: dict type input of values read from AirSim simulator (or previously saved values)
+        file_manager: object of type FileManager
+    Returns:
+        bone_pos_gt: numpy array of shape (3, num_of_joints)
+        drone_orientation_gt: numpy array of shape (3,)
+        drone_pos_gt: numpy array of shape (3,1)
+    """
 
+    drone_orientation_gt = np.array([simulated_value_dict['droneOrient'].x_val, simulated_value_dict['droneOrient'].y_val, 
+                            simulated_value_dict['droneOrient'].z_val])
+
+    #convert Unreal engine coordinates to AirSim coordinates.
     bone_pos_gt = np.zeros([3, 21])
-    for ind, bone_i in enumerate(airsim.attributes):
-        if (bone_i != 'dronePos' and bone_i != 'droneOrient' and bone_i != 'humanPos'):
-            bone_pos_gt[:, bone_ind] = np.array([X[bone_i].x_val, X[bone_i].y_val, -X[bone_i].z_val]) - DRONE_INITIAL_POS
+    bone_ind = 0
+    for ind, attribute in enumerate(airsim.attributes):
+        if (attribute != 'dronePos' and attribute != 'droneOrient' and attribute != 'humanPos'):
+            bone_pos_gt[:, bone_ind] = np.array([simulated_value_dict[attribute].x_val, simulated_value_dict[attribute].y_val, 
+                                        -simulated_value_dict[attribute].z_val]) - airsim_client.DRONE_INITIAL_POS
             bone_pos_gt[:, bone_ind] = bone_pos_gt[:, bone_ind]/100
             bone_ind += 1
 
     if pose_client.USE_SINGLE_JOINT:
         temp = bone_pos_gt[:, 0]
         bone_pos_gt = temp[:, np.newaxis]
-    elif pose_client.model == "mpi":
+    if pose_client.model == "mpi":
         bone_pos_gt = rearrange_bones_to_mpi(bone_pos_gt)
 
-    drone_pos_gt = np.array([X['dronePos'].x_val, X['dronePos'].y_val, -X['dronePos'].z_val])
+    drone_pos_gt = np.array([simulated_value_dict['dronePos'].x_val, simulated_value_dict['dronePos'].y_val, 
+                            -simulated_value_dict['dronePos'].z_val])
     drone_pos_gt = (drone_pos_gt - airsim_client.DRONE_INITIAL_POS)/100
     drone_pos_gt = drone_pos_gt[:, np.newaxis] 
 
     file_manager.record_gt_pose(bone_pos_gt, airsim_client.linecount)
     file_manager.record_drone_info(drone_pos_gt, drone_orientation_gt, airsim_client.linecount)
 
+    assert bone_pos_gt.shape == (3,pose_client.num_of_joints)
+    assert drone_orientation_gt.shape == (3,)
+    assert drone_pos_gt.shape == (3,1)
+
     return bone_pos_gt, drone_orientation_gt, drone_pos_gt
 
 def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
-    airsim_client.simPauseDrone(False)
+    """
+    Description: 
+        Calls simulator to take picture and return GT values simulatenously. 
+
+    Inputs: 
+        airsim_client: an object of type VehicleClient or DroneFlightClient
+        pose_client: an object of type PoseEstimationClient
+        current_state: an object of type State
+        file_manager: object of type FileManager
+    Returns:
+        image: photo taken at simulation step
+    """
+    airsim_client.simPauseDrone(False) #unpause drone to take picture
     if  airsim_client.is_using_airsim:
         time.sleep(0.1)
     response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
-    airsim_client.simPauseDrone(True)
+    airsim_client.simPauseDrone(True) #pause everything to start processing
     airsim_client.simPauseHuman(True)
     response = response[0]
 
     if airsim_client.is_using_airsim:
-        gt_joints = vector3r_arr_to_dict(response.bones)
-        bone_pos_gt, drone_orientation_gt, drone_pos_gt = get_client_gt_values(airsim_client, pose_client, gt_joints, file_manager)
+        gt_values = vector3r_arr_to_dict(response.bones)
+        bone_pos_gt, drone_orientation_gt, drone_pos_gt = get_client_gt_values(airsim_client, pose_client, gt_values, file_manager)
         #multirotor_state = airsim_client.getMultirotorState()
         #estimated_state =  multirotor_state.kinematics_estimated
         #drone_pos_est = estimated_state.position
-        drone_pos_est = 0
 
-        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est)
+        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt)
     else:
         bone_pos_gt, drone_transformation_matrix = airsim_client.read_frame_gt_values()
         current_state.store_frame_transformation_matrix_joint_gt(bone_pos_gt, drone_transformation_matrix)
 
-    return response.image_data_uint8
+    #figure out a way to convert png bytes to float array
+    image = response.image_data_uint8
+    #image_buffer =  Image.frombytes(mode="I", size=(airsim_client.SIZE_X, airsim_client.SIZE_Y), data=image)
+   # print(image_buffer.shape)
+    #image_buffer.show()
+
+    return image
 
 def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoint = ""):
+    """
+    Description: 
+        Calls simulator to take picture and return GT values simultaneously.
+        Writes picture file.
+
+    Inputs: 
+        airsim_client: an object of type VehicleClient or DroneFlightClient
+        pose_client: an object of type PoseEstimationClient
+        current_state: an object of type State
+        file_manager: object of type FileManager
+        viewpoint: int. (default: ""), the viewpoint from which the drone is looking at the person
+    Returns:
+        photo: photo taken at simulation step
+    """
     if airsim_client.is_using_airsim:
         photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-        if viewpoint == "":
-            loc = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount) + '.png'
-        else:
-            loc = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount) + "_viewpoint_" + str(viewpoint)  + '.png'
-        file_manager.update_photo_loc(airsim_client.linecount, viewpoint)
+        loc = file_manager.update_photo_loc(linecount=airsim_client.linecount, viewpoint=viewpoint)
         airsim.write_file(os.path.normpath(loc), photo)
         #loc_rem = file_manager.take_photo_loc + '/img_' + str(airsim_client.linecount-2) + '.png'
         #if os.path.isfile(loc_rem):
         #    os.remove(loc_rem)
     else:
         photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-        file_manager.update_photo_loc(airsim_client.linecount, viewpoint)
+        file_manager.update_photo_loc(linecount=airsim_client.linecount, viewpoint=viewpoint)
     return photo
 
 def determine_calibration_mode(linecount, pose_client):
+    """
+    Description: 
+        Determines whether in calibration mode or online mode according to linecount
+
+    Inputs: 
+        linecount: int
+        pose_client: an object of type PoseEstimationClient
+    """
+
     if (linecount == pose_client.CALIBRATION_LENGTH):
-        #client.switch_energy(energy_mode[cv2.getTrackbarPos('Calibration mode', 'Calibration for 3d pose')])
         pose_client.changeCalibrationMode(False)
 
 def run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters):
-    errors = {}
+    """
+    Description: 
+        Main function that runs simulation
 
+    Inputs: 
+        kalman_arguments: dict of kalman filter parameters that are now useless
+        parameters: dict of general parameters
+        energy_parameters: dict of pose estimation parameters
+        active_parameters: dict of active mode parameters
+    Returns:
+        errors: dict of errors
+    """
     file_manager = FileManager(parameters)   
 
-    USE_TRACKBAR = parameters["USE_TRACKBAR"]
     simulation_mode = parameters["SIMULATION_MODE"]
     length_of_simulation = parameters["LENGTH_OF_SIMULATION"]
     loop_mode = parameters["LOOP_MODE"]
 
+    #set random seeds once and for all
     np.random.seed(parameters["SEED"])
     torch.manual_seed(parameters["SEED"])
 
@@ -115,7 +181,6 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         if loop_mode == "normal":
             airsim_client.enableApiControl(True)
             airsim_client.armDisarm(True)
-        print('Taking off')
         airsim_client.initInitialDronePos()
 
         airsim_client.simPauseHuman(False)
@@ -133,7 +198,9 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
 
-    pose_client = PoseEstimationClient(energy_parameters, loop_mode, animation=file_manager.anim_num, intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, intrinsics_py=airsim_client.py, image_size=(airsim_client.SIZE_X, airsim_client.SIZE_Y))
+    pose_client = PoseEstimationClient(energy_parameters, loop_mode, animation=file_manager.anim_num, 
+                    intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, 
+                    intrinsics_py=airsim_client.py, image_size=(airsim_client.SIZE_X, airsim_client.SIZE_Y))
     current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, active_parameters =active_parameters, model_settings=pose_client.model_settings())
     potential_states_fetcher = PotentialStatesFetcher(airsim_client, pose_client, active_parameters)
     
@@ -141,9 +208,6 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     #shoulder_vector = initial_positions[R_SHOULDER_IND, :] - initial_positions[L_SHOULDER_IND, :] #find initial human orientation!
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
-
-    if USE_TRACKBAR:
-        create_trackbars(current_state.radius, active_parameters["Z_POS"])
 
     determine_calibration_mode(airsim_client.linecount, pose_client)
 
@@ -162,6 +226,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     #calculate errors
     airsim_client.simPause(True)
+    errors = {}
     if len(pose_client.error_3d) != 0:
         errors["ave_3d_err"] = sum(pose_client.error_3d)/len(pose_client.error_3d)
         errors["middle_3d_err"] = sum(pose_client.middle_pose_error)/len(pose_client.middle_pose_error)

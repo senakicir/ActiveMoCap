@@ -173,7 +173,7 @@ class PotentialStatesFetcher(object):
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
 
-        self.future_human_pos = pose_client.current_pose
+        self.future_human_pos = pose_client.immediate_future_pose
         self.current_human_pos = pose_client.current_pose
 
         if (pose_client.isCalibratingEnergy):
@@ -312,6 +312,7 @@ class PotentialStatesFetcher(object):
         potential_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
 
         self.goal_trajectory = potential_trajectory
+        self.immediate_future_ind = 0
         self.move_along_trajectory()
         return self.goal_state
 
@@ -436,7 +437,7 @@ class PotentialStatesFetcher(object):
             #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
-            #plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
+            plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
             plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
             #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 

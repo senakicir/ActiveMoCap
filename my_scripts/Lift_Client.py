@@ -13,6 +13,7 @@ def scale_with_bone_lengths(pose_to_scale, bone_lengths, bone_length_method, bon
 
     if batch:
         scale = torch.sum(bone_lengths)/torch.sum(our_pose_bone_lengths, dim=1)
+        scale = scale.unsqueeze(1).unsqueeze(1)
     else:
         scale = torch.sum(bone_lengths)/torch.sum(our_pose_bone_lengths)
 
@@ -39,12 +40,15 @@ def calculate_bone_directions_simple(lift_bones, bone_lengths, bone_length_metho
     return lift_bone_rescaled
 
 class Lift_Client(object):
-    def deepcopy_lift_client(self):
-        return Lift_Client()
+    def __init__(self, noise_lift_std):
+        self.noise_lift_std = noise_lift_std
 
-    def reset(self, lift_pose_tensor, bone_3d_pose_gt, noise_lift_std):
+    def deepcopy_lift_client(self, noise_lift_std):
+        return Lift_Client(self.noise_lift_std )
+
+    def reset(self, lift_pose_tensor, bone_3d_pose_gt):
         self.pose3d_lift_directions = lift_pose_tensor.clone()
 
-    def reset_future(self, lift_pose_tensor, potential_lift_directions, noise_lift_std):
+    def reset_future(self, lift_pose_tensor, potential_lift_directions):
         temp = lift_pose_tensor.clone()
         self.pose3d_lift_directions = torch.cat((potential_lift_directions, temp), dim=0)

@@ -91,6 +91,7 @@ class PoseEstimationClient(object):
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.middle_pose = np.zeros([3, self.num_of_joints])
         self.future_poses = np.zeros([self.FUTURE_WINDOW_SIZE,3, self.num_of_joints])
+        self.immediate_future_pose =  np.zeros([3, self.num_of_joints])
 
         self.adj_current_pose = np.zeros([3, self.num_of_joints])
         self.adj_middle_pose = np.zeros([3, self.num_of_joints])
@@ -130,7 +131,7 @@ class PoseEstimationClient(object):
         self.SIZE_X, self.SIZE_Y = image_size
 
         self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py, noise_2d_std=self.NOISE_2D_STD)
-        self.lift_client = Lift_Client()
+        self.lift_client = Lift_Client(self.NOISE_LIFT_STD)
 
         if self.animation == "drone_flight":
             self.cropping_tool = None
@@ -258,6 +259,9 @@ class PoseEstimationClient(object):
             self.current_pose = optimized_poses.copy()
             self.middle_pose = optimized_poses.copy()
             self.future_poses = np.repeat(optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
+            self.immediate_future_pose =  optimized_poses.copy()
+
+
             self.adj_current_pose = adjusted_optimized_poses.copy()
             self.adj_middle_pose = adjusted_optimized_poses.copy()
             self.adj_future_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
@@ -269,6 +273,7 @@ class PoseEstimationClient(object):
             self.current_pose =  optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.middle_pose = optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
             self.future_poses = optimized_poses[:self.FUTURE_WINDOW_SIZE, :,:].copy() #future_poses
+            self.immediate_future_pose =  optimized_poses[self.FUTURE_WINDOW_SIZE, :,:].copy() #immediate future pose
 
             self.adj_current_pose =  adjusted_optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.adj_middle_pose = adjusted_optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
@@ -285,7 +290,7 @@ class PoseEstimationClient(object):
 
     def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
         if (linecount != 0):
-            current_frame_init = self.future_poses[self.CURRENT_POSE_INDEX-1,:,:].copy() #next future pose
+            current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
         else:
             if self.INIT_POSE_MODE == "gt":
                 current_frame_init = pose_3d_gt.copy()

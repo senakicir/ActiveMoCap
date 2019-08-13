@@ -241,7 +241,8 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, p
     if (pose_client.isCalibratingEnergy):
         pose_client.update_bone_lengths(torch.from_numpy(optimized_poses).float())
 
-    adjusted_optimized_poses = adjust_with_M(pose_client.M, optimized_poses, hip_index)
+    #adjusted_optimized_poses = adjust_with_M(pose_client.M, optimized_poses, hip_index)
+    adjusted_optimized_poses = optimized_poses.copy()
 
     pose_client.update3dPos(optimized_poses, adjusted_optimized_poses)
     pose_client.error_2d.append(final_loss[0])

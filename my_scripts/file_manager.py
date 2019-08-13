@@ -110,9 +110,9 @@ class FileManager(object):
     def update_photo_loc(self, linecount, viewpoint):
         if (self.simulation_mode == "use_airsim"):
             if viewpoint == "":
-                self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + '.png'
+                self.photo_loc = file_manager.take_photo_loc + '/img_' + str(linecount) + '.png'
             else:
-                self.photo_loc = self.foldernames_anim["images"] + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
+                self.photo_loc = file_manager.take_photo_loc + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
         elif (self.simulation_mode == "saved_simulation"):
             if self.test_set_name == "drone_flight":
                 linecount = 0

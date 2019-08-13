@@ -77,7 +77,7 @@ if __name__ == "__main__":
     #projection_method: "scaled, normal, normalized"
     projection_method = "normalized" 
     if projection_method == "normal" or projection_method == "normalized":
-        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0}
+        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
     elif projection_method == "scaled":
         weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.33, 'bone': 0.33, 'lift': 0}
+        weights_future =  weights
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:

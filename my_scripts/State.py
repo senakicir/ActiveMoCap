@@ -100,7 +100,7 @@ class State(object):
         shoulder_vector_gt = self.bone_pos_gt[:, self.left_arm_ind] - self.bone_pos_gt[:, self.right_arm_ind] 
         self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
 
-    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_pos_est):
+    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt):
         self.change_human_gt_info(bone_pos_gt)
         
         self.drone_orientation_gt = drone_orientation_gt
@@ -108,8 +108,6 @@ class State(object):
         self.R_drone_gt = euler_to_rotation_matrix(self.drone_orientation_gt[0], self.drone_orientation_gt[1], self.drone_orientation_gt[2])
         self.C_drone_gt = torch.from_numpy(drone_pos_gt).float()
         self.R_cam_gt = euler_to_rotation_matrix (CAMERA_ROLL_OFFSET, self.cam_pitch+pi/2, CAMERA_YAW_OFFSET)
-
-        self.drone_pos_est = drone_pos_est
 
         #form drone translation matrix (similar to dataset)
         drone_transformation = torch.cat((torch.cat((self.R_drone_gt, self.C_drone_gt), dim=1), neat_tensor), dim=0)

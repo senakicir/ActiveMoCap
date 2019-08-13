@@ -30,11 +30,9 @@ if __name__ == "__main__":
     upper_lim = -3
     lower_lim = -0.5 #-2.5
     top_speed = 3
-    go_distance = 2
+
+    go_distance = 0.5
     LOOKAHEAD_LIST = [0.5]
-    if loop_mode == "normal_teleport":
-        go_distance = 0.5
-        LOOKAHEAD_LIST = [0.5]#[6]#[0.5]
 
     UPDOWN_LIM_LIST = [[upper_lim, lower_lim]]
     ftol = 1e-3
@@ -118,7 +116,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = [ "active"]#, "constant_angle"]
+    TRAJECTORY_LIST = [ "active", "constant_rotation"]
     ablation_study = False
     grid_search = False
     
@@ -141,7 +139,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  weights#{'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights_future =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:
