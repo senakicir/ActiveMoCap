@@ -61,6 +61,8 @@ class DroneFlightClient(object):
     def __init__(self, length_of_simulation, test_set_name, non_simulation_files):
         #take filenames and save them
         self.linecount = 0
+        self.online_linecount = 0
+
         self.chosen_sample = 0
         self.length_of_simulation = length_of_simulation
 
@@ -78,7 +80,6 @@ class DroneFlightClient(object):
 
         self.DRONE_INITIAL_POS = np.zeros([3,1])     
 
-        
 
     def simPauseHuman(self, arg1):
         pass
@@ -94,6 +95,13 @@ class DroneFlightClient(object):
 
     def moveToPositionAsync(self, sth):
         pass
+
+    def increment_linecount(self, is_calibrating_energy):
+        self.linecount += 1
+        if not is_calibrating_energy:
+            self.online_linecount += 1
+        print('linecount:', self.linecount, ', online linecount:', self.online_linecount)
+
 
     def read_frame_gt_values(self):
         linecount_ind = self.linecount 

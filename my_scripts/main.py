@@ -40,7 +40,7 @@ if __name__ == "__main__":
     is_quiet = False
     
     estimation_window_size = 5
-    future_window_size = 1
+    future_window_size = 4
     calibration_length = 30
     calibration_window_size = 20
     precalibration_length = 10
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #projection_method: "scaled, normal, normalized"
     projection_method = "normal" 
     if projection_method == "normal" or projection_method == "normalized":
-        weights =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights =  {'proj': 0.00333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
     elif projection_method == "scaled":
         weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
 
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.000333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights_future =  {'proj': 0.00333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:
@@ -185,7 +185,7 @@ if __name__ == "__main__":
                 parameters["SEED"] = seed
                 parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
                 errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
-                many_runs_last.append(errors["ave_3d_err"] )
-                many_runs_middle.append(errors["middle_3d_err"] )
+                many_runs_last.append(errors["ave_current_error"] )
+                many_runs_middle.append(errors["ave_middle_error"] )
 
             append_error_notes(f_notes_name, many_runs_last, many_runs_middle, animation)

@@ -168,7 +168,7 @@ class PotentialStatesFetcher(object):
         self.current_error_std_list = np.zeros(self.number_of_samples)
         self.middle_error_std_list = np.zeros(self.number_of_samples)        
 
-    def reset(self, pose_client, airsim_client, current_state, loop_mode):
+    def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
@@ -184,7 +184,6 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
 
         self.potential_trajectory_list = []
-
         self.potential_pose2d_list = []
 
         self.overall_error_mean_list = np.zeros(self.number_of_samples)
@@ -193,7 +192,6 @@ class PotentialStatesFetcher(object):
         self.overall_error_std_list =  np.zeros(self.number_of_samples)
         self.current_error_std_list = np.zeros(self.number_of_samples)
         self.middle_error_std_list = np.zeros(self.number_of_samples)        
-        self.goal_state = None
         
         self.uncertainty_dict = {}
 
@@ -246,8 +244,8 @@ class PotentialStatesFetcher(object):
                 norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
                 go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
 
-                if key == "c" or key == "l" or key == "r":
-                    go_pos[2] = current_drone_pos[2]
+                #if key == "c" or key == "l" or key == "r":
+                #    go_pos[2] = current_drone_pos[2]
 
                 new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
                 new_pitch_go = pi/2 -new_theta_go
@@ -256,7 +254,6 @@ class PotentialStatesFetcher(object):
                 potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
                 
             self.potential_trajectory_list.append(potential_trajectory)
-
 
             #debug
             #print("*******begin")
@@ -273,18 +270,27 @@ class PotentialStatesFetcher(object):
             #        print("state inv transformation matrix",  potential_state.inv_transformation_matrix)
             #print("********end")
 
-    def choose_constant_rotation(self, online_linecount):
-        #for potential_trajectory in self.potential_trajectory_list:
-        #    if potential_trajectory.index == key_indices["r"]:
-        #        self.goal_state =  potential_trajectory.states[self.immediate_future_ind]
-        #self.goal_state_ind = key_indices["r"]
+    def find_trajectory(self, pose_client, linecount, online_linecount, file_manager):
+        if pose_client.isCalibratingEnergy:
+            self.calibration_mode(linecount)
+        else:
+            if (self.trajectory == "active"):
+                self.find_next_state_active(pose_client, online_linecount, file_manager)                    
+                file_manager.write_uncertainty_values(self.uncertainty_dict, linecount)
+                self.plot_everything(linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
+            if (self.trajectory == "constant_rotation"):
+                self.choose_constant_rotation(online_linecount)
+            if (self.trajectory == "random"): 
+                self.find_random_next_state(online_linecount)
+            if (self.trajectory == "constant_angle"):
+                self.constant_angle_baseline_future(online_linecount)
+
+    def choose_constant_rotation(self):
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.index == key_indices["r"]:
                 self.goal_trajectory = potential_trajectory
-        self.move_along_trajectory()
-        return self.goal_state
 
-    def choose_go_up_down(self, online_linecount):
+    def choose_go_up_down(self):
         current_drone_pos = self.current_drone_pos.copy()
         new_radius = SAFE_RADIUS
         baseline_lim_up = -3
@@ -313,8 +319,6 @@ class PotentialStatesFetcher(object):
 
         self.goal_trajectory = potential_trajectory
         self.immediate_future_ind = 0
-        self.move_along_trajectory()
-        return self.goal_state
 
     def constant_angle_baseline_future(self, online_linecount):       
         #for potential_trajectory in self.potential_trajectory_list:
@@ -325,32 +329,27 @@ class PotentialStatesFetcher(object):
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.index == key_indices["c"]:
                 self.goal_trajectory = potential_trajectory
-        self.move_along_trajectory()
-        return self.goal_state
 
     def find_random_next_state(self, online_linecount):
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
         random_ind = np.random.randint(0, len(self.potential_trajectory_list)-1)
         self.goal_trajectory = self.potential_trajectory_list[random_ind]
-        self.move_along_trajectory()
-        return self.goal_state
 
     def find_next_state_active(self, pose_client, online_linecount, file_manager):
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
         self.find_hessians_for_potential_states(pose_client, file_manager, online_linecount)
         self.find_best_potential_state()
-        self.move_along_trajectory()
-        return self.goal_state
 
     def move_along_trajectory(self):
         self.goal_state = self.goal_trajectory.states[self.immediate_future_ind]
         self.immediate_future_ind -= 1
+        return self.goal_state
 
-    def calibration_mode(self, linecount, online_linecount):
+    def calibration_mode(self, linecount):
         if linecount < self.PRECALIBRATION_LENGTH:
-            return self.choose_go_up_down(online_linecount)
+            return self.choose_go_up_down()
         else:
-            return self.choose_constant_rotation(online_linecount)
+            return self.choose_constant_rotation()
 
     def dome_experiment(self):
         if self.is_using_airsim:
@@ -388,7 +387,7 @@ class PotentialStatesFetcher(object):
         else:
             self.goal_state_ind = max(self.uncertainty_dict, key=self.uncertainty_dict.get)
         #print("uncertainty list var:", np.std(uncertainty_dict.values()), "uncertainty list min max", np.min(uncertainty_dict.values()), np.max(uncertainty_dict.values()), "best ind", self.goal_state_ind)
-        
+
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.index == self.goal_state_ind:
                 self.goal_trajectory = potential_trajectory

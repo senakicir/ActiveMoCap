@@ -56,8 +56,8 @@ class PoseEstimationClient(object):
 
         self.plot_info = []
         self.error_2d = []
-        self.error_3d = []
         self.errors = {}
+        self.current_pose_error = []
         self.middle_pose_error = []
         self.openpose_error = 0
         self.openpose_arm_error = 0
@@ -210,14 +210,13 @@ class PoseEstimationClient(object):
             self.online_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
     def calculate_store_errors(self, linecount):
-        self.errors = {}
         self.errors["current_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[0, :, :] - self.adj_current_pose, axis=0))
         self.errors["middle_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[self.ESTIMATION_WINDOW_SIZE//2, :, :] - self.adj_middle_pose, axis=0))
         self.errors["ave_current_error"], self.errors["ave_middle_error"] = -1, -1
         if linecount > self.save_errors_after:
-            self.error_3d.append(self.errors["current_error"])
-            self.middle_pose_error.append(self.errors["middle_error"] )
-            self.errors["ave_current_error"] =  sum(self.error_3d)/len(self.error_3d)
+            self.current_pose_error.append(self.errors["current_error"])
+            self.middle_pose_error.append(self.errors["middle_error"])
+            self.errors["ave_current_error"] =  sum(self.current_pose_error)/len(self.current_pose_error)
             self.errors["ave_middle_error"]  =  sum(self.middle_pose_error)/len(self.middle_pose_error)
         return self.errors
 
@@ -333,8 +332,8 @@ class PoseEstimationClient(object):
         for middle_poses in self.middle_pose_GT_list:
             new_pose_client.middle_pose_GT_list.append(middle_poses.copy())
 
-        new_pose_client.error_3d = self.error_3d.copy()
         new_pose_client.error_2d = self.error_2d.copy()
+        new_pose_client.current_pose_error = self.current_pose_error.copy()
         new_pose_client.middle_pose_error = self.middle_pose_error.copy()
 
         new_pose_client.future_poses = self.future_poses.copy()
