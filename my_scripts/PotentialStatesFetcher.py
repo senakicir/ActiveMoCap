@@ -13,7 +13,7 @@ key_weights= {"c":np.array([0,0]), "l":np.array([-1,0]), "r":np.array([1,0]), "u
               "ru":np.array([0.707,-0.707]), "rd":np.array([0.707,0.707])} 
 
 
-def sample_states_spherical(psf, new_radius, new_theta, new_phi, ind):
+def sample_states_spherical(psf, new_radius, new_theta, new_phi, viewpoint_ind):
     new_yaw = new_phi  + psf.human_orientation_GT
     x = new_radius*cos(new_yaw)*sin(new_theta) + psf.human_GT[0, psf.hip_index]
     y = new_radius*sin(new_yaw)*sin(new_theta) + psf.human_GT[1, psf.hip_index]
@@ -22,9 +22,8 @@ def sample_states_spherical(psf, new_radius, new_theta, new_phi, ind):
 
     _, new_phi_go = find_current_polar_info(drone_pos, psf.human_GT[:, psf.hip_index]) #used to be norm_pos_go
 
-    goal_state = PotentialState(position=drone_pos.copy(), orientation=new_phi_go+pi, pitch=new_theta+pi/2, index=ind)
-
-    psf.potential_states_go.append(goal_state)
+    a_potential_state = PotentialState(position=drone_pos.copy(), orientation=new_phi_go+pi, pitch=new_theta+pi/2, index=viewpoint_ind)
+    return a_potential_state
 
 class PotentialState(object):
     def __init__(self, position, orientation, pitch, index):
@@ -360,6 +359,35 @@ class PotentialStatesFetcher(object):
         else:
             self.potential_states_go = self.drone_flight_states.copy()
         return self.potential_states_go
+
+    def prep_theta_phi_pairs(self, trajectory_ind, future_pos_ind, potential_trajectory):
+        if trajectory_ind == math.power(len(self.POSITION_GRID),  self.FUTURE_WINDOW_SIZE):
+            return 0
+
+        if future_pos_ind == self.FUTURE_WINDOW_SIZE:
+            self.potential_trajectory_list.append(potential_trajectory)
+            trajectory_ind += 1
+            potential_trajectory = Potential_Trajectory(trajectory_ind, self.FUTURE_WINDOW_SIZE)
+            future_pos_ind = 0
+            self.prep_theta_phi_pairs(trajectory_ind, future_pos_ind, potential_trajectory)
+
+        else:
+            viewpoint_ind = 0
+            for theta, phi in self.POSITION_GRID:
+                new_potential_state = self.sample_states_spherical(SAFE_RADIUS, theta, phi, viewpoint_ind)
+                viewpoint_ind += 1
+                potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
+                future_pos_ind += 1
+                self.prep_theta_phi_pairs(trajectory_ind, future_pos_ind, potential_trajectory)
+
+    def trajectory_dome_experiment(self):
+        if self.is_using_airsim:
+            trajectory_ind = 0 
+            future_pos_ind = 0 
+            potential_trajectory = Potential_Trajectory(trajectory_ind, self.FUTURE_WINDOW_SIZE)
+            self.prep_theta_phi_pairs(trajectory_ind, future_pos_ind, potential_trajectory)
+        else:
+            print("Oh no! this part is not coded yet")
 
     def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:
