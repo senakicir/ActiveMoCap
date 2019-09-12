@@ -66,8 +66,8 @@ class FileManager(object):
         self.f_error = open(self.filenames_anim["f_error"], 'w')
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
 
+        #empty
         self.f_average_error = open(self.filenames_anim["f_average_error"], 'w')
-        self.f_average_error.write("linecount" + '\t' +  "overall error'\toverall ave error\tcurrent error\tcurrent ave error\tmiddle error\tmiddle ave error"  + '\n')
 
         self.f_correlations = open(self.filenames_anim["f_correlations"], 'w')
         self.f_correlations.write("linecount" + '\t' +  "current corr" + '\t' + "running ave corr" + '\t' +  "current cos sim" + '\t' + 'running ave cos sim' + '\n')
@@ -76,6 +76,7 @@ class FileManager(object):
         self.f_openpose_results = open(self.filenames_anim["f_openpose_results"], 'w')
         self.f_liftnet_results = open(self.filenames_anim["f_liftnet_results"], 'w')
         self.f_projection_est = open(self.filenames_anim["f_projection_est"], 'w')
+        self.f_trajectory_list = open(self.filenames_anim["f_trajectory_list"], 'w')
 
         if self.loop_mode ==  "openpose":
             self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
@@ -142,6 +143,7 @@ class FileManager(object):
             self.f_openpose_error.close()
             self.f_openpose_arm_error.close()
             self.f_openpose_leg_error.close()
+        self.f_trajectory_list.close()
 
     def write_openpose_prefix(self,THETA_LIST, PHI_LIST, num_of_joints):
         prefix_string = ""
@@ -242,9 +244,31 @@ class FileManager(object):
                 f_drone_pos_str += str(drone_orient[i][j].item()) + '\t'
         self.f_drone_pos.write(str(linecount)+ '\t' + f_drone_pos_str + '\n')
 
-    def write_error_values(self, errors, linecount):
-        f_error_str = str(errors["middle_error"]) + '\t' + str(errors["ave_middle_error"]) 
+    def write_error_values(self, ave_errors, linecount):
+        for error_ind, error_value in ave_errors.items():
+            f_error_str = str(error_value) + '\t'
         self.f_error.write(str(linecount)+ '\t' + f_error_str + '\n')
+
+    def record_toy_example_results(self, linecount, potential_trajectory_list, uncertainty_dict, goal_trajectory):
+        ## Traj i: a-b-c-d , uncertainty:x
+        ## ...
+        ## Chosen traj: x
+        ## **
+        traj_str = "Linecount: " + str(linecount) + "\n"
+        for potential_trajectory in potential_trajectory_list:
+            trajectory_index = potential_trajectory.trajectory_index
+            traj_str += "\tTrajectory " + str(trajectory_index) + " : "
+            for future_ind, state in potential_trajectory.states.items():
+                state_index = state.index
+                traj_str += str(state_index) + ", "
+            traj_str += "uncertainty: " + str(potential_trajectory.uncertainty) + '\n'
+        traj_str += "Goal trajectory is trajectory " + str(trajectory_index) + " :"
+        for future_ind, state in goal_trajectory.states.items():
+            state_index = state.index
+            traj_str += str(state_index) + ", "
+        traj_str += "lowest uncertainty: " + str(goal_trajectory.uncertainty) + '\n'
+        traj_str += "*******\n"
+        self.f_trajectory_list.write(traj_str)
 
     def write_uncertainty_values(self, uncertainties, linecount):
         f_uncertainty_str = ""

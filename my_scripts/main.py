@@ -16,17 +16,17 @@ if __name__ == "__main__":
     elif (simulation_mode == "saved_simulation"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
 
-    #loop_mode = 0-normal, normal_teleport, 1-openpose, 2-teleport, 3-create_dataset
-    loop_mode = "normal_teleport"
+    #loop_mode = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset
+    loop_mode = "teleport_simulation"
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part = "whole"
     #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig 5-root_six
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
-    SEED_LIST = [41, 5, 2, 12, 1995]#, 100, 150, 200, 190, 0]
+    SEED_LIST = [41, 5, 2]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
-    delta_t = 0.1
+    delta_t = 0.05
     upper_lim = -3
     lower_lim = -0.5 #-2.5
     top_speed = 3
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     calibration_length = 30
     calibration_window_size = 20
     precalibration_length = 10
-    length_of_simulation = 120
+    length_of_simulation = 150
     
     #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
     init_pose_mode = "backproj"
@@ -55,7 +55,7 @@ if __name__ == "__main__":
     noise_2d_std = 3
     noise_lift_std = 0.05
 
-    noise_3d_init_std = 0.2
+    noise_3d_init_std = 0.5
     drone_pos_jitter_noise_std = 0.5
     predefined_traj_len = 0
 
@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #projection_method: "scaled, normal, normalized"
     projection_method = "normal" 
     if projection_method == "normal" or projection_method == "normalized":
-        weights =  {'proj': 0.00333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights =  {'proj': 0.01, 'smooth': 1, 'bone': 1, 'lift': 1}
     elif projection_method == "scaled":
         weights =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
 
@@ -96,12 +96,12 @@ if __name__ == "__main__":
     param_read_M = False
     param_find_M = False
 
-    ANIMATIONS = ["02_01"]# ["02_01","38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01", "05_08", "38_03"]# ["02_01","38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
-    theta_list = list(range(270, 190, -35))#list(range(270, 235, -20))#list(range(270, 180, -40)) #list(range(270, 180, -20))
-    phi_list = list(range(0, 360, 20))
+    theta_list = [270]#list(range(270, 190, -35))#list(range(270, 235, -20))#list(range(270, 180, -40)) #list(range(270, 180, -20))
+    phi_list = list(range(0, 360, 45))
     position_grid = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #active_sampling = "ellipse", "uniform"
 
@@ -116,7 +116,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = [ "active", "constant_rotation"]
+    TRAJECTORY_LIST = ["active", "constant_rotation", "random"]
     ablation_study = False
     grid_search = False
     
@@ -139,7 +139,7 @@ if __name__ == "__main__":
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names
         
-        weights_future =  {'proj': 0.00333, 'smooth': 0.333, 'bone': 0.333, 'lift': 0.333}
+        weights_future =  {'proj': 0.01, 'smooth': 1, 'bone': 1, 'lift': 1}
         #weights_future =  {'proj': 0.33, 'smooth': 0.33, 'bone': 0, 'lift': 0.33}
 
         if grid_search:
@@ -178,14 +178,14 @@ if __name__ == "__main__":
         fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
 
         for animation in ANIMATIONS:
-            many_runs_last = []
+            many_runs_current = []
             many_runs_middle = []
             for ind, seed in enumerate(SEED_LIST):
                 parameters["ANIMATION_NUM"]=  animation
                 parameters["SEED"] = seed
                 parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
-                errors = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
-                many_runs_last.append(errors["ave_current_error"] )
-                many_runs_middle.append(errors["ave_middle_error"] )
+                ave_current_error, ave_middle_error  = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
+                many_runs_current.append(ave_current_error)
+                many_runs_middle.append(ave_middle_error)
 
-            append_error_notes(f_notes_name, many_runs_last, many_runs_middle, animation)
+            append_error_notes(f_notes_name, many_runs_current, many_runs_middle, animation)

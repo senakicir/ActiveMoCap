@@ -1,4 +1,4 @@
-from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories
+from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories, plot_dome
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
 from determine_positions import objective_calib, objective_online
@@ -30,6 +30,7 @@ class PotentialState(object):
         self.position = position
         self.orientation = orientation
         self.pitch = pitch
+        self.index = index
 
         self.potential_C_drone = torch.from_numpy(self.position[:, np.newaxis]).float()
         self.potential_R_drone = euler_to_rotation_matrix(0,0,self.orientation, returnTensor=True)
@@ -38,14 +39,21 @@ class PotentialState(object):
         drone_transformation = torch.cat((torch.cat((self.potential_R_drone, self.potential_C_drone), dim=1), neat_tensor), dim=0)
         camera_transformation = torch.cat((torch.cat((self.potential_R_cam, C_cam_torch), dim=1), neat_tensor), dim=0) 
         self.inv_transformation_matrix = torch.inverse(drone_transformation@camera_transformation)
-        self.index = index
 
     def get_goal_pos_yaw_pitch(self, curr_drone_orientation):
         desired_yaw_deg = find_delta_yaw((curr_drone_orientation)[2],  self.orientation)
         return self.position , desired_yaw_deg*1, self.pitch   
     
-    def deep_copy(self):
-        return PotentialState(self.position, self.orientation, self.pitch, self.index)
+    def deep_copy_state(self):
+        new_state = PotentialState(self.position, self.orientation, self.pitch, self.index)
+        new_state.potential_C_drone = self.potential_C_drone.clone()
+        new_state.potential_R_drone = self.potential_R_drone.clone()
+        new_state.potential_R_cam = self.potential_R_cam.clone()
+        new_state.inv_transformation_matrix = self.inv_transformation_matrix.clone()
+        return new_state
+
+    def print_state(self):
+        print("State index:"+str(index)+". Position:", self.potential_C_drone)
 
 class PotentialState_Drone_Flight(object):
     def __init__(self, transformation_matrix, index):
@@ -60,23 +68,24 @@ class PotentialState_Drone_Flight(object):
 
 class Potential_Trajectory(object):
     def __init__(self, index, future_window_size):
-        self.index = index
+        self.future_window_size = future_window_size
+        self.trajectory_index = index
         self.states = {}
-        self.inv_transformation_matrix = torch.zeros(future_window_size, 4, 4)
-        self.drone_positions = torch.zeros(future_window_size, 3, 1)
-        self.pitches = torch.zeros(future_window_size,)
-        self.potential_hessian = 0 
-        self.potential_cov_dict = {"whole":0, "future":0, "middle":0}
-        self.uncertainty = 0
+        self.inv_transformation_matrix = torch.zeros(self.future_window_size, 4, 4)
+        self.drone_positions = torch.zeros(self.future_window_size, 3, 1)
+        #self.pitches = torch.zeros(self.future_window_size,)
+        self.potential_hessian = np.zeros([1,1])
+        self.potential_cov_dict = {"whole":np.zeros([1,1]), "future":np.zeros([1,1]), "middle":np.zeros([1,1])}
+        self.uncertainty = 42
 
     def append_to_traj(self, future_ind, potential_state):
-        self.states[future_ind] = potential_state.deep_copy()
-        self.inv_transformation_matrix[future_ind, :, :] = potential_state.inv_transformation_matrix
-        self.drone_positions[future_ind, :, :] = potential_state.potential_C_drone
-        self.pitches[future_ind] = potential_state.pitch
+        self.states[future_ind] = potential_state.deep_copy_state()
+        self.inv_transformation_matrix[self.future_window_size-future_ind-1, :, :] = potential_state.inv_transformation_matrix
+        self.drone_positions[self.future_window_size-future_ind-1, :, :] = potential_state.potential_C_drone
+        #self.pitches[future_ind] = potential_state.pitch
 
     def set_cov(self, potential_hessian, future_pose_index, middle_pose_index, number_of_joints):
-        self.potential_hessian = potential_hessian
+        self.potential_hessian = potential_hessian.copy()
         inv_hessian = np.linalg.inv(self.potential_hessian)
 
         self.potential_cov_dict["future"] = choose_frame_from_cov(inv_hessian, future_pose_index, number_of_joints)
@@ -116,9 +125,28 @@ class Potential_Trajectory(object):
             _, s, _ = np.linalg.svd(cov)
             self.uncertainty = np.sum(np.power(s, 1/6)) 
 
+    def deep_copy_trajectory(self):
+        new_trajectory = Potential_Trajectory(self.trajectory_index, self.future_window_size)
+        new_trajectory.uncertainty = self.uncertainty
+        for key, value in self.potential_cov_dict.items():
+            new_trajectory.potential_cov_dict[key] = value.copy()
+        new_trajectory.potential_hessian = self.potential_hessian.copy()
+        for key, value in self.states.items():
+            new_trajectory.states[key] = value.deep_copy_state()
+        new_trajectory.inv_transformation_matrix = self.inv_transformation_matrix.clone()
+        new_trajectory.drone_positions = self.drone_positions.clone()
+        #new_trajectory.pitches = self.pitches.clone()
+        return new_trajectory
+
+    def print_trajectory(self):
+        print("Trajectory index", self.trajectory_index)
+        for key, state in self.states:
+            state.print_state()
+        print("Uncertainty is", self.uncertainty, "\n")
+
 
 class PotentialStatesFetcher(object):
-    def __init__(self, airsim_client, pose_client, active_parameters):
+    def __init__(self, airsim_client, pose_client, active_parameters, loop_mode):
         self.bone_connections, self.joint_names, self.number_of_joints, self.hip_index = pose_client.model_settings()
         self.SIZE_X, self.SIZE_Y = pose_client.SIZE_X, pose_client.SIZE_Y
 
@@ -132,6 +160,7 @@ class PotentialStatesFetcher(object):
         self.go_distance = active_parameters["GO_DISTANCE"]
         self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
         self.ACTIVE_SAMPLING_MODE = active_parameters["ACTIVE_SAMPLING_MODE"]
+        self.loop_mode = loop_mode
 
         self.PRECALIBRATION_LENGTH = pose_client.PRECALIBRATION_LENGTH
 
@@ -146,6 +175,7 @@ class PotentialStatesFetcher(object):
 
         self.is_using_airsim = airsim_client.is_using_airsim
         self.animation = pose_client.animation
+        self.already_plotted_teleport_loc = False
 
         self.number_of_samples = len(self.POSITION_GRID)
 
@@ -180,7 +210,7 @@ class PotentialStatesFetcher(object):
         else:
             self.objective = objective_online
 
-        self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
+        self.immediate_future_ind = 0
 
         self.potential_trajectory_list = []
         self.potential_pose2d_list = []
@@ -198,6 +228,11 @@ class PotentialStatesFetcher(object):
             self.drone_flight_states = airsim_client.get_drone_flight_states()
             self.number_of_samples = len(self.drone_flight_states)
 
+    def get_potential_positions(self, is_calibrating_energy):
+        if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation" or is_calibrating_energy:
+            self.get_potential_positions_sample()
+        elif self.loop_mode == "toy_example":
+            self.trajectory_dome_experiment()
 
     def get_potential_positions_sample(self):
         new_radius = SAFE_RADIUS
@@ -235,8 +270,8 @@ class PotentialStatesFetcher(object):
             [weight_side, weight_up] = use_weights[key] 
             potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE)
 
-            for future_pos_ind in range(self.FUTURE_WINDOW_SIZE-1, -1, -1):
-                future_weight = self.FUTURE_WINDOW_SIZE - future_pos_ind
+            for future_pos_ind in range(0, self.FUTURE_WINDOW_SIZE):
+                future_weight = future_pos_ind + 1
                 pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up*future_weight + side_vec_norm_go*future_weight*weight_side)
 
                 potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
@@ -269,7 +304,7 @@ class PotentialStatesFetcher(object):
             #        print("state inv transformation matrix",  potential_state.inv_transformation_matrix)
             #print("********end")
 
-    def find_trajectory(self, pose_client, linecount, online_linecount, file_manager):
+    def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager):
         if pose_client.isCalibratingEnergy:
             self.calibration_mode(linecount)
         else:
@@ -278,15 +313,31 @@ class PotentialStatesFetcher(object):
                 file_manager.write_uncertainty_values(self.uncertainty_dict, linecount)
                 self.plot_everything(linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
             if (self.trajectory == "constant_rotation"):
-                self.choose_constant_rotation(online_linecount)
+                if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
+                    self.choose_constant_rotation()
+                elif self.loop_mode == "toy_example":
+                    print("Not implemented yet as it makes my brain hurt")
+                    raise NotImplementedError
             if (self.trajectory == "random"): 
                 self.find_random_next_state(online_linecount)
             if (self.trajectory == "constant_angle"):
                 self.constant_angle_baseline_future(online_linecount)
 
+        if self.loop_mode == "toy_example" and not pose_client.isCalibratingEnergy:
+            if not self.already_plotted_teleport_loc:
+                viewpoint_ind = 0
+                states_dict = {}
+                for theta, phi in self.POSITION_GRID:
+                    new_potential_state = sample_states_spherical(self, SAFE_RADIUS, theta, phi, viewpoint_ind)
+                    states_dict[viewpoint_ind] = new_potential_state
+                    viewpoint_ind += 1
+                plot_dome(states_dict, self.current_human_pos[:, self.hip_index], file_manager.plot_loc)
+            self.already_plotted_teleport_loc = True
+            file_manager.record_toy_example_results(linecount, self.potential_trajectory_list, self.uncertainty_dict, self.goal_trajectory)
+
     def choose_constant_rotation(self):
         for potential_trajectory in self.potential_trajectory_list:
-            if potential_trajectory.index == key_indices["r"]:
+            if potential_trajectory.trajectory_index == key_indices["r"]:
                 self.goal_trajectory = potential_trajectory
 
     def choose_go_up_down(self):
@@ -326,7 +377,7 @@ class PotentialStatesFetcher(object):
         #self.goal_state_ind = key_indices["c"]
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
         for potential_trajectory in self.potential_trajectory_list:
-            if potential_trajectory.index == key_indices["c"]:
+            if potential_trajectory.trajectory_index == key_indices["c"]:
                 self.goal_trajectory = potential_trajectory
 
     def find_random_next_state(self, online_linecount):
@@ -341,7 +392,7 @@ class PotentialStatesFetcher(object):
 
     def move_along_trajectory(self):
         self.goal_state = self.goal_trajectory.states[self.immediate_future_ind]
-        self.immediate_future_ind -= 1
+        self.immediate_future_ind += 1
         return self.goal_state
 
     def calibration_mode(self, linecount):
@@ -350,44 +401,38 @@ class PotentialStatesFetcher(object):
         else:
             return self.choose_constant_rotation()
 
-    def dome_experiment(self):
-        if self.is_using_airsim:
-            ind = 0
-            for theta, phi in self.POSITION_GRID:
-                sample_states_spherical(self, SAFE_RADIUS, theta, phi, ind)
-                ind += 1
-        else:
-            self.potential_states_go = self.drone_flight_states.copy()
-        return self.potential_states_go
+    #def dome_experiment(self):
+    #    if self.is_using_airsim:
+    #        ind = 0
+    #        for theta, phi in self.POSITION_GRID:
+    #            sample_states_spherical(self, SAFE_RADIUS, theta, phi, ind)
+    #            ind += 1
+    #    else:
+    #        self.potential_states_go = self.drone_flight_states.copy()
+    #    return self.potential_states_go
 
-    def prep_theta_phi_pairs(self, trajectory_ind, future_pos_ind, potential_trajectory):
-        if trajectory_ind == math.power(len(self.POSITION_GRID),  self.FUTURE_WINDOW_SIZE):
-            return 0
-
+    def prep_theta_phi_pairs(self, future_pos_ind, potential_trajectory):
         if future_pos_ind == self.FUTURE_WINDOW_SIZE:
+            potential_trajectory.trajectory_index = len( self.potential_trajectory_list)
             self.potential_trajectory_list.append(potential_trajectory)
-            trajectory_ind += 1
-            potential_trajectory = Potential_Trajectory(trajectory_ind, self.FUTURE_WINDOW_SIZE)
-            future_pos_ind = 0
-            self.prep_theta_phi_pairs(trajectory_ind, future_pos_ind, potential_trajectory)
 
         else:
             viewpoint_ind = 0
             for theta, phi in self.POSITION_GRID:
-                new_potential_state = self.sample_states_spherical(SAFE_RADIUS, theta, phi, viewpoint_ind)
+                new_potential_state = sample_states_spherical(self, SAFE_RADIUS, theta, phi, viewpoint_ind)
                 viewpoint_ind += 1
-                potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
-                future_pos_ind += 1
-                self.prep_theta_phi_pairs(trajectory_ind, future_pos_ind, potential_trajectory)
+                potential_trajectory_copy = potential_trajectory.deep_copy_trajectory()    
+                potential_trajectory_copy.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
+                self.prep_theta_phi_pairs(future_pos_ind+1, potential_trajectory_copy)
 
     def trajectory_dome_experiment(self):
         if self.is_using_airsim:
-            trajectory_ind = 0 
             future_pos_ind = 0 
-            potential_trajectory = Potential_Trajectory(trajectory_ind, self.FUTURE_WINDOW_SIZE)
-            self.prep_theta_phi_pairs(trajectory_ind, future_pos_ind, potential_trajectory)
+            potential_trajectory = Potential_Trajectory(42, self.FUTURE_WINDOW_SIZE)
+            self.prep_theta_phi_pairs(future_pos_ind, potential_trajectory)
         else:
-            print("Oh no! this part is not coded yet")
+            print("Not implemented yet like all other drone data stuff")
+            raise NotImplementedError
 
     def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:
@@ -408,7 +453,7 @@ class PotentialStatesFetcher(object):
         potential_cov_dict = {}
         for potential_trajectory in self.potential_trajectory_list:
             potential_trajectory.find_uncertainty(self.uncertainty_calc_method, self.hessian_part)
-            self.uncertainty_dict[potential_trajectory.index] = potential_trajectory.uncertainty
+            self.uncertainty_dict[potential_trajectory.trajectory_index] = potential_trajectory.uncertainty
 
         if (self.minmax):
             self.goal_state_ind = min(self.uncertainty_dict, key=self.uncertainty_dict.get)
@@ -417,7 +462,7 @@ class PotentialStatesFetcher(object):
         #print("uncertainty list var:", np.std(uncertainty_dict.values()), "uncertainty list min max", np.min(uncertainty_dict.values()), np.max(uncertainty_dict.values()), "best ind", self.goal_state_ind)
 
         for potential_trajectory in self.potential_trajectory_list:
-            if potential_trajectory.index == self.goal_state_ind:
+            if potential_trajectory.trajectory_index == self.goal_state_ind:
                 self.goal_trajectory = potential_trajectory
 
     def find_next_state_constant_rotation(self, linecount):

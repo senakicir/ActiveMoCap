@@ -31,8 +31,9 @@ class PoseEstimationClient(object):
         self.ONLINE_WINDOW_SIZE = self.ESTIMATION_WINDOW_SIZE+self.FUTURE_WINDOW_SIZE 
 
         self.CURRENT_POSE_INDEX = self.FUTURE_WINDOW_SIZE
-        self.FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE-1
         self.MIDDLE_POSE_INDEX = self.FUTURE_WINDOW_SIZE+(self.ESTIMATION_WINDOW_SIZE)//2
+        self.FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE -1
+        
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
@@ -56,9 +57,15 @@ class PoseEstimationClient(object):
 
         self.plot_info = []
         self.error_2d = []
+        
         self.errors = {}
-        self.current_pose_error = []
-        self.middle_pose_error = []
+        self.average_errors = {}
+        for index in range(self.FUTURE_WINDOW_SIZE, self.ONLINE_WINDOW_SIZE):
+            self.errors[index] = []
+            self.average_errors[index] = -1
+        self.ave_middle_error, self.ave_current_error = -1, -1
+        
+
         self.openpose_error = 0
         self.openpose_arm_error = 0
         self.openpose_leg_error = 0
@@ -90,7 +97,7 @@ class PoseEstimationClient(object):
 
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.middle_pose = np.zeros([3, self.num_of_joints])
-        self.future_poses = np.zeros([self.FUTURE_WINDOW_SIZE,3, self.num_of_joints])
+        self.future_poses = np.zeros([self.FUTURE_WINDOW_SIZE, 3, self.num_of_joints])
         self.immediate_future_pose =  np.zeros([3, self.num_of_joints])
 
         self.adj_current_pose = np.zeros([3, self.num_of_joints])
@@ -138,10 +145,10 @@ class PoseEstimationClient(object):
         else:
             self.cropping_tool = Crop(loop_mode = self.loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
 
-        if self.loop_mode == "teleport":
-            self.save_errors_after = self.ONLINE_WINDOW_SIZE
-        elif self.loop_mode == "normal" or self.loop_mode == "normal_teleport":
-            self.save_errors_after = self.CALIBRATION_LENGTH
+        #if self.loop_mode == "toy_example":
+        #    self.save_errors_after = self.ONLINE_WINDOW_SIZE-1
+        #elif self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
+        self.save_errors_after = self.CALIBRATION_LENGTH-1
 
 
     def model_settings(self):
@@ -210,14 +217,16 @@ class PoseEstimationClient(object):
             self.online_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
     def calculate_store_errors(self, linecount):
-        self.errors["current_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[0, :, :] - self.adj_current_pose, axis=0))
-        self.errors["middle_error"] = np.mean(np.linalg.norm(self.poses_3d_gt[self.ESTIMATION_WINDOW_SIZE//2, :, :] - self.adj_middle_pose, axis=0))
-        self.errors["ave_current_error"], self.errors["ave_middle_error"] = -1, -1
         if linecount > self.save_errors_after:
-            self.current_pose_error.append(self.errors["current_error"])
-            self.middle_pose_error.append(self.errors["middle_error"])
-            self.errors["ave_current_error"] =  sum(self.current_pose_error)/len(self.current_pose_error)
-            self.errors["ave_middle_error"]  =  sum(self.middle_pose_error)/len(self.middle_pose_error)
+            for index in range(self.FUTURE_WINDOW_SIZE, self.ONLINE_WINDOW_SIZE):
+                self.errors[index].append(np.mean(np.linalg.norm(self.poses_3d_gt[index-self.FUTURE_WINDOW_SIZE, :, :] 
+                                    - self.adjusted_optimized_poses[index, :, :], axis=0)))
+
+                self.average_errors[index] = sum(self.errors[index])/len(self.errors[index])
+            
+            self.ave_current_error = self.average_errors[self.CURRENT_POSE_INDEX]
+            self.ave_middle_error = self.average_errors[self.MIDDLE_POSE_INDEX]
+            #print(self.average_errors)
         return self.errors
 
     def changeCalibrationMode(self, calibMode):
@@ -272,7 +281,7 @@ class PoseEstimationClient(object):
             self.current_pose =  optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.middle_pose = optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
             self.future_poses = optimized_poses[:self.FUTURE_WINDOW_SIZE, :,:].copy() #future_poses
-            self.immediate_future_pose =  optimized_poses[self.FUTURE_WINDOW_SIZE, :,:].copy() #immediate future pose
+            self.immediate_future_pose =  optimized_poses[self.FUTURE_WINDOW_SIZE-1, :,:].copy() #immediate future pose
 
             self.adj_current_pose =  adjusted_optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.adj_middle_pose = adjusted_optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
@@ -294,7 +303,7 @@ class PoseEstimationClient(object):
             if self.INIT_POSE_MODE == "gt":
                 current_frame_init = pose_3d_gt.copy()
             elif self.INIT_POSE_MODE == "gt_with_noise":
-                current_frame_init = add_noise_to_pose(pose_3d_gt, self.NOISE_3D_INIT_STD)
+                current_frame_init = add_noise_to_pose(torch.from_numpy(pose_3d_gt), self.NOISE_3D_INIT_STD).numpy()
             elif self.INIT_POSE_MODE == "backproj":
                 current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
             elif self.INIT_POSE_MODE == "zeros":
@@ -333,18 +342,20 @@ class PoseEstimationClient(object):
             new_pose_client.middle_pose_GT_list.append(middle_poses.copy())
 
         new_pose_client.error_2d = self.error_2d.copy()
-        new_pose_client.current_pose_error = self.current_pose_error.copy()
-        new_pose_client.middle_pose_error = self.middle_pose_error.copy()
+        for key, error_list in self.errors.items():
+            new_pose_client.errors[key] = error_list.copy()
+        new_pose_client.average_errors = self.average_errors.copy()
 
         new_pose_client.future_poses = self.future_poses.copy()
         new_pose_client.current_pose = self.current_pose.copy()
         new_pose_client.middle_pose = self.middle_pose.copy()
+        new_pose_client.immediate_future_pose = self.immediate_future_pose.copy()
 
         new_pose_client.adj_future_poses = self.adj_future_poses.copy()
         new_pose_client.adj_current_pose = self.adj_current_pose.copy()
         new_pose_client.adj_middle_pose = self.adj_middle_pose.copy()
-        new_pose_client.potential_projected_est = self.potential_projected_est.clone()
 
+        new_pose_client.potential_projected_est = self.potential_projected_est.clone()
 
         if self.animation != "drone_flight":
             new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
