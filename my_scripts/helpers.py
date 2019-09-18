@@ -204,14 +204,9 @@ def move_M(destination_folder):
     os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
 
 
-def reset_all_folders(animation_list, seed_list, base = ""):
-    if (base == ""):
-        base = "temp_main"
-    if (base == "grid_search"):
-        base = "grid_search"
-
+def reset_all_folders(animation_list, seed_list, base_save_loc, anim_gt_loc):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
-    main_folder_name =  base + '/' + date_time_name
+    main_folder_name =  base_save_loc + '/' + date_time_name
 
     while os.path.exists(main_folder_name):
         main_folder_name += "_b_"
@@ -219,13 +214,14 @@ def reset_all_folders(animation_list, seed_list, base = ""):
             os.makedirs(main_folder_name)  
             break
 
-    if not os.path.exists(base):
-        os.makedirs(base)          
+    if not os.path.exists(base_save_loc):
+        os.makedirs(base_save_loc)          
     
     folder_names = {}
     file_names = {}
-    server_main_folder = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts"
-    file_names["server_main_folder"] = server_main_folder
+    file_names["main_folder"] = base_save_loc
+    file_names["anim_gt_loc"] = anim_gt_loc
+
     for animation in animation_list:
         sub_folder_name = main_folder_name + "/" + str(animation)
         for ind, seed in enumerate(seed_list):
@@ -629,22 +625,20 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
                         c='xkcd:blood red', marker='^')
 
         #plot gt if we are not plotting future
-        if plot_ind >= future_window_size:
-            gt_ind = plot_ind-future_window_size
-            for i, bone in enumerate(left_bone_connections):
-                plot1, = ax.plot(poses_3d_gt[gt_ind,0,bone], poses_3d_gt[gt_ind,1,bone], multip*poses_3d_gt[gt_ind,2,bone],
-                        c='xkcd:light blue', marker='^', label=blue_label + " left")
-            for i, bone in enumerate(right_bone_connections):
-                plot1_r, = ax.plot(poses_3d_gt[gt_ind,0,bone], poses_3d_gt[gt_ind,1,bone], multip*poses_3d_gt[gt_ind,2,bone],
-                        c='xkcd:royal blue', marker='^', label=blue_label + " right")
-            for i, bone in enumerate(middle_bone_connections):
-                ax.plot(poses_3d_gt[gt_ind,0,bone], poses_3d_gt[gt_ind,1,bone], multip*poses_3d_gt[gt_ind,2,bone], 
-                        c='xkcd:royal blue', marker='^')
+        for i, bone in enumerate(left_bone_connections):
+            plot1, = ax.plot(poses_3d_gt[plot_ind,0,bone], poses_3d_gt[plot_ind,1,bone], multip*poses_3d_gt[plot_ind,2,bone],
+                    c='xkcd:light blue', marker='^', label=blue_label + " left")
+        for i, bone in enumerate(right_bone_connections):
+            plot1_r, = ax.plot(poses_3d_gt[plot_ind,0,bone], poses_3d_gt[plot_ind,1,bone], multip*poses_3d_gt[plot_ind,2,bone],
+                    c='xkcd:royal blue', marker='^', label=blue_label + " right")
+        for i, bone in enumerate(middle_bone_connections):
+            ax.plot(poses_3d_gt[plot_ind,0,bone], poses_3d_gt[plot_ind,1,bone], multip*poses_3d_gt[plot_ind,2,bone], 
+                    c='xkcd:royal blue', marker='^')
 
-            if (ave_errors[plot_ind] != -1):
-                ax.text2D(0, 0.38, "ave error: %.4f" %ave_errors[plot_ind], transform=ax.transAxes)
-            error_list = errors[plot_ind]
-            ax.text2D(0, 0.3, "error: %.4f" %error_list[-1], transform=ax.transAxes)
+        if (ave_errors[plot_ind] != -1):
+            ax.text2D(0, 0.38, "ave error: %.4f" %ave_errors[plot_ind], transform=ax.transAxes)
+        error_list = errors[plot_ind]
+        ax.text2D(0, 0.3, "error: %.4f" %error_list[-1], transform=ax.transAxes)
 
         if plot_ind == num_of_plots-1:
             ax.legend(handles=[plot1, plot1_r, plot2, plot2_r], loc='upper right')

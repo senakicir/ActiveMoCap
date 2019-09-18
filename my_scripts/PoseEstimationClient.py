@@ -63,7 +63,7 @@ class PoseEstimationClient(object):
         for index in range(self.FUTURE_WINDOW_SIZE, self.ONLINE_WINDOW_SIZE):
             self.errors[index] = []
             self.average_errors[index] = -1
-        self.ave_middle_error, self.ave_current_error = -1, -1
+        self.ave_middle_error, self.ave_current_error, self.ave_pastmost_error = -1, -1, -1
         
 
         self.openpose_error = 0
@@ -74,7 +74,7 @@ class PoseEstimationClient(object):
         self.adjusted_optimized_poses = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
 
-        self.poses_3d_gt = np.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints])
+        self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
         self.boneLengths = torch.zeros([self.num_of_joints-1])
         self.lift_pose_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints])
         self.potential_projected_est = torch.zeros([2, self.num_of_joints])
@@ -218,14 +218,15 @@ class PoseEstimationClient(object):
 
     def calculate_store_errors(self, linecount):
         if linecount > self.save_errors_after:
-            for index in range(self.FUTURE_WINDOW_SIZE, self.ONLINE_WINDOW_SIZE):
-                self.errors[index].append(np.mean(np.linalg.norm(self.poses_3d_gt[index-self.FUTURE_WINDOW_SIZE, :, :] 
+            for index in range(self.ONLINE_WINDOW_SIZE):
+                self.errors[index].append(np.mean(np.linalg.norm(self.poses_3d_gt[index, :, :] 
                                     - self.adjusted_optimized_poses[index, :, :], axis=0)))
 
                 self.average_errors[index] = sum(self.errors[index])/len(self.errors[index])
             
             self.ave_current_error = self.average_errors[self.CURRENT_POSE_INDEX]
             self.ave_middle_error = self.average_errors[self.MIDDLE_POSE_INDEX]
+            self.ave_pastmost_error = self.average_errors[-1]
             #print(self.average_errors)
         return self.errors
 
@@ -242,12 +243,13 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
         self.result_size =  np.prod(np.array(self.result_shape))
 
-    def addNewFrame(self, pose_2d, pose_2d_gt, inv_transformation_matrix, linecount, pose_3d_gt, pose3d_lift):
+    def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt):
         self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
 
         temp = self.poses_3d_gt[:-1,:].copy() 
-        self.poses_3d_gt[0,:] = pose_3d_gt.copy()
+        self.poses_3d_gt[0,:] = futuremost_pose_3d_gt.copy()
         self.poses_3d_gt[1:,:] = temp.copy()
+        self.poses_3d_gt[self.CURRENT_POSE_INDEX, :, :] = current_pose_3d_gt.copy()
 
         temp = self.lift_pose_tensor[:-1,:].clone() 
         self.lift_pose_tensor[0,:] = pose3d_lift.clone()
@@ -257,11 +259,19 @@ class PoseEstimationClient(object):
             if linecount >= self.PRECALIBRATION_LENGTH:
                 while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
                     self.requiredEstimationData.pop()
-
         else:
             while len(self.requiredEstimationData) > self.ESTIMATION_WINDOW_SIZE:
                 self.requiredEstimationData.pop()
-                
+
+    def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt):
+        if self.isCalibratingEnergy:
+            self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
+            self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = pose_3d_gt.copy()
+            self.poses_3d_gt[0:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
+            self.lift_pose_tensor = pose3d_lift.clone()
+        else:
+            raise NotImplementedError            
+
     def update3dPos(self, optimized_poses, adjusted_optimized_poses):
         if (self.isCalibratingEnergy):
             self.current_pose = optimized_poses.copy()

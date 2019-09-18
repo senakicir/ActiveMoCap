@@ -31,9 +31,11 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 
 class State(object):
-    def __init__(self, use_single_joint, active_parameters, model_settings):
+    def __init__(self, use_single_joint, active_parameters, model_settings, anim_gt_array, future_window_size):
         self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = model_settings
+        self.anim_gt_array = anim_gt_array
         self.active_parameters = active_parameters 
+        self.future_window_size = future_window_size
 
         self.left_arm_ind = self.joint_names.index('left_arm')
         self.right_arm_ind = self.joint_names.index('right_arm')
@@ -68,10 +70,14 @@ class State(object):
         self.drone_pos_est = np.zeros([3,1])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
+        self.anim_time = 0.05
+
+        future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
+        self.futuremost_pose_3d_gt = self.anim_gt_array[abs(self.anim_gt_array[:,0]-future_anim_time)<1e-4, 1:].reshape(3,self.num_of_joints)
 
     def deepcopy_state(self):
         model_settings =[self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index]
-        new_state = State(self.use_single_joint, self.active_parameters,  model_settings)
+        new_state = State(self.use_single_joint, self.active_parameters, model_settings, self.anim_gt_array, self.future_window_size)
 
         new_state.R_drone_gt = self.R_drone_gt.clone()
         new_state.C_drone_gt = self.C_drone_gt.clone()
@@ -91,6 +97,9 @@ class State(object):
         new_state.drone_pos_est = self.drone_pos_est.copy()
         new_state.bone_pos_est = self.bone_pos_est.copy()
         new_state.cam_pitch = self.cam_pitch
+
+        new_state.anim_time = self.anim_time
+        new_state.futuremost_pose_3d_gt = self.futuremost_pose_3d_gt.copy()
         return new_state
 
     def change_human_gt_info(self, bone_pos_gt_updated):
@@ -129,13 +138,26 @@ class State(object):
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
-        return self.bone_pos_gt.copy(), self.inv_drone_transformation_matrix.clone(), self.drone_transformation_matrix.clone()
+        return self.bone_pos_gt.copy(), self.futuremost_pose_3d_gt, self.inv_drone_transformation_matrix.clone(), self.drone_transformation_matrix.clone()
 
     def update_human_info(self, bone_pos_est):
         self.bone_pos_est = bone_pos_est.copy()
         shoulder_vector_gt = bone_pos_est[:, self.left_arm_ind] - bone_pos_est[:, self.right_arm_ind] 
         self.human_orientation_est = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
         self.human_pos_est = bone_pos_est[:, self.hip_index].copy()
+
+    def update_anim_time(self, anim_time):
+        self.anim_time = anim_time
+        future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
+        self.futuremost_pose_3d_gt = self.anim_gt_array[abs(self.anim_gt_array[:,0]-future_anim_time)<1e-4, 1:].reshape(3,self.num_of_joints)
+
+    def get_first_future_poses(self):
+        future_poses_3d_gt = np.zeros([self.future_window_size, 3, self.num_of_joints])
+        for future_ind in range(self.future_window_size):
+            future_anim_time = self.anim_time + self.DELTA_T*(future_ind+1)
+            future_pose = self.anim_gt_array[abs(self.anim_gt_array[:,0]-future_anim_time)<1e-4, 1:].reshape(3,self.num_of_joints)
+            future_poses_3d_gt[self.future_window_size-future_ind-1,:,:] = future_pose.copy()
+        return future_poses_3d_gt
 
     def get_required_pitch(self):
         new_radius = np.linalg.norm(self.C_drone_gt.numpy() - self.human_pos_est)

@@ -15,6 +15,7 @@ if __name__ == "__main__":
         base_folder = "/Users/kicirogl/Documents/temp_main"
     elif (simulation_mode == "saved_simulation"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
+    anim_gt_loc = base_folder + "/animations"
 
     #loop_mode = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset, 4- save_gt_poses
     loop_mode = "save_gt_poses"
@@ -95,7 +96,7 @@ if __name__ == "__main__":
     param_read_M = False
     param_find_M = False
 
-    ANIMATIONS = ["02_01", "05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["07_05", "06_03", "05_11"]#["02_01", "05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -133,7 +134,7 @@ if __name__ == "__main__":
         num_of_experiments = len(TRAJECTORY_LIST)
 
     for experiment_ind in range(num_of_experiments):
-        file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder)
+        file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, anim_gt_loc)
         
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names

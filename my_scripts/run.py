@@ -189,7 +189,6 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         airsim_client.initInitialDronePos()
 
         airsim_client.changeAnimation(ANIM_TO_UNREAL[file_manager.anim_num])
-
         airsim_client.changeCalibrationMode(True)
         if loop_mode == "normal_simulation":
             airsim_client.takeoffAsync(timeout_sec = 15)#.join()
@@ -203,7 +202,9 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     pose_client = PoseEstimationClient(param=energy_parameters, loop_mode=loop_mode, animation=file_manager.anim_num, 
                     intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, 
                     intrinsics_py=airsim_client.py, image_size=(airsim_client.SIZE_X, airsim_client.SIZE_Y))
-    current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, active_parameters=active_parameters, model_settings=pose_client.model_settings())
+    current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, active_parameters=active_parameters,
+                         model_settings=pose_client.model_settings(), anim_gt_array=file_manager.f_anim_gt_array, 
+                         future_window_size=pose_client.FUTURE_WINDOW_SIZE)
     potential_states_fetcher = PotentialStatesFetcher(airsim_client=airsim_client, pose_client=pose_client, 
                                 active_parameters=active_parameters, loop_mode=loop_mode)
     
@@ -221,7 +222,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     #elif loop_mode == "teleport":
      #   teleport_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode, parameters)
     elif loop_mode == "save_gt_poses":
-        save_gt_poses_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
+        save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager)
     elif loop_mode == "create_dataset":
         create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     ################
@@ -262,7 +263,6 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
     airsim_client.simPause(True)
 
     while airsim_client.linecount < airsim_client.length_of_simulation:    
-
         #### if we have the best traj finder 
         if potential_error_finder.find_best_traj:
             start1 = time.time()   
@@ -407,7 +407,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
 
-def save_gt_poses_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
+def save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager):
     #don't take a photo but retrieve initial gt values 
     airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
 
@@ -531,7 +531,7 @@ def teleport_loop(current_state, pose_client, airsim_client, potential_states_fe
             plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount, pose_client.animation)
 
         if not pose_client.isCalibratingEnergy:
-            airsim_client.updateAnimation(current_state.DELTA_T)
+            airsim_client.f(current_state.DELTA_T)
             #pose_client_sim.update_internal_3d_pose()
 
         airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
@@ -595,6 +595,7 @@ def set_position(goal_state, airsim_client, current_state, pose_client, loop_mod
     airsim_client.simPause(False)
     if not pose_client.isCalibratingEnergy:
         airsim_client.updateAnimation(current_state.DELTA_T)
+    current_state.update_anim_time(airsim_client.getAnimationTime())
 
     if loop_mode == "teleport_simulation" or loop_mode == "toy_example":
         airsim_client.simSetVehiclePose(goal_state)

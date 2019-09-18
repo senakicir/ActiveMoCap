@@ -7,9 +7,9 @@ from matplotlib import cm, colors
 from sklearn.cluster import KMeans
 import os
 
-input_file_loc = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver3/errors.txt"
+input_file_loc = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver4/errors.txt"
 
-dir_name = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver3/grid_search_res" 
+dir_name = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver4/grid_search_res" 
 if not os.path.exists(dir_name):
     os.makedirs(dir_name)
 
@@ -19,9 +19,11 @@ index=np.argmin(errors)
 param = whole_file[index, :-1]
 
 print("param=", param)
+param_file = open(dir_name+"/optimal_param.txt", "w")
 param_dict = {0:"proj", 1:"smooth", 2:"bone", 3:"lift"}
 
 for param_ind in range(4):
+    param_file.write(param_dict[param_ind]+'\t'+str(param[param_ind])+"\n")
     current_param = param[param_ind]
     other_param = list(range(4))
     other_param.remove(param_ind)

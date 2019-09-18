@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import os
 
 def drone_flight_filenames(date_time_name="", mode=""):
@@ -57,7 +58,9 @@ class FileManager(object):
 
         self.foldernames_anim = self.folder_names[self.experiment_name]
         self.filenames_anim = self.file_names[self.experiment_name]
-        self.server_main_folder = self.file_names["server_main_folder"]
+        self.main_folder = self.file_names["main_folder"]
+        self.anim_gt_loc = self.file_names["anim_gt_loc"]
+
 
         #open files
         self.f_drone_pos = open(self.filenames_anim["f_drone_pos"], 'w')
@@ -107,7 +110,7 @@ class FileManager(object):
                 self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
 
         if self.loop_mode == "save_gt_poses":
-            f_anim_gt_pos = self.server_main_folder + "/animations/" + str(self.anim_num)
+            f_anim_gt_pos = self.anim_gt_loc + "/" + str(self.anim_num)
             #f_anim_gt_pos =  "animations/" + str(self.anim_num)
             if not os.path.exists(f_anim_gt_pos):
                 os.makedirs(f_anim_gt_pos) 
@@ -116,10 +119,9 @@ class FileManager(object):
             self.saved_anim_time = []
         else:
             #read into matrix
-            f_anim_gt_pos = self.server_main_folder + "/animations/" + self.anim_num+ "/gt_poses.txt"
+            f_anim_gt_pos = self.anim_gt_loc + "/" + self.anim_num+ "/gt_poses.txt"
             #f_anim_gt_pos =  "animations/" + str(self.anim_num)
-            self.f_anim_gt_array =  pd.read_csv(f_anim_gt_pos, sep='\t', skiprows=0).iloc[:,:-1].values.astype('float')
-
+            self.f_anim_gt_array =  pd.read_csv(f_anim_gt_pos, sep='\t', header=1).values[:,:-1].astype('float')
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
@@ -269,8 +271,8 @@ class FileManager(object):
                 f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
             self.f_anim_gt.write(str(anim_time)+ '\t' + f_groundtruth_str + '\n')
 
-    def read_gt_pose_values(self, anim_time):
-        return self.f_anim_gt_array[abs(self.f_anim_gt_array[:,0]-anim_time)<1e-4, 1:]
+   # def read_gt_pose_values(self, anim_time):
+     #   return self.f_anim_gt_array[abs(self.f_anim_gt_array[:,0]-anim_time)<1e-4, 1:]
 
     def write_error_values(self, ave_errors, linecount):
         for error_ind, error_value in ave_errors.items():

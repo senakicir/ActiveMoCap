@@ -13,8 +13,10 @@ if __name__ == "__main__":
     simulation_mode = "use_airsim"
     if (simulation_mode == "use_airsim"):
         base_folder = "/Users/kicirogl/Documents/temp_main/grid_search"
+        anim_gt_loc = "/Users/kicirogl/Documents/temp_main/animations"
     elif (simulation_mode == "saved_simulation"):
-        base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
+        base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main/grid_search"
+        anim_gt_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main/animations"
 
     #loop_mode = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset
     loop_mode = "teleport_simulation"
@@ -116,15 +118,16 @@ if __name__ == "__main__":
     grid_search = False
 
 
+    
     file_errors = open(base_folder+"/errors.txt", "w")
 
     for weight_proj in np.logspace(-3,-1,3):
         for  weight_smooth in np.logspace(-2,0,3):
             for weight_bone  in  np.logspace(-2,0,3):
 
-                weight_lift = (2.1-weight_proj+weight_smooth+weight_bone)/2
+                weight_lift = (2.1-(weight_proj+weight_smooth+weight_bone))/2
 
-                file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder)
+                file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, anim_gt_loc)
                 
                 parameters["FILE_NAMES"] = file_names
                 parameters["FOLDER_NAMES"] = folder_names
