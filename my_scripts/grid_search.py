@@ -26,7 +26,7 @@ if __name__ == "__main__":
     minmax = True #True-min, False-max
     SEED_LIST = [0, 5]#,5,3]#[41, 5, 2]#, 100, 150, 200, 190, 0]
     wobble_freq = 0.5#, 1, 2, 5, 20]
-    delta_t = 0.1
+    delta_t = 0.05
     upper_lim = -3
     lower_lim = -0.5 #-2.5
     updown_lim = [upper_lim, lower_lim]
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     is_quiet = True
     
     estimation_window_size = 5
-    future_window_size = 1
+    future_window_size = 3
     calibration_length = 30
     calibration_window_size = 20
     precalibration_length = 10
@@ -122,7 +122,7 @@ if __name__ == "__main__":
         for  weight_smooth in np.logspace(-2,0,3):
             for weight_bone  in  np.logspace(-2,0,3):
 
-                weight_lift = 2.1-(weight_proj+weight_smooth+weight_bone)/2
+                weight_lift = (2.1-weight_proj+weight_smooth+weight_bone)/2
 
                 file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder)
                 
@@ -131,6 +131,7 @@ if __name__ == "__main__":
         
                 weights =  {'proj': weight_proj, 'smooth': weight_smooth, 'bone': weight_bone, 'lift': weight_lift}
                 weights_future =  weights
+                print("weights", weights)
 
                 energy_parameters = {"LIFT_METHOD":lift_method, "BONE_LEN_METHOD":bone_len_method, "ESTIMATION_WINDOW_SIZE": estimation_window_size, 
                             "FUTURE_WINDOW_SIZE": future_window_size, "CALIBRATION_WINDOW_SIZE": calibration_window_size, 

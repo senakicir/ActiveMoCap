@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 def drone_flight_filenames(date_time_name="", mode=""):
     if date_time_name == "":
@@ -56,6 +57,7 @@ class FileManager(object):
 
         self.foldernames_anim = self.folder_names[self.experiment_name]
         self.filenames_anim = self.file_names[self.experiment_name]
+        self.server_main_folder = self.file_names["server_main_folder"]
 
         #open files
         self.f_drone_pos = open(self.filenames_anim["f_drone_pos"], 'w')
@@ -65,6 +67,7 @@ class FileManager(object):
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_error = open(self.filenames_anim["f_error"], 'w')
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
+
 
         #empty
         self.f_average_error = open(self.filenames_anim["f_average_error"], 'w')
@@ -102,7 +105,21 @@ class FileManager(object):
                                         "f_drone_pos": open(self.non_simulation_filenames["f_drone_pos"], "r")}
             if self.non_simulation_filenames["f_intrinsics"] != None:
                 self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
-            
+
+        if self.loop_mode == "save_gt_poses":
+            f_anim_gt_pos = self.server_main_folder + "/animations/" + str(self.anim_num)
+            #f_anim_gt_pos =  "animations/" + str(self.anim_num)
+            if not os.path.exists(f_anim_gt_pos):
+                os.makedirs(f_anim_gt_pos) 
+            self.f_anim_gt = open(f_anim_gt_pos+"/gt_poses.txt", "w")
+            self.f_anim_gt.write("time\tgt_poses\n")
+            self.saved_anim_time = []
+        else:
+            #read into matrix
+            f_anim_gt_pos = self.server_main_folder + "/animations/" + self.anim_num+ "/gt_poses.txt"
+            #f_anim_gt_pos =  "animations/" + str(self.anim_num)
+            self.f_anim_gt_array =  pd.read_csv(f_anim_gt_pos, sep='\t', skiprows=0).iloc[:,:-1].values.astype('float')
+
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
@@ -243,6 +260,17 @@ class FileManager(object):
             for j in range(3):
                 f_drone_pos_str += str(drone_orient[i][j].item()) + '\t'
         self.f_drone_pos.write(str(linecount)+ '\t' + f_drone_pos_str + '\n')
+
+    def write_gt_pose_values(self, anim_time, pos_3d_gt):
+        if anim_time not in self.saved_anim_time:
+            self.saved_anim_time.append(anim_time)
+            f_groundtruth_str = ""
+            for i in range(pos_3d_gt.shape[1]):
+                f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
+            self.f_anim_gt.write(str(anim_time)+ '\t' + f_groundtruth_str + '\n')
+
+    def read_gt_pose_values(self, anim_time):
+        return self.f_anim_gt_array[abs(self.f_anim_gt_array[:,0]-anim_time)<1e-4, 1:]
 
     def write_error_values(self, ave_errors, linecount):
         for error_ind, error_value in ave_errors.items():

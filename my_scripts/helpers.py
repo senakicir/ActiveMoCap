@@ -222,8 +222,10 @@ def reset_all_folders(animation_list, seed_list, base = ""):
     if not os.path.exists(base):
         os.makedirs(base)          
     
-    file_names = {}
     folder_names = {}
+    file_names = {}
+    server_main_folder = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts"
+    file_names["server_main_folder"] = server_main_folder
     for animation in animation_list:
         sub_folder_name = main_folder_name + "/" + str(animation)
         for ind, seed in enumerate(seed_list):

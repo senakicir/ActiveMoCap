@@ -16,15 +16,15 @@ if __name__ == "__main__":
     elif (simulation_mode == "saved_simulation"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/my_scripts/temp_main"
 
-    #loop_mode = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset
-    loop_mode = "teleport_simulation"
+    #loop_mode = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset, 4- save_gt_poses
+    loop_mode = "save_gt_poses"
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part = "whole"
     #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig 5-root_six
     uncertainty_calc_method = "sum_eig"
 
     minmax = True #True-min, False-max
-    SEED_LIST = [41, 5, 2]#, 100, 150, 200, 190, 0]
+    SEED_LIST = [41]#, 5, 2]#, 100, 150, 200, 190, 0]
     WOBBLE_FREQ_LIST = [0.5]#, 1, 2, 5, 20]
     delta_t = 0.05
     upper_lim = -3
@@ -92,11 +92,10 @@ if __name__ == "__main__":
     #bone_len: 0-gt, 1- calib_res
     modes = {"mode_3d":"scipy", "mode_2d":"gt_with_noise", "mode_lift":"gt_with_noise", "bone_len": "calib_res"}
 
-
     param_read_M = False
     param_find_M = False
 
-    ANIMATIONS = ["02_01", "05_08", "38_03"]# ["02_01","38_03"]# "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["02_01", "05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                  # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -116,7 +115,7 @@ if __name__ == "__main__":
     
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["active", "constant_rotation", "random"]
+    TRAJECTORY_LIST = ["active"]#, "constant_rotation", "random"]
     ablation_study = False
     grid_search = False
     

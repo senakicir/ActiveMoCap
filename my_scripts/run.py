@@ -220,6 +220,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     #elif loop_mode == "teleport":
      #   teleport_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode, parameters)
+    elif loop_mode == "save_gt_poses":
+        save_gt_poses_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     elif loop_mode == "create_dataset":
         create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     ################
@@ -228,9 +230,9 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     airsim_client.simPause(True)
     ave_current_error, ave_middle_error = pose_client.ave_current_error, pose_client.ave_middle_error
 
-    simple_plot(pose_client.processing_time, file_manager.estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
-    if (pose_client.modes["mode_3d"] == 3):
-        simple_plot(pose_client.error_2d, file_manager.estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
+    #simple_plot(pose_client.processing_time, file_manager.estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
+    #if (pose_client.modes["mode_3d"] == 3):
+    #    simple_plot(pose_client.error_2d, file_manager.estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
     #simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], file_manager.estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
     #simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="online_error_3d", x_label="Frames", y_label="Error")
     
@@ -404,6 +406,21 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
             airsim_client.updateAnimation(0.3)
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
+
+def save_gt_poses_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
+    #don't take a photo but retrieve initial gt values 
+    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+
+    airsim_client.simPause(True)
+    while airsim_client.linecount < 250:    
+        #update state values read from AirSim and take picture
+        airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+        anim_time = airsim_client.getAnimationTime()
+        file_manager.write_gt_pose_values(anim_time, current_state.bone_pos_gt)
+
+        #move there
+        airsim_client.updateAnimation(0.05)
+        airsim_client.increment_linecount(pose_client.isCalibratingEnergy)
 
 def teleport_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode, parameters):
     """

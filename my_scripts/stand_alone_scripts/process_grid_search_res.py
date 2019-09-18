@@ -7,9 +7,9 @@ from matplotlib import cm, colors
 from sklearn.cluster import KMeans
 import os
 
-input_file_loc = "/Users/kicirogl/Documents/temp_main/grid_search_len1_diffparam/errors.txt"
+input_file_loc = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver3/errors.txt"
 
-dir_name = "/Users/kicirogl/Documents/temp_main/grid_search_len1_diffparam/grid_search_res" 
+dir_name = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver3/grid_search_res" 
 if not os.path.exists(dir_name):
     os.makedirs(dir_name)
 
@@ -33,7 +33,7 @@ for param_ind in range(4):
 
     errors = whole_file[indices, -1]
     fig = plt.figure()
-    plt.plot(list(range(3)), errors, marker = "*")
+    plt.plot(list(range(errors.shape[0])), errors, marker = "*")
     plt.savefig(dir_name+"/param_"+ param_dict[param_ind] +".png", bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 

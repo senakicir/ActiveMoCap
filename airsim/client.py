@@ -44,6 +44,13 @@ class VehicleClient:
         self.linecount = 0
         self.client.call('reset')
 
+    #sena was here
+    def increment_linecount(self, is_calibrating_energy):
+        self.linecount += 1
+        if not is_calibrating_energy:
+            self.online_linecount += 1
+        print('linecount:', self.linecount, ', online linecount:', self.online_linecount)
+
     def ping(self):
         return self.client.call('ping')
 
@@ -70,8 +77,12 @@ class VehicleClient:
     def simPauseDrone(self, is_paused):
         self.client.call('simPauseDrone', is_paused)
         time.sleep(0.01)
-    def simPauseHuman(self, is_paused):
-        self.client.call('simPauseHuman', is_paused)
+    def updateAnimation(self, increment_time):
+        self.client.call('updateAnimation', increment_time)
+    def setAnimationTime(self, time):
+        self.client.call('setAnimationTime', time)
+    def getAnimationTime(self):
+        return self.client.call('getAnimationTime')
     def simIsPause(self):
         return self.client.call("simIsPaused")
     def simContinueForTime(self, seconds):
@@ -176,9 +187,7 @@ class VehicleClient:
     #sena was here
     def changeAnimation(self, newAnimNum, vehicle_name = ''):
         self.client.call('changeAnimation', vehicle_name, newAnimNum)
-        self.simPauseHuman(False)
-        time.sleep(1)
-        self.simPauseHuman(True)
+        self.client.call('setAnimationTime', 1)
 
     #sena was here
     def changeCalibrationMode(self, calibMode, vehicle_name = ''):
