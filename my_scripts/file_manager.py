@@ -59,7 +59,7 @@ class FileManager(object):
         self.foldernames_anim = self.folder_names[self.experiment_name]
         self.filenames_anim = self.file_names[self.experiment_name]
         self.main_folder = self.file_names["main_folder"]
-        self.anim_gt_loc = self.file_names["anim_gt_loc"]
+        self.saved_vals_loc = self.file_names["saved_vals_loc"]
 
 
         #open files
@@ -110,8 +110,7 @@ class FileManager(object):
                 self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
 
         if self.loop_mode == "save_gt_poses":
-            f_anim_gt_pos = self.anim_gt_loc + "/" + str(self.anim_num)
-            #f_anim_gt_pos =  "animations/" + str(self.anim_num)
+            f_anim_gt_pos = self.saved_vals_loc + "/" + str(self.anim_num)
             if not os.path.exists(f_anim_gt_pos):
                 os.makedirs(f_anim_gt_pos) 
             self.f_anim_gt = open(f_anim_gt_pos+"/gt_poses.txt", "w")
@@ -119,7 +118,7 @@ class FileManager(object):
             self.saved_anim_time = []
         else:
             #read into matrix
-            f_anim_gt_pos = self.anim_gt_loc + "/" + self.anim_num+ "/gt_poses.txt"
+            f_anim_gt_pos = self.saved_vals_loc + "/" + self.anim_num+ "/gt_poses.txt"
             #f_anim_gt_pos =  "animations/" + str(self.anim_num)
             self.f_anim_gt_array =  pd.read_csv(f_anim_gt_pos, sep='\t', header=1).values[:,:-1].astype('float')
 
@@ -275,8 +274,9 @@ class FileManager(object):
      #   return self.f_anim_gt_array[abs(self.f_anim_gt_array[:,0]-anim_time)<1e-4, 1:]
 
     def write_error_values(self, ave_errors, linecount):
+        f_error_str=""
         for error_ind, error_value in ave_errors.items():
-            f_error_str = str(error_value) + '\t'
+            f_error_str += str(error_value) + '\t'
         self.f_error.write(str(linecount)+ '\t' + f_error_str + '\n')
 
     def record_toy_example_results(self, linecount, potential_trajectory_list, uncertainty_dict, goal_trajectory):

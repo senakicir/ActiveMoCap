@@ -77,6 +77,13 @@ class Potential_Trajectory(object):
         self.potential_hessian = np.zeros([1,1])
         self.potential_cov_dict = {"whole":np.zeros([1,1]), "future":np.zeros([1,1]), "middle":np.zeros([1,1])}
         self.uncertainty = 42
+        self.errors_middle_dict = {}
+        self.errors_overall_dict = {}
+        self.error_middle = 42
+        self.error_overall = 42
+        for future_ind in range(future_window_size):
+            self.errors_middle_dict[future_ind] = []
+            self.errors_overall_dict[future_ind] = []        
 
     def append_to_traj(self, future_ind, potential_state):
         self.states[future_ind] = potential_state.deep_copy_state()
@@ -125,6 +132,19 @@ class Potential_Trajectory(object):
             _, s, _ = np.linalg.svd(cov)
             self.uncertainty = np.sum(np.power(s, 1/6)) 
 
+    def record_error_for_trial(self, future_ind, middle_error, overall_error):
+        self.errors_middle_dict[future_ind].append(middle_error)
+        self.errors_overall_dict[future_ind].append(overall_error)
+
+    def find_overall_error(self):
+        error_middle = 0
+        error_overall = 0
+        for future_ind in range(self.future_window_size):
+            error_middle += sum(self.errors_middle_dict[future_ind])/len(self.errors_middle_dict[future_ind])
+            error_overall += sum(self.errors_overall_dict[future_ind])/len(self.errors_overall_dict[future_ind])
+        self.error_middle = error_middle
+        self.error_overall = error_overall
+
     def deep_copy_trajectory(self):
         new_trajectory = Potential_Trajectory(self.trajectory_index, self.future_window_size)
         new_trajectory.uncertainty = self.uncertainty
@@ -136,6 +156,9 @@ class Potential_Trajectory(object):
         new_trajectory.inv_transformation_matrix = self.inv_transformation_matrix.clone()
         new_trajectory.drone_positions = self.drone_positions.clone()
         #new_trajectory.pitches = self.pitches.clone()
+        for future_ind in range(self.future_window_size):
+            new_trajectory.errors_middle_dict[future_ind] = self.errors_middle_dict[future_ind].copy()
+            new_trajectory.errors_overall_dict[future_ind] = self.errors_overall_dict[future_ind].copy()
         return new_trajectory
 
     def print_trajectory(self):
@@ -180,22 +203,16 @@ class PotentialStatesFetcher(object):
         self.number_of_samples = len(self.POSITION_GRID)
 
         self.uncertainty_dict = {}
+
         self.goal_state_ind = 0 
         self.goal_state = None
         self.goal_trajectory = None
         self.visited_ind_list =[]
 
-
         if not self.is_using_airsim:
             self.drone_flight_states = airsim_client.get_drone_flight_states()
             self.number_of_samples = len(self.drone_flight_states)
-
-        self.overall_error_mean_list = np.zeros(self.number_of_samples)
-        self.current_error_mean_list = np.zeros(self.number_of_samples)
-        self.middle_error_mean_list = np.zeros(self.number_of_samples)
-        self.overall_error_std_list =  np.zeros(self.number_of_samples)
-        self.current_error_std_list = np.zeros(self.number_of_samples)
-        self.middle_error_std_list = np.zeros(self.number_of_samples)        
+    
 
     def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
@@ -213,20 +230,16 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind = 0
 
         self.potential_trajectory_list = []
-        self.potential_pose2d_list = []
-
-        self.overall_error_mean_list = np.zeros(self.number_of_samples)
-        self.current_error_mean_list = np.zeros(self.number_of_samples)
-        self.middle_error_mean_list = np.zeros(self.number_of_samples)
-        self.overall_error_std_list =  np.zeros(self.number_of_samples)
-        self.current_error_std_list = np.zeros(self.number_of_samples)
-        self.middle_error_std_list = np.zeros(self.number_of_samples)        
+        self.potential_pose2d_list = []   
         
         self.uncertainty_dict = {}
 
         if not self.is_using_airsim:
             self.drone_flight_states = airsim_client.get_drone_flight_states()
             self.number_of_samples = len(self.drone_flight_states)
+
+    def restart_trajectory(self):
+        self.immediate_future_ind = 0
 
     def get_potential_positions(self, is_calibrating_energy):
         if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation" or is_calibrating_energy:
@@ -334,6 +347,10 @@ class PotentialStatesFetcher(object):
                 plot_dome(states_dict, self.current_human_pos[:, self.hip_index], file_manager.plot_loc)
             self.already_plotted_teleport_loc = True
             file_manager.record_toy_example_results(linecount, self.potential_trajectory_list, self.uncertainty_dict, self.goal_trajectory)
+
+    def choose_trajectory_using_trajind(self, traj_ind):
+        self.goal_trajectory = self.potential_trajectory_list[traj_ind]
+        return self.goal_trajectory
 
     def choose_constant_rotation(self):
         for potential_trajectory in self.potential_trajectory_list:

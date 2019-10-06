@@ -33,6 +33,7 @@ class PoseEstimationClient(object):
         self.CURRENT_POSE_INDEX = self.FUTURE_WINDOW_SIZE
         self.MIDDLE_POSE_INDEX = self.FUTURE_WINDOW_SIZE+(self.ESTIMATION_WINDOW_SIZE)//2
         self.FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE -1
+        self.PASTMOST_POSE_INDEX = self.ONLINE_WINDOW_SIZE-1
         
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
@@ -60,12 +61,12 @@ class PoseEstimationClient(object):
         
         self.errors = {}
         self.average_errors = {}
-        for index in range(self.FUTURE_WINDOW_SIZE, self.ONLINE_WINDOW_SIZE):
+        for index in range(self.ONLINE_WINDOW_SIZE):
             self.errors[index] = []
             self.average_errors[index] = -1
-        self.ave_middle_error, self.ave_current_error, self.ave_pastmost_error = -1, -1, -1
+        self.overall_error = -1
+        self.ave_overall_error = -1
         
-
         self.openpose_error = 0
         self.openpose_arm_error = 0
         self.openpose_leg_error = 0
@@ -218,15 +219,16 @@ class PoseEstimationClient(object):
 
     def calculate_store_errors(self, linecount):
         if linecount > self.save_errors_after:
+            sum_all_errors = 0
             for index in range(self.ONLINE_WINDOW_SIZE):
-                self.errors[index].append(np.mean(np.linalg.norm(self.poses_3d_gt[index, :, :] 
-                                    - self.adjusted_optimized_poses[index, :, :], axis=0)))
-
+                error_calc = np.mean(np.linalg.norm(self.poses_3d_gt[index, :, :] 
+                                    - self.adjusted_optimized_poses[index, :, :], axis=0))
+                self.errors[index].append(error_calc)
+                sum_all_errors += error_calc
                 self.average_errors[index] = sum(self.errors[index])/len(self.errors[index])
             
-            self.ave_current_error = self.average_errors[self.CURRENT_POSE_INDEX]
-            self.ave_middle_error = self.average_errors[self.MIDDLE_POSE_INDEX]
-            self.ave_pastmost_error = self.average_errors[-1]
+            self.overall_error = sum_all_errors/self.ONLINE_WINDOW_SIZE
+            self.ave_overall_error = sum(self.average_errors.values())/self.ONLINE_WINDOW_SIZE
             #print(self.average_errors)
         return self.errors
 
@@ -246,14 +248,18 @@ class PoseEstimationClient(object):
     def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt):
         self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
 
-        temp = self.poses_3d_gt[:-1,:].copy() 
-        self.poses_3d_gt[0,:] = futuremost_pose_3d_gt.copy()
-        self.poses_3d_gt[1:,:] = temp.copy()
-        self.poses_3d_gt[self.CURRENT_POSE_INDEX, :, :] = current_pose_3d_gt.copy()
+        if self.isCalibratingEnergy:
+            self.lift_pose_tensor[:,:,:] = pose3d_lift.clone()
+            self.poses_3d_gt[:,:,:] = current_pose_3d_gt.copy()
+        else:
+            temp = self.poses_3d_gt[:-1,:,:].copy() 
+            self.poses_3d_gt[0,:,:] = futuremost_pose_3d_gt.copy()
+            self.poses_3d_gt[1:,:,:] = temp.copy()
+            self.poses_3d_gt[self.CURRENT_POSE_INDEX, :, :] = current_pose_3d_gt.copy()
 
-        temp = self.lift_pose_tensor[:-1,:].clone() 
-        self.lift_pose_tensor[0,:] = pose3d_lift.clone()
-        self.lift_pose_tensor[1:,:] = temp.clone()
+            temp = self.lift_pose_tensor[:-1,:,:].clone() 
+            self.lift_pose_tensor[0,:,: ] = pose3d_lift.clone()
+            self.lift_pose_tensor[1:,:,:] = temp.clone()
         
         if self.isCalibratingEnergy:
             if linecount >= self.PRECALIBRATION_LENGTH:
@@ -266,9 +272,9 @@ class PoseEstimationClient(object):
     def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt):
         if self.isCalibratingEnergy:
             self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
-            self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = pose_3d_gt.copy()
-            self.poses_3d_gt[0:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
-            self.lift_pose_tensor = pose3d_lift.clone()
+            self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = np.repeat(pose_3d_gt[np.newaxis, :, :].copy(), self.ESTIMATION_WINDOW_SIZE, axis=0)
+            self.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
+            self.lift_pose_tensor[:,:,:] = pose3d_lift.clone()
         else:
             raise NotImplementedError            
 

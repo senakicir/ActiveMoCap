@@ -29,6 +29,15 @@ def find_delta_yaw(current_yaw, desired_yaw):
     min_diff = np.array([abs(current_yaw_deg -  yaw_candidates[0]), abs(current_yaw_deg -  yaw_candidates[1]), abs(current_yaw_deg -  yaw_candidates[2])])
     return yaw_candidates[np.argmin(min_diff)]
 
+def find_pose_at_time (anim_time, search_array, num_of_joints):
+    flat_pose = search_array[abs(search_array[:,0]-anim_time)<1e-3, 1:]
+    if flat_pose.size != 0:
+        pose = flat_pose.reshape([3,num_of_joints], order="F")
+    else:
+        raise NotImplementedError
+    return pose
+
+
 
 class State(object):
     def __init__(self, use_single_joint, active_parameters, model_settings, anim_gt_array, future_window_size):
@@ -73,7 +82,7 @@ class State(object):
         self.anim_time = 0.05
 
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
-        self.futuremost_pose_3d_gt = self.anim_gt_array[abs(self.anim_gt_array[:,0]-future_anim_time)<1e-4, 1:].reshape(3,self.num_of_joints)
+        self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def deepcopy_state(self):
         model_settings =[self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index]
@@ -149,13 +158,13 @@ class State(object):
     def update_anim_time(self, anim_time):
         self.anim_time = anim_time
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
-        self.futuremost_pose_3d_gt = self.anim_gt_array[abs(self.anim_gt_array[:,0]-future_anim_time)<1e-4, 1:].reshape(3,self.num_of_joints)
+        self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def get_first_future_poses(self):
         future_poses_3d_gt = np.zeros([self.future_window_size, 3, self.num_of_joints])
         for future_ind in range(self.future_window_size):
             future_anim_time = self.anim_time + self.DELTA_T*(future_ind+1)
-            future_pose = self.anim_gt_array[abs(self.anim_gt_array[:,0]-future_anim_time)<1e-4, 1:].reshape(3,self.num_of_joints)
+            future_pose = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
             future_poses_3d_gt[self.future_window_size-future_ind-1,:,:] = future_pose.copy()
         return future_poses_3d_gt
 

@@ -43,7 +43,7 @@ class Lift_Client(object):
     def __init__(self, noise_lift_std):
         self.noise_lift_std = noise_lift_std
 
-    def deepcopy_lift_client(self, noise_lift_std):
+    def deepcopy_lift_client(self):
         return Lift_Client(self.noise_lift_std )
 
     def reset(self, lift_pose_tensor, bone_3d_pose_gt):

@@ -61,6 +61,7 @@ def fun_hessian(pytorch_objective, x, result_shape):
     
     #second derivative
     hessian_torch = torch.zeros(hess_size, hess_size)
+    torch.zeros(gradient_torch_flat.size)
     for ind, ele in enumerate(gradient_torch_flat):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)
         hessian_torch[:, ind] = temp[0].view(-1)
@@ -163,5 +164,8 @@ class pose3d_online_parallel_wrapper():
         return gradient
 
     def hessian(self, x):
+        start1=time.time()
         hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
+        end1=time.time()
+        print("Time it takes to compute hessian", end1-start1, "seconds")
         return hessian

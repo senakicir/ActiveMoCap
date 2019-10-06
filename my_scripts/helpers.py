@@ -204,7 +204,7 @@ def move_M(destination_folder):
     os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
 
 
-def reset_all_folders(animation_list, seed_list, base_save_loc, anim_gt_loc):
+def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     main_folder_name =  base_save_loc + '/' + date_time_name
 
@@ -220,7 +220,7 @@ def reset_all_folders(animation_list, seed_list, base_save_loc, anim_gt_loc):
     folder_names = {}
     file_names = {}
     file_names["main_folder"] = base_save_loc
-    file_names["anim_gt_loc"] = anim_gt_loc
+    file_names["saved_vals_loc"] = saved_vals_loc
 
     for animation in animation_list:
         sub_folder_name = main_folder_name + "/" + str(animation)
@@ -273,11 +273,13 @@ def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
     f_notes.write(notes_str)
     f_notes.close()
 
-def append_error_notes(f_notes_name, err_1, err_2, animation):
+def append_error_notes(f_notes_name, animation, curr_err, mid_err, pastmost_err, overall_err):
     f_notes = open(f_notes_name, 'a')
     notes_str = "\n---\nResults for animation "+str(animation)+":\n"
-    notes_str += "current frame error: ave:" + str(np.mean(np.array(err_1), axis=0)) + '\tstd:' + str(np.std(np.array(err_1), axis=0)) +"\n"
-    notes_str += "mid frame error: ave:" + str(np.mean(np.array(err_2), axis=0)) + '\tstd:' + str(np.std(np.array(err_2), axis=0)) +"\n"
+    notes_str += "current frame error: ave:" + str(np.mean(np.array(curr_err), axis=0)) + '\tstd:' + str(np.std(np.array(curr_err), axis=0)) +"\n"
+    notes_str += "mid frame error: ave:" + str(np.mean(np.array(mid_err), axis=0)) + '\tstd:' + str(np.std(np.array(mid_err), axis=0)) +"\n"
+    notes_str += "pastmost frame error: ave:" + str(np.mean(np.array(pastmost_err), axis=0)) + '\tstd:' + str(np.std(np.array(pastmost_err), axis=0)) +"\n"
+    notes_str += "overall frame error: ave:" + str(np.mean(np.array(overall_err), axis=0)) + '\tstd:' + str(np.std(np.array(overall_err), axis=0)) +"\n"
     f_notes.write(notes_str)
     f_notes.close()
 
@@ -587,7 +589,7 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
         multip = 1
 
     num_of_plots = optimized_poses.shape[0]
-    if num_of_plots < 8:
+    if num_of_plots >= 8:
         num_rows = 2
         num_cols = ceil(num_of_plots/2)
     else:
@@ -1649,3 +1651,34 @@ def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_in
     file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
+
+def plot_potential_errors_and_uncertainties_matrix(linecount, potential_trajectory_list, goal_trajectory, find_best_traj, plot_loc):
+    uncertainty_matrix = np.zeros([8,8])
+    if find_best_traj:
+        error_matrix = np.zeros([8,8])
+    for potential_trajectory in potential_trajectory_list:
+        uncertainty_matrix[potential_trajectory.states[0].index, potential_trajectory.states[1].index] = potential_trajectory.uncertainty
+        if find_best_traj:
+            error_matrix[potential_trajectory.states[0].index, potential_trajectory.states[1].index] = potential_trajectory.error_middle
+
+    #plot
+    fig = plt.figure()
+    if not find_best_traj:
+        ax = fig.add_subplot(111)
+    else:
+        ax = fig.add_subplot(121)
+
+    im1 =plt.imshow(uncertainty_matrix)
+    plt.colorbar(im1)
+    plt.title("uncertainty")
+
+    if find_best_traj:
+        ax = fig.add_subplot(122)
+        im2 = plt.imshow(error_matrix)
+        plt.colorbar(im2)
+        plt.title("error")
+    
+    file_name = plot_loc + "/uncertainties_errors_matrix_" + str(linecount) + ".png"
+    plt.savefig(file_name)
+    plt.close(fig)
+

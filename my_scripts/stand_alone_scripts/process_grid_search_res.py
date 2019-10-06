@@ -4,12 +4,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401 unused import
 from matplotlib import cm, colors
-from sklearn.cluster import KMeans
 import os
 
-input_file_loc = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver4/errors.txt"
+input_file_loc = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver7/errors.txt"
 
-dir_name = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver4/grid_search_res" 
+dir_name = "/Users/kicirogl/Documents/temp_main/grid_search_len1_ver7/grid_search_res" 
 if not os.path.exists(dir_name):
     os.makedirs(dir_name)
 

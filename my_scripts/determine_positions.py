@@ -119,30 +119,32 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
 
     return pose3d_lift_directions
 
-def initialize_empty_frames(linecount, pose_client, current_state, plot_loc, photo_loc):
+def initialize_empty_frames(linecount, pose_client, current_state, file_manager):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
-    bone_pos_3d_GT, _, transformation_matrix = current_state.get_frame_parameters()
+    pose_3d_gt, _, _, transformation_matrix = current_state.get_frame_parameters()
 
     #init bone lengths with GT 
     if not pose_client.USE_SINGLE_JOINT:
-        pose_client.update_bone_lengths(torch.from_numpy(bone_pos_3d_GT).float())
+        pose_client.update_bone_lengths(torch.from_numpy(pose_3d_gt).float())
 
     pose_2d, _ = prepare_frames_for_optimization(linecount, pose_client, current_state, plot_loc, photo_loc, init_empty_frames=True)
 
     #initial frames
     if pose_client.INIT_POSE_MODE == "gt" or pose_client.INIT_POSE_MODE == "gt_with_noise":
-        optimized_poses = bone_pos_3d_GT.copy()
+        optimized_poses = pose_3d_gt.copy()
     elif pose_client.INIT_POSE_MODE == "zeros":
         optimized_poses = np.zeros([3,num_of_joints])
     elif pose_client.INIT_POSE_MODE == "backproj":
         backprojection_result = pose_client.projection_client.take_single_backprojection(pose_2d, transformation_matrix, joint_names)
-        optimized_poses = scale_with_bone_lengths(backprojection_result, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections)).numpy()
+        optimized_poses = scale_with_bone_lengths(backprojection_result, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections), batch=False).numpy()
 
     if not pose_client.isCalibratingEnergy:
         optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
 
     if pose_client.INIT_POSE_MODE == "gt_with_noise":
-        optimized_poses = add_noise_to_pose(optimized_poses, pose_client.NOISE_3D_INIT_STD)
+        optimized_poses = add_noise_to_pose(torch.from_numpy(optimized_poses), pose_client.NOISE_3D_INIT_STD)
+        optimized_poses = optimized_poses.numpy()
 
     pose_client.update3dPos(optimized_poses, optimized_poses)
 
@@ -231,11 +233,10 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, p
    # if linecount < 10:
    #     bounds = (-np.inf, np.inf)
    # else:
-   #     bounds = (pose3d_init-1, pose3d_init+1)
-        
+   #     bounds = (pose3d_init-1, pose3d_init+1)    
     optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=(-np.inf, np.inf), method=pose_client.method, ftol=pose_client.ftol)
     func_eval_time = time.time() - start_time
-    #print("least squares eval time", func_eval_time)
+    print("least squares eval time", func_eval_time)
     if not pose_client.USE_TRAJECTORY_BASIS:
         optimized_poses = np.reshape(a = optimized_res.x, newshape = result_shape, order = "C")
     else:
