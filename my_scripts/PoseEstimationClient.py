@@ -37,8 +37,8 @@ class PoseEstimationClient(object):
         
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
-        self.CALIBRATION_LENGTH = param["CALIBRATION_LENGTH"]
-        self.PRECALIBRATION_LENGTH = param["PRECALIBRATION_LENGTH"]
+        self.PREDEFINED_MOTION_MODE_LENGTH = param["PREDEFINED_MOTION_MODE_LENGTH"]
+        
         self.quiet = param["QUIET"]
         self.INIT_POSE_MODE = param["INIT_POSE_MODE"]
         self.NOISE_2D_STD = param["NOISE_2D_STD"]
@@ -53,6 +53,12 @@ class PoseEstimationClient(object):
         self.LIFT_METHOD = param["LIFT_METHOD"]
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
+
+
+        if self.loop_mode == "calibration":
+            self.is_calibrating_energy = True
+        else:
+            self.is_calibrating_energy = False
 
         self.optimized_traj = np.zeros([self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints])
 
@@ -88,8 +94,6 @@ class PoseEstimationClient(object):
         self.online_res_list = []
         self.processing_time = []
 
-        self.isCalibratingEnergy = True
-
         self.param_read_M = param["PARAM_READ_M"]
         if self.param_read_M:
             self.param_find_M = False
@@ -105,17 +109,10 @@ class PoseEstimationClient(object):
         self.adj_middle_pose = np.zeros([3, self.num_of_joints])
         self.adj_future_poses = np.zeros([self.FUTURE_WINDOW_SIZE, 3, self.num_of_joints])
 
-        self.result_shape = [3, self.num_of_joints]
-        self.result_size = np.prod(np.array(self.result_shape))
-
         if self.param_read_M:
             self.M = read_M(self.num_of_joints, "M_rel")
         else:
             self.M = np.eye(self.num_of_joints)
-
-        self.calib_cov_list = []
-        self.online_cov_list = []
-        self.middle_pose_GT_list = []
 
         self.weights_calib = {"proj":0.8, "sym":0.2}
         self.weights_online = param["WEIGHTS"]
@@ -132,6 +129,17 @@ class PoseEstimationClient(object):
                 self.loss_dict_online.append("lift")
         self.loss_dict = {}
 
+        if self.is_calibrating_energy:
+            self.result_shape = [3, self.num_of_joints]
+            self.loss_dict = self.loss_dict_calib
+        else:
+            self.loss_dict = self.loss_dict_online
+            if self.USE_TRAJECTORY_BASIS:
+                self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
+            else:
+                self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
+        self.result_size =  np.prod(np.array(self.result_shape))
+
         self.animation = animation
         self.intrinsics_focal = intrinsics_focal
         self.intrinsics_px = intrinsics_px
@@ -146,10 +154,7 @@ class PoseEstimationClient(object):
         else:
             self.cropping_tool = Crop(loop_mode = self.loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
 
-        #if self.loop_mode == "toy_example":
-        #    self.save_errors_after = self.ONLINE_WINDOW_SIZE-1
-        #elif self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
-        self.save_errors_after = self.CALIBRATION_LENGTH-1
+        self.save_errors_after = self.PREDEFINED_MOTION_MODE_LENGTH-1
 
 
     def model_settings(self):
@@ -165,7 +170,6 @@ class PoseEstimationClient(object):
         if self.param_find_M:
             M = find_M(plot_info=self.online_res_list, joint_names=self.joint_names, num_of_joints=self.num_of_joints)
             #plot_matrix(M, plot_loc, 0, "M", "M")
-        self.isCalibratingEnergy = True
         return 0   
 
     def update_bone_lengths(self, bones):
@@ -187,35 +191,10 @@ class PoseEstimationClient(object):
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])
-        if self.isCalibratingEnergy:
+        if self.is_calibrating_energy:
             self.calib_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
-            self.online_res_list = [{"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]}]
         else:
             self.online_res_list.append({"est":  new_res["est"], "GT": new_res["GT"], "drone": new_res["drone"]})
-
-    def updateMeasurementCov(self, cov, curr_pose_ind, future_pose_ind):
-        if  self.isCalibratingEnergy:
-            curr_pose_ind = 0
-        curr_inv_hess = shape_cov(cov, self.model, curr_pose_ind)
-        self.measurement_cov = curr_inv_hess
-        if self.isCalibratingEnergy:
-            self.calib_cov_list.append(self.measurement_cov)
-        else:
-            future_inv_hess = shape_cov(cov, self.model, future_pose_ind)
-            self.future_measurement_cov = future_inv_hess
-            self.online_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
-
-    def updateMeasurementCov_mini(self, cov, curr_pose_ind, future_pose_ind):
-        if self.isCalibratingEnergy:
-            curr_pose_ind = 0
-        curr_inv_hess = shape_cov_mini(cov, self.model, curr_pose_ind)
-        self.measurement_cov = curr_inv_hess
-        if self.isCalibratingEnergy:
-            self.calib_cov_list.append(self.measurement_cov)
-        else:
-            future_inv_hess = shape_cov_mini(cov, self.model, future_pose_ind)
-            self.future_measurement_cov = future_inv_hess
-            self.online_cov_list.append({"curr":self.measurement_cov ,"future":self.future_measurement_cov})
 
     def calculate_store_errors(self, linecount):
         if linecount > self.save_errors_after:
@@ -232,24 +211,10 @@ class PoseEstimationClient(object):
             #print(self.average_errors)
         return self.errors
 
-    def changeCalibrationMode(self, calibMode):
-        self.isCalibratingEnergy = calibMode
-        if self.isCalibratingEnergy:
-            self.result_shape = [3, self.num_of_joints]
-            self.loss_dict = self.loss_dict_calib
-        else:
-            self.loss_dict = self.loss_dict_online
-            if self.USE_TRAJECTORY_BASIS:
-                self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
-            else:
-                self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
-        self.result_size =  np.prod(np.array(self.result_shape))
-
     def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt):
         self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
 
-        if self.isCalibratingEnergy:
-            self.lift_pose_tensor[:,:,:] = pose3d_lift.clone()
+        if self.is_calibrating_energy:
             self.poses_3d_gt[:,:,:] = current_pose_3d_gt.copy()
         else:
             temp = self.poses_3d_gt[:-1,:,:].copy() 
@@ -261,8 +226,8 @@ class PoseEstimationClient(object):
             self.lift_pose_tensor[0,:,: ] = pose3d_lift.clone()
             self.lift_pose_tensor[1:,:,:] = temp.clone()
         
-        if self.isCalibratingEnergy:
-            if linecount >= self.PRECALIBRATION_LENGTH:
+        if self.is_calibrating_energy:
+            if linecount >= self.PREDEFINED_MOTION_MODE_LENGTH:
                 while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
                     self.requiredEstimationData.pop()
         else:
@@ -270,21 +235,39 @@ class PoseEstimationClient(object):
                 self.requiredEstimationData.pop()
 
     def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt):
-        if self.isCalibratingEnergy:
+        if self.is_calibrating_energy:
             self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
             self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = np.repeat(pose_3d_gt[np.newaxis, :, :].copy(), self.ESTIMATION_WINDOW_SIZE, axis=0)
             self.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
-            self.lift_pose_tensor[:,:,:] = pose3d_lift.clone()
         else:
-            raise NotImplementedError            
+            raise NotImplementedError  
+
+    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
+        if (linecount != 0):
+            current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
+        else:
+            if self.INIT_POSE_MODE == "gt":
+                current_frame_init = pose_3d_gt.copy()
+            elif self.INIT_POSE_MODE == "gt_with_noise":
+                current_frame_init = add_noise_to_pose(torch.from_numpy(pose_3d_gt), self.NOISE_3D_INIT_STD).numpy()
+            elif self.INIT_POSE_MODE == "backproj":
+                current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
+            elif self.INIT_POSE_MODE == "zeros":
+                current_frame_init = np.zeros([3, self.num_of_joints])
+
+        if self.is_calibrating_energy:
+            self.pose_3d_preoptimization = current_frame_init.copy()
+        else:
+            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
+
+           
 
     def update3dPos(self, optimized_poses, adjusted_optimized_poses):
-        if (self.isCalibratingEnergy):
+        if (self.is_calibrating_energy):
             self.current_pose = optimized_poses.copy()
             self.middle_pose = optimized_poses.copy()
             self.future_poses = np.repeat(optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
             self.immediate_future_pose =  optimized_poses.copy()
-
 
             self.adj_current_pose = adjusted_optimized_poses.copy()
             self.adj_middle_pose = adjusted_optimized_poses.copy()
@@ -305,32 +288,7 @@ class PoseEstimationClient(object):
 
             self.optimized_poses = optimized_poses.copy()
             self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
-        
-    def update_middle_pose_GT(self, middle_pose):
-        self.middle_pose_GT_list.insert(0, middle_pose)
-        if (len(self.middle_pose_GT_list) > self.MIDDLE_POSE_INDEX):
-            self.middle_pose_GT_list.pop()
-        return self.middle_pose_GT_list[-1]
 
-    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
-        if (linecount != 0):
-            current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
-        else:
-            if self.INIT_POSE_MODE == "gt":
-                current_frame_init = pose_3d_gt.copy()
-            elif self.INIT_POSE_MODE == "gt_with_noise":
-                current_frame_init = add_noise_to_pose(torch.from_numpy(pose_3d_gt), self.NOISE_3D_INIT_STD).numpy()
-            elif self.INIT_POSE_MODE == "backproj":
-                current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
-            elif self.INIT_POSE_MODE == "zeros":
-                current_frame_init = np.zeros([3, self.num_of_joints])
-
-        if self.isCalibratingEnergy:
-            self.pose_3d_preoptimization = current_frame_init.copy()
-        else:
-            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
-
- 
     def deepcopy_PEC(self, trial_ind):
         new_pose_client = PoseEstimationClient(self.param, self.loop_mode, self.animation, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py, (self.SIZE_X, self.SIZE_Y))
 
@@ -352,10 +310,6 @@ class PoseEstimationClient(object):
         new_pose_client.poses_3d_gt = self.poses_3d_gt.copy()
         new_pose_client.boneLengths = self.boneLengths.clone()
         new_pose_client.multiple_bone_lengths = self.multiple_bone_lengths.clone()
-
-        new_pose_client.middle_pose_GT_list = []
-        for middle_poses in self.middle_pose_GT_list:
-            new_pose_client.middle_pose_GT_list.append(middle_poses.copy())
 
         new_pose_client.error_2d = self.error_2d.copy()
         for key, error_list in self.errors.items():
@@ -379,7 +333,7 @@ class PoseEstimationClient(object):
         new_pose_client.quiet = True
         new_pose_client.simulate_error_mode = False
         new_pose_client.trial_ind = trial_ind
-        new_pose_client.isCalibratingEnergy = self.isCalibratingEnergy
+        new_pose_client.is_calibrating_energy = self.is_calibrating_energy
         new_pose_client.result_shape, new_pose_client.result_size = self.result_shape, self.result_size
 
         return new_pose_client

@@ -13,7 +13,7 @@ parameters:
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset, 4- save_gt_poses 5-calibration
-    LOOP_MODE: "teleport_simulation"
+    LOOP_MODE: "calibration"
 
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part: "whole"
@@ -45,9 +45,8 @@ energy_parameters:
     ESTIMATION_WINDOW_SIZE: 5
     FUTURE_WINDOW_SIZE: 3
 
-    CALIBRATION_LENGTH: 30
     CALIBRATION_WINDOW_SIZE: 20
-    PRECALIBRATION_LENGTH: 10
+    PREDEFINED_MOTION_MODE_LENGTH: 10
 
     PARAM_FIND_M: False
     PARAM_READ_M: False

@@ -185,7 +185,7 @@ class PotentialStatesFetcher(object):
         self.ACTIVE_SAMPLING_MODE = active_parameters["ACTIVE_SAMPLING_MODE"]
         self.loop_mode = loop_mode
 
-        self.PRECALIBRATION_LENGTH = pose_client.PRECALIBRATION_LENGTH
+        self.PREDEFINED_MOTION_MODE_LENGTH = pose_client.PREDEFINED_MOTION_MODE_LENGTH
 
         self.trajectory = active_parameters["TRAJECTORY"]
         self.is_quiet = pose_client.quiet
@@ -222,7 +222,7 @@ class PotentialStatesFetcher(object):
         self.future_human_pos = pose_client.immediate_future_pose
         self.current_human_pos = pose_client.current_pose
 
-        if (pose_client.isCalibratingEnergy):
+        if (pose_client.is_calibrating_energy):
             self.objective = objective_calib
         else:
             self.objective = objective_online
@@ -318,25 +318,28 @@ class PotentialStatesFetcher(object):
             #print("********end")
 
     def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager):
-        if pose_client.isCalibratingEnergy:
-            self.calibration_mode(linecount)
+        if linecount < self.PREDEFINED_MOTION_MODE_LENGTH:
+            self.choose_go_up_down()
         else:
-            if (self.trajectory == "active"):
-                self.find_next_state_active(pose_client, online_linecount, file_manager)                    
-                file_manager.write_uncertainty_values(self.uncertainty_dict, linecount)
-                self.plot_everything(linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
-            if (self.trajectory == "constant_rotation"):
-                if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
-                    self.choose_constant_rotation()
-                elif self.loop_mode == "toy_example":
-                    print("Not implemented yet as it makes my brain hurt")
-                    raise NotImplementedError
-            if (self.trajectory == "random"): 
-                self.find_random_next_state(online_linecount)
-            if (self.trajectory == "constant_angle"):
-                self.constant_angle_baseline_future(online_linecount)
+            if pose_client.is_calibrating_energy:
+                self.choose_constant_rotation()
+            else:
+                if (self.trajectory == "active"):
+                    self.find_next_state_active(pose_client, online_linecount, file_manager)                    
+                    file_manager.write_uncertainty_values(self.uncertainty_dict, linecount)
+                    self.plot_everything(linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
+                if (self.trajectory == "constant_rotation"):
+                    if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
+                        self.choose_constant_rotation()
+                    elif self.loop_mode == "toy_example":
+                        print("Not implemented yet as it makes my brain hurt")
+                        raise NotImplementedError
+                if (self.trajectory == "random"): 
+                    self.find_random_next_state(online_linecount)
+                if (self.trajectory == "constant_angle"):
+                    self.constant_angle_baseline_future(online_linecount)
 
-        if self.loop_mode == "toy_example" and not pose_client.isCalibratingEnergy:
+        if self.loop_mode == "toy_example" and not pose_client.is_calibrating_energy:
             if not self.already_plotted_teleport_loc:
                 viewpoint_ind = 0
                 states_dict = {}
@@ -371,9 +374,9 @@ class PotentialStatesFetcher(object):
             self.goal_state_ind = key_indices["d"]
 
         if self.goUp:
-            go_pos = current_drone_pos + np.array([0,0,-1])
+            go_pos = current_drone_pos + np.array([0,0,-0.2])
         else:
-            go_pos = current_drone_pos + np.array([0,0,1])
+            go_pos = current_drone_pos + np.array([0,0,0.2])
 
 
         potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE)
@@ -412,11 +415,6 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind += 1
         return self.goal_state
 
-    def calibration_mode(self, linecount):
-        if linecount < self.PRECALIBRATION_LENGTH:
-            return self.choose_go_up_down()
-        else:
-            return self.choose_constant_rotation()
 
     #def dome_experiment(self):
     #    if self.is_using_airsim:
