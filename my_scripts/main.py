@@ -23,12 +23,11 @@ if __name__ == "__main__":
     active_parameters =  cfg["active_parameters"]
     energy_parameters = cfg["energy_parameters"]
 
-    run_loc = "server"
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
-    if (run_loc == "local"):
+    if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/simulation_results"
         saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-    elif (run_loc == "server"):
+    elif (parameters["run_loc"] == "server"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/simulation_results"
         saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
 

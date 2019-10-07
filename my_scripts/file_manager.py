@@ -109,18 +109,24 @@ class FileManager(object):
             if self.non_simulation_filenames["f_intrinsics"] != None:
                 self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
 
+        saved_vals_loc_anim = self.saved_vals_loc + "/" + str(self.anim_num)
+        if not os.path.exists(saved_vals_loc_anim):
+            os.makedirs(saved_vals_loc_anim) 
+
         if self.loop_mode == "save_gt_poses":
-            f_anim_gt_pos = self.saved_vals_loc + "/" + str(self.anim_num)
-            if not os.path.exists(f_anim_gt_pos):
-                os.makedirs(f_anim_gt_pos) 
-            self.f_anim_gt = open(f_anim_gt_pos+"/gt_poses.txt", "w")
+            self.f_anim_gt = open(saved_vals_loc_anim + "/gt_poses.txt", "w")
             self.f_anim_gt.write("time\tgt_poses\n")
             self.saved_anim_time = []
         else:
             #read into matrix
-            f_anim_gt_pos = self.saved_vals_loc + "/" + self.anim_num+ "/gt_poses.txt"
-            #f_anim_gt_pos =  "animations/" + str(self.anim_num)
-            self.f_anim_gt_array =  pd.read_csv(f_anim_gt_pos, sep='\t', header=1).values[:,:-1].astype('float')
+            self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=1).values[:,:-1].astype('float')
+
+        if self.loop_mode == "calibration":
+            self.f_bone_len = open(saved_vals_loc_anim + "/bone_lengths.txt", "w")
+            self.f_bone_len.write("bone_lengths\n")
+        else:
+            #read into matrix
+            self.f_bone_len_array =  pd.read_csv(saved_vals_loc_anim + "/bone_lengths.txt", sep='\t', header=1).values[:,:-1].astype('float')
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
@@ -269,6 +275,12 @@ class FileManager(object):
             for i in range(pos_3d_gt.shape[1]):
                 f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
             self.f_anim_gt.write(str(anim_time)+ '\t' + f_groundtruth_str + '\n')
+
+    def save_bone_lengths(self, bone_lengths):
+        f_bone_len_str = ""
+        for i in range(bone_lengths.shape[0]):
+            f_bone_len_str += str(bone_lengths[i]) + '\t'
+        self.f_bone_len.write(f_bone_len_str + '\n')
 
    # def read_gt_pose_values(self, anim_time):
      #   return self.f_anim_gt_array[abs(self.f_anim_gt_array[:,0]-anim_time)<1e-4, 1:]

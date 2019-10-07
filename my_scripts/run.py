@@ -201,7 +201,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
 
     ################
-    if loop_mode == "normal_simulation" or loop_mode == "teleport_simulation" or loop_mode == "toy_example":
+    if loop_mode == "normal_simulation" or loop_mode == "teleport_simulation" or loop_mode == "toy_example" or loop_mode == "calibration":
         general_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters)
     elif loop_mode == "openpose":
         openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
@@ -220,12 +220,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     if loop_mode == "calibration":
         file_manager.save_bone_lengths(pose_client.boneLengths)
-    #simple_plot(pose_client.processing_time, file_manager.estimate_folder_name, "processing_time", plot_title="Processing Time", x_label="Frames", y_label="Time")
-    #if (pose_client.modes["mode_3d"] == 3):
-    #    simple_plot(pose_client.error_2d, file_manager.estimate_folder_name, "2D error", plot_title="error_2d", x_label="Frames", y_label="Error")
-    #simple_plot(pose_client.error_3d[:pose_client.CALIBRATION_LENGTH], file_manager.estimate_folder_name, "3D error", plot_title="calib_error_3d", x_label="Frames", y_label="Error")    
-    #simple_plot(pose_client.error_3d[pose_client.CALIBRATION_LENGTH:], estimate_folder_name, "3D error", plot_title="online_error_3d", x_label="Frames", y_label="Error")
-    
+
     print('End it!')
     pose_client.reset(file_manager.plot_loc)
     file_manager.close_files()
