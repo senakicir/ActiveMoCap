@@ -216,6 +216,9 @@ class PotentialStatesFetcher(object):
 
     def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
+        self.current_drone_orientation = current_state.drone_orientation_gt.copy()
+        self.cam_pitch = current_state.cam_pitch
+
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
 
@@ -327,7 +330,7 @@ class PotentialStatesFetcher(object):
                 if (self.trajectory == "active"):
                     self.find_next_state_active(pose_client, online_linecount, file_manager)                    
                     file_manager.write_uncertainty_values(self.uncertainty_dict, linecount)
-                    self.plot_everything(linecount, file_manager, pose_client.CALIBRATION_LENGTH, False)
+                    self.plot_everything(linecount, file_manager, False)
                 if (self.trajectory == "constant_rotation"):
                     if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
                         self.choose_constant_rotation()
@@ -362,6 +365,8 @@ class PotentialStatesFetcher(object):
 
     def choose_go_up_down(self):
         current_drone_pos = self.current_drone_pos.copy()
+        drone_orientation = self.current_drone_orientation.copy()
+
         new_radius = SAFE_RADIUS
         baseline_lim_up = -3
         baseline_lim_down = -1
@@ -378,15 +383,18 @@ class PotentialStatesFetcher(object):
         else:
             go_pos = current_drone_pos + np.array([0,0,0.2])
 
-
         potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE)
         new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
-        new_pitch_go = pi/2 -new_theta_go
-        _, new_phi_go = find_current_polar_info(current_drone_pos, self.future_human_pos[:, self.hip_index])
+        new_pitch_go = self.cam_pitch #pi/2 -new_theta_go
+        #if abs(new_pitch_go-self.cam_pitch) > pi/18:
+        #    if self.cam_pitch > new_pitch_go:
+        #        new_pitch_go = self.cam_pitch - pi/18
+        #    else:
+        #        new_pitch_go = self.cam_pitch + pi/18
+   
 
-        potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=self.goal_state_ind)
+        potential_state = PotentialState(position=go_pos.copy(), orientation=drone_orientation[2], pitch=new_pitch_go, index=self.goal_state_ind)
         potential_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
-
         self.goal_trajectory = potential_trajectory
         self.immediate_future_ind = 0
 
@@ -516,7 +524,7 @@ class PotentialStatesFetcher(object):
         return self.goal_state
 
 
-    def plot_everything(self, linecount, file_manager, calibration_length, plot_potential_errors_bool):
+    def plot_everything(self, linecount, file_manager, plot_potential_errors_bool):
         plot_loc = file_manager.plot_loc
         #photo_locs = file_manager.get_photo_locs()
         if not self.is_quiet:
@@ -525,8 +533,8 @@ class PotentialStatesFetcher(object):
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
-            plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
-            #plot_potential_ellipses(self, calibration_length, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
+            plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
+            #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 
             #if plot_potential_errors_bool:
               #  plot_potential_errors_and_uncertainties(self, plot_loc, linecount, plot_std=False, plot_future=False, plot_log=True, custom_name="potential_errors_logplot")

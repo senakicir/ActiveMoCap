@@ -13,19 +13,19 @@ def fun_forward(pytorch_objective, x, new_shape):
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
     pytorch_objective.init_pose3d(x_scrambled)
     overall_output = pytorch_objective.forward()
-    return overall_output.cpu().detach().numpy()
+    return overall_output.detach().cpu().numpy()
 
 def fun_jacobian(pytorch_objective, x, new_shape):
     multip_dim = 1
     for i in new_shape:
         multip_dim *= i
-    pytorch_objective.zero_grad()
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
     pytorch_objective.init_pose3d(x_scrambled)
+    pytorch_objective.zero_grad()
     overall_output = pytorch_objective.forward()
     overall_output.backward(create_graph=False)
     gradient_torch = pytorch_objective.pose3d.grad
-    gradient_scrambled = gradient_torch.cpu().numpy()
+    gradient_scrambled = gradient_torch.detach().cpu().numpy()
     gradient = np.reshape(a = gradient_scrambled, newshape =  [multip_dim, ], order = "C")
     return gradient
  
@@ -47,7 +47,7 @@ def fun_jacobian_residuals(pytorch_objective, x, new_shape):
         gradient[ind, :] = np.reshape(a = gradient_scrambled, newshape = [multip_dim, ], order = "C")
     return gradient
 
-def fun_hessian(pytorch_objective, x, result_shape):
+def fun_hessian(pytorch_objective, x, result_shape, device):
     hess_size = 1
     for i in result_shape:
         hess_size *= i
@@ -60,17 +60,17 @@ def fun_hessian(pytorch_objective, x, result_shape):
     gradient_torch_flat = gradient_torch[0].view(-1)
     
     #second derivative
-    hessian_torch = torch.zeros(hess_size, hess_size)
-    torch.zeros(gradient_torch_flat.size)
+    hessian_torch = torch.zeros(hess_size, hess_size).to(device)
     for ind, ele in enumerate(gradient_torch_flat):
         temp = grad(ele, pytorch_objective.pose3d, create_graph=True)
         hessian_torch[:, ind] = temp[0].view(-1)
-    hessian = hessian_torch.detach().numpy()
+    hessian = hessian_torch.detach().cpu().numpy()
     return hessian
 
 class pose3d_calibration_parallel_wrapper():
     def __init__(self):
         self.pytorch_objective = 0
+        self.pltpts, self.pltpts_weighted  = {}, {}
 
     def reset(self, pose_client):        
         data_list = pose_client.requiredEstimationData
@@ -79,9 +79,8 @@ class pose3d_calibration_parallel_wrapper():
         projection_client.reset(data_list)
 
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
-
-        self.pltpts = {}
         self.result_shape = pose_client.result_shape
+        self.device = pose_client.device
 
     def reset_future(self, pose_client, potential_trajectory):
         data_list = pose_client.requiredEstimationData
@@ -95,12 +94,13 @@ class pose3d_calibration_parallel_wrapper():
         projection_client.reset_future(data_list, potential_trajectory.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
-        self.pltpts = {}
         self.result_shape = pose_client.result_shape
+        self.device = pose_client.device
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
         self.pltpts = self.pytorch_objective.pltpts
+        self.pltpts_weighted = self.pytorch_objective.pltpts_weighted
         return overall_output
 
     def jacobian(self,x):
@@ -108,10 +108,13 @@ class pose3d_calibration_parallel_wrapper():
         return gradient
 
     def hessian(self, x):
-        hessian = fun_hessian(self.pytorch_objective, x[0,:,:], self.result_shape)
+        hessian = fun_hessian(self.pytorch_objective, x[0,:,:], self.result_shape, self.device)
         return hessian
 
 class pose3d_online_parallel_wrapper():
+    def __init__(self):
+        self.pytorch_objective = 0
+        self.pltpts, self.pltpts_weighted  = {}, {}
 
     def reset(self, pose_client):
         data_list = pose_client.requiredEstimationData
@@ -126,8 +129,8 @@ class pose3d_online_parallel_wrapper():
         else:
             self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, future_proj=False)
 
-        self.pltpts = {}
         self.result_shape = pose_client.result_shape
+        self.device = pose_client.device
 
     def reset_future(self, pose_client, potential_trajectory):
         self.bone_connections, _, _, self.hip_index = pose_client.model_settings()
@@ -151,12 +154,13 @@ class pose3d_online_parallel_wrapper():
         else:
             self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, future_proj=True)
 
-        self.pltpts = {}
         self.result_shape = pose_client.result_shape
+        self.device = pose_client.device
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
         self.pltpts = self.pytorch_objective.pltpts
+        self.pltpts_weighted = self.pytorch_objective.pltpts_weighted
         return overall_output
                 
     def jacobian(self,x):
@@ -165,7 +169,7 @@ class pose3d_online_parallel_wrapper():
 
     def hessian(self, x):
         start1=time.time()
-        hessian = fun_hessian(self.pytorch_objective, x, self.result_shape)
+        hessian = fun_hessian(self.pytorch_objective, x, self.result_shape, self.device)
         end1=time.time()
         print("Time it takes to compute hessian", end1-start1, "seconds")
         return hessian

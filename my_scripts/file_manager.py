@@ -44,9 +44,12 @@ def get_filenames(test_set_name):
     else: 
         return get_airsim_testset(test_set_name)
 
+def get_bone_len_file_name(modes):
+    return "/bone_len_mode2d_" + modes["mode_2d"]  + "__modelift_" + modes["mode_lift"] + ".txt"
+
 
 class FileManager(object):
-    def __init__(self, parameters):
+    def __init__(self, parameters, bone_len_file_name):
         self.anim_num = parameters["ANIMATION_NUM"]
         self.experiment_name = parameters["EXPERIMENT_NAME"]
         self.test_set_name = self.anim_num
@@ -119,14 +122,14 @@ class FileManager(object):
             self.saved_anim_time = []
         else:
             #read into matrix
-            self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=1).values[:,:-1].astype('float')
+            self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
 
         if self.loop_mode == "calibration":
-            self.f_bone_len = open(saved_vals_loc_anim + "/bone_lengths.txt", "w")
+            self.f_bone_len = open(saved_vals_loc_anim + bone_len_file_name, "w")
             self.f_bone_len.write("bone_lengths\n")
         else:
             #read into matrix
-            self.f_bone_len_array =  pd.read_csv(saved_vals_loc_anim + "/bone_lengths.txt", sep='\t', header=1).values[:,:-1].astype('float')
+            self.f_bone_len_array =  pd.read_csv(saved_vals_loc_anim + bone_len_file_name, sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
@@ -279,7 +282,7 @@ class FileManager(object):
     def save_bone_lengths(self, bone_lengths):
         f_bone_len_str = ""
         for i in range(bone_lengths.shape[0]):
-            f_bone_len_str += str(bone_lengths[i]) + '\t'
+            f_bone_len_str += str(bone_lengths[i].item()) + '\t'
         self.f_bone_len.write(f_bone_len_str + '\n')
 
    # def read_gt_pose_values(self, anim_time):

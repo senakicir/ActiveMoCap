@@ -6,7 +6,7 @@ from project_bones import *
 from determine_positions import *
 from PotentialStatesFetcher import PotentialStatesFetcher, PotentialState
 from State import State
-from file_manager import FileManager
+from file_manager import FileManager, get_bone_len_file_name
 from drone_flight_client import DroneFlightClient
 from crop import Crop
 import copy
@@ -152,8 +152,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     Returns:
         errors: dict of errors
     """
-
-    file_manager = FileManager(parameters)   
+    bone_len_file_name = get_bone_len_file_name(energy_parameters["MODES"])
+    file_manager = FileManager(parameters, bone_len_file_name)   
 
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
@@ -188,7 +188,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     #pause airsim until we set stuff up 
     airsim_client.simPause(True)
 
-    pose_client = PoseEstimationClient(param=energy_parameters, loop_mode=loop_mode, animation=file_manager.anim_num, 
+    pose_client = PoseEstimationClient(param=energy_parameters, general_param=parameters, 
                     intrinsics_focal=airsim_client.focal_length, intrinsics_px=airsim_client.px, 
                     intrinsics_py=airsim_client.py, image_size=(airsim_client.SIZE_X, airsim_client.SIZE_Y))
     current_state = State(use_single_joint=pose_client.USE_SINGLE_JOINT, active_parameters=active_parameters,
@@ -196,6 +196,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
                          future_window_size=pose_client.FUTURE_WINDOW_SIZE)
     potential_states_fetcher = PotentialStatesFetcher(airsim_client=airsim_client, pose_client=pose_client, 
                                 active_parameters=active_parameters, loop_mode=loop_mode)
+    if loop_mode != "calibration":
+        pose_client.read_bone_lengths_from_file(file_manager)
     file_manager.save_initial_drone_pos(airsim_client)
     #shoulder_vector = initial_positions[R_SHOULDER_IND, :] - initial_positions[L_SHOULDER_IND, :] #find initial human orientation!
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
@@ -244,11 +246,9 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
     airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     time.sleep(0.5)
 
-    start1 = time.time()
     take_photo(airsim_client, pose_client, current_state, file_manager)
+    
     initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager)
-    end1 = time.time()
-    print("Taking photo took", end1-start1, "seconds")
 
     airsim_client.simPause(True)
     potential_states_fetcher.reset(pose_client, airsim_client, current_state)
@@ -303,10 +303,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
             set_position(goal_state, airsim_client, current_state, pose_client, loop_mode=potential_states_fetcher.loop_mode)
 
         #update state values read from AirSim and take picture
-        start6=time.time()
-        take_photo(airsim_client, pose_client, current_state, file_manager)
-        end6=time.time()
-        print("taking photo took", end6-start6, "seconds")
+        take_photo(airsim_client, pose_client, current_state, file_manager)        
 
         #find human pose 
         start3=time.time() 
@@ -325,11 +322,8 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
                                                             potential_states_fetcher.goal_trajectory, potential_error_finder.find_best_traj, file_manager.plot_loc)
         airsim_client.increment_linecount(pose_client.is_calibrating_energy)
 
-        start4 = time.time()
         potential_states_fetcher.reset(pose_client, airsim_client, current_state)
         potential_states_fetcher.get_potential_positions(pose_client.is_calibrating_energy)
-        end4=time.time()
-        print("resetting psf took", end4-start4, "seconds\n*****\n\n\n")
 
         
 def normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode):
@@ -493,14 +487,14 @@ def set_position(goal_state, airsim_client, current_state, pose_client, loop_mod
     print("anim time is", airsim_client.getAnimationTime())
     current_state.update_anim_time(airsim_client.getAnimationTime())
 
-    if loop_mode == "teleport_simulation" or loop_mode == "toy_example":
+    if loop_mode == "teleport_simulation" or loop_mode == "toy_example" or loop_mode == "calibration":
         airsim_client.simSetVehiclePose(goal_state)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
         current_state.cam_pitch = goal_state.pitch
         airsim_client.simPause(True)
 
 
-    elif loop_mode == "normal_simulation":
+    elif loop_mode == "normal_simulation" or loop_mode == "calibration_with_momentum":
         #if (airsim_client.linecount < 5):
         #drone_speed = TOP_SPEED * airsim_client.linecount/5
 

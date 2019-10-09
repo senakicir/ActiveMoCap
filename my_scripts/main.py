@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     SEED_LIST = [41, 5, 2, 3, 10]#, 12, 1995]#, 100, 150, 200, 190, 0]
     ANIMATIONS = ["02_01", "05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
-                 # "07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
+                  #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
     #animations = {"02_01": len(SEED_LIST)}
 
     with open("config_file.yaml", 'r') as ymlfile:
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     active_parameters["POSITION_GRID"] = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["active"]
+    TRAJECTORY_LIST = ["active", "constant_rotation", "random"]
 
     ablation_study = False
     if ablation_study:

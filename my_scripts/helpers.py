@@ -417,7 +417,7 @@ def plot_covariances(pose_client, plot_loc, custom_name):
         fig.subplots_adjust(right=0.8, hspace = 0.5)
         cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
         fig.colorbar(im2, cax=cbar_ax)
-        matrix_plot_loc = plot_loc +'/'+ custom_name + str(pose_client.CALIBRATION_LENGTH+ind+1) + '.png'
+        matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind+1) + '.png'
         plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
 
@@ -640,7 +640,8 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
         if (ave_errors[plot_ind] != -1):
             ax.text2D(0, 0.38, "ave error: %.4f" %ave_errors[plot_ind], transform=ax.transAxes)
         error_list = errors[plot_ind]
-        ax.text2D(0, 0.3, "error: %.4f" %error_list[-1], transform=ax.transAxes)
+        if (len(error_list) != 0):
+            ax.text2D(0, 0.3, "error: %.4f" %error_list[-1], transform=ax.transAxes)
 
         if plot_ind == num_of_plots-1:
             ax.legend(handles=[plot1, plot1_r, plot2, plot2_r], loc='upper right')
@@ -696,7 +697,7 @@ def plot_future_poses(poses, future_window_size, location, linecount, bone_conne
 
 
 def plot_drone_traj(pose_client, plot_loc, ind, test_set):
-    if (pose_client.isCalibratingEnergy):
+    if (pose_client.is_calibrating_energy):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
     else:
@@ -1018,7 +1019,7 @@ def shape_cov_general(cov, num_of_joints, frame_index = 0):
     return H
 
 def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
-    if (pose_client.isCalibratingEnergy):
+    if (pose_client.is_calibrating_energy):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/ellipse_calib_'+ str(ind) + '.png'
     else:
@@ -1465,7 +1466,7 @@ def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, 
     plt.close(fig)
 
 
-def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
+def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
@@ -1507,15 +1508,6 @@ def plot_potential_ellipses(potential_states_fetcher, calibration_length, plot_l
         center[2] = -center[2]
         centers.append(center)
     
-   # if ind < calibration_length + 3:
-     #   radii_list = np.zeros([len(covs), 3])
-      #  for state_ind, cov in enumerate(covs):
-       #     shaped_cov = shape_cov(cov, hip_index, num_of_joints, 0)
-       #     _, s, _ = np.linalg.svd(shaped_cov)
-        #    radii = 0.2*s
-        #    radii_list[state_ind, :] = radii[0:3]
-        #global max_radii
-       # max_radii = np.max(radii_list)
 
     for center_ind, center in enumerate(centers):
         state_ind = state_inds[center_ind]

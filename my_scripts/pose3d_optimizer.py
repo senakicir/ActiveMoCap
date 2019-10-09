@@ -25,14 +25,13 @@ def cauchy_loss(input_1, input_2):
     return torch.sum(C)/N
 
 def find_residuals(input_1, input_2):
-
     return (torch.pow((input_1 - input_2),2)).view(-1)
 
 
 class toy_example(torch.nn.Module):
     def __init__(self, model, loss_dict, weights, data_list, M):
         super(toy_example, self).__init__()
-        self.pose3d = torch.nn.Parameter(torch.zeros([4,1]), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros([4,1]).to(pose_client.device), requires_grad=True)
 
     def forward(self):
         return self.pose3d[3]**2 + self.pose3d[2]*self.pose3d[1]*self.pose3d[0] + self.pose3d[0]**4
@@ -49,7 +48,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
         left_bone_connections, right_bone_connections, _ = split_bone_connections(self.bone_connections)
         self.left_bone_connections = np.array(left_bone_connections)
         self.right_bone_connections = np.array(right_bone_connections)
-        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape).to(pose_client.device), requires_grad=True)
         self.projection_method = pose_client.PROJECTION_METHOD
 
         self.energy_weights = pose_client.weights_calib
@@ -65,10 +64,12 @@ class pose3d_calibration_parallel(torch.nn.Module):
             self.projection_scales = (1/(max_y_vals-min_y_vals))[:, None, None]
         elif self.projection_method == "normalized":
             self.projection_scales = torch.FloatTensor([((1024.0/pose_client.SIZE_X)**2)])
-
+       
         self.pltpts = {}
+        self.pltpts_weighted = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
+            self.pltpts_weighted[loss_key] = []
 
     def forward(self):        
         output = {}
@@ -86,6 +87,7 @@ class pose3d_calibration_parallel(torch.nn.Module):
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
+            self.pltpts_weighted[loss_key].append(self.energy_weights[loss_key]*output[loss_key])
 
         return overall_output
 
@@ -108,12 +110,12 @@ class pose3d_online_parallel(torch.nn.Module):
         self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
         self.ONLINE_WINDOW_SIZE = pose_client.ONLINE_WINDOW_SIZE
 
-        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(pose_client.result_shape).to(pose_client.device), requires_grad=True)
 
         if pose_client.animation == "noise":
             self.bone_lengths = pose_client.multiple_bone_lengths
         else:
-            self.bone_lengths = (pose_client.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
+            self.batch_bone_lengths = pose_client.batch_bone_lengths
 
         self.loss_dict = pose_client.loss_dict_online
         
@@ -145,8 +147,10 @@ class pose3d_online_parallel(torch.nn.Module):
             self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
         self.pltpts = {}
+        self.pltpts_weighted = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
+            self.pltpts_weighted[loss_key] = []
 
         self.n = list(range(1, self.ONLINE_WINDOW_SIZE))
         self.n.append(0)
@@ -173,7 +177,7 @@ class pose3d_online_parallel(torch.nn.Module):
                 bone_len_func = calculate_bone_lengths_sqrt
             #bone length consistency 
             length_of_bone = bone_len_func(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
-            output["bone"] = mse_loss(length_of_bone, self.bone_lengths, self.ONLINE_WINDOW_SIZE*(self.NUM_OF_JOINTS-1))
+            output["bone"] = mse_loss(length_of_bone, self.batch_bone_lengths, self.ONLINE_WINDOW_SIZE*(self.NUM_OF_JOINTS-1))
         
         #smoothness term
         if self.smoothness_mode == "velocity":
@@ -212,7 +216,7 @@ class pose3d_online_parallel(torch.nn.Module):
             #print(output[loss_key])
             overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
-
+            self.pltpts_weighted[loss_key].append(output[loss_key]*self.energy_weights[loss_key])
         return overall_output
     
     def init_pose3d(self, pose3d_np):
@@ -260,7 +264,7 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
-        self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS), requires_grad=True)
+        self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS), requires_grad=True).to(pose_client.device)
         self.result_shape = pose_client.result_shape
         if pose_client.animation == "noise":
             self.bone_lengths = pose_client.multiple_bone_lengths
@@ -284,8 +288,10 @@ class pose3d_online_parallel_traj(torch.nn.Module):
             self.lift_bone_directions = np.array(return_lift_bone_connections(bone_connections))
 
         self.pltpts = {}
+        self.pltpts_weighted = {}
         for loss_key in self.loss_dict:
             self.pltpts[loss_key] = []
+            self.pltpts_weighted[loss_key] = []
 
         self.n = list(range(1, self.window_size))
         self.n.append(0)

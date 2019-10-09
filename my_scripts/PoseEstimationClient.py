@@ -9,16 +9,23 @@ from Lift_Client import Lift_Client
 from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose
 
 class PoseEstimationClient(object):
-    def __init__(self, param, loop_mode, animation, intrinsics_focal, intrinsics_px, intrinsics_py, image_size):
+    def __init__(self, param, general_param, intrinsics_focal, intrinsics_px, intrinsics_py, image_size):
         self.param = param
+        self.general_param = general_param
         self.simulate_error_mode = False
 
         self.modes = param["MODES"]
         self.method = param["METHOD"]
         self.model  = param["MODEL"]
         self.ftol = param["FTOL"]
+        self.xtol = param["XTOL"]
         self.USE_SINGLE_JOINT = param["USE_SINGLE_JOINT"]
-        self.loop_mode = loop_mode
+
+        #self.device = torch.device(('cpu', 'cuda')[general_param["run_loc"] == "server"])
+        self.device = torch.device("cpu")
+        self.loop_mode = general_param["LOOP_MODE"]
+        self.animation = general_param["ANIMATION_NUM"]
+
         self.bone_connections, self.joint_names, self.num_of_joints = model_settings(self.model)
         if self.USE_SINGLE_JOINT:
             self.num_of_joints = 1
@@ -82,11 +89,14 @@ class PoseEstimationClient(object):
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
 
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
-        self.boneLengths = torch.zeros([self.num_of_joints-1])
-        self.lift_pose_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints])
-        self.potential_projected_est = torch.zeros([2, self.num_of_joints])
 
+        self.boneLengths = torch.zeros([self.num_of_joints-1]).to(self.device)
+        self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
         self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1])
+
+        self.lift_pose_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints]).to(self.device)
+        self.potential_projected_est = torch.zeros([2, self.num_of_joints]).to(self.device)
+
 
         self.requiredEstimationData = []
 
@@ -114,8 +124,9 @@ class PoseEstimationClient(object):
         else:
             self.M = np.eye(self.num_of_joints)
 
-        self.weights_calib = {"proj":0.8, "sym":0.2}
+        self.weights_calib = param["WEIGHTS_CALIB"]
         self.weights_online = param["WEIGHTS"]
+        self.weights_smooth = self.weights_online["smooth"]
         self.weights_future = param["WEIGHTS_FUTURE"]
 
         self.loss_dict_calib = ["proj"]
@@ -140,13 +151,12 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
         self.result_size =  np.prod(np.array(self.result_shape))
 
-        self.animation = animation
         self.intrinsics_focal = intrinsics_focal
         self.intrinsics_px = intrinsics_px
         self.intrinsics_py = intrinsics_py
         self.SIZE_X, self.SIZE_Y = image_size
 
-        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py, noise_2d_std=self.NOISE_2D_STD)
+        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py, noise_2d_std=self.NOISE_2D_STD, device=self.device)
         self.lift_client = Lift_Client(self.NOISE_LIFT_STD)
 
         if self.animation == "drone_flight":
@@ -155,7 +165,6 @@ class PoseEstimationClient(object):
             self.cropping_tool = Crop(loop_mode = self.loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
 
         self.save_errors_after = self.PREDEFINED_MOTION_MODE_LENGTH-1
-
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
@@ -171,6 +180,12 @@ class PoseEstimationClient(object):
             M = find_M(plot_info=self.online_res_list, joint_names=self.joint_names, num_of_joints=self.num_of_joints)
             #plot_matrix(M, plot_loc, 0, "M", "M")
         return 0   
+
+    def read_bone_lengths_from_file(self, file_manager):
+        if self.animation == "noise":
+            raise NotImplementedError
+        self.boneLengths[:] = torch.from_numpy(file_manager.f_bone_len_array)
+        self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
 
     def update_bone_lengths(self, bones):
         if self.modes["bone_len"] == "calib_res":
@@ -188,6 +203,7 @@ class PoseEstimationClient(object):
             self.multiple_bone_lengths = torch.cat((current_bone_lengths.unsqueeze(0),self.multiple_bone_lengths[:-1,:]), dim=0)
         else:
             self.boneLengths = current_bone_lengths
+            self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])
@@ -228,21 +244,23 @@ class PoseEstimationClient(object):
         
         if self.is_calibrating_energy:
             if linecount >= self.PREDEFINED_MOTION_MODE_LENGTH:
-                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE-1:
+                while len(self.requiredEstimationData) > self.CALIBRATION_WINDOW_SIZE:
                     self.requiredEstimationData.pop()
         else:
             while len(self.requiredEstimationData) > self.ESTIMATION_WINDOW_SIZE:
                 self.requiredEstimationData.pop()
 
     def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt):
+        self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = np.repeat(pose_3d_gt[np.newaxis, :, :].copy(), self.ESTIMATION_WINDOW_SIZE, axis=0)
+        self.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
         if self.is_calibrating_energy:
             self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
-            self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = np.repeat(pose_3d_gt[np.newaxis, :, :].copy(), self.ESTIMATION_WINDOW_SIZE, axis=0)
-            self.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
         else:
-            raise NotImplementedError  
+            for _ in range(self.ESTIMATION_WINDOW_SIZE):
+                self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
+            self.lift_pose_tensor[:, :, :] = pose3d_lift.clone()
 
-    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
+    def set_initial_pose_old(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
         if (linecount != 0):
             current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
         else:
@@ -260,6 +278,13 @@ class PoseEstimationClient(object):
         else:
             self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
 
+    def set_initial_pose(self):
+        current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
+
+        if self.is_calibrating_energy:
+            self.pose_3d_preoptimization = current_frame_init.copy()
+        else:
+            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
            
 
     def update3dPos(self, optimized_poses, adjusted_optimized_poses):
@@ -290,7 +315,7 @@ class PoseEstimationClient(object):
             self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
 
     def deepcopy_PEC(self, trial_ind):
-        new_pose_client = PoseEstimationClient(self.param, self.loop_mode, self.animation, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py, (self.SIZE_X, self.SIZE_Y))
+        new_pose_client = PoseEstimationClient(self.param, self.general_param, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py, (self.SIZE_X, self.SIZE_Y))
 
         new_pose_client.projection_client = self.projection_client.deepcopy_projection_client()
         new_pose_client.lift_client = self.lift_client.deepcopy_lift_client()
@@ -309,6 +334,7 @@ class PoseEstimationClient(object):
         new_pose_client.lift_pose_tensor = self.lift_pose_tensor.clone()
         new_pose_client.poses_3d_gt = self.poses_3d_gt.copy()
         new_pose_client.boneLengths = self.boneLengths.clone()
+        new_pose_client.batch_bone_lengths = self.batch_bone_lengths.clone()
         new_pose_client.multiple_bone_lengths = self.multiple_bone_lengths.clone()
 
         new_pose_client.error_2d = self.error_2d.copy()

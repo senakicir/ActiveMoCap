@@ -1,6 +1,6 @@
 kalman_arguments:
     KALMAN_PROCESS_NOISE_AMOUNT: 1
-    KALMAN_MEASUREMENT_NOISE_AMOUNT_XY:  1e-3
+    KALMAN_MEASUREMENT_NOISE_AMOUNT_XY:  5*1e-4
     KALMAN_MEASUREMENT_NOISE_AMOUNT_Z: 1
 
 parameters:
@@ -8,12 +8,11 @@ parameters:
     SIMULATION_MODE: "use_airsim"
 
     # run_loc = "server", "local"
-    run_loc: "local"
-
+    run_loc: "server"
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset, 4- save_gt_poses 5-calibration
-    LOOP_MODE: "calibration"
+    LOOP_MODE: "teleport_simulation"
 
     #hessian_part: 0-future, 1-middle, 2-whole
     hessian_part: "whole"
@@ -26,8 +25,6 @@ parameters:
 
     PREDEFINED_TRAJ_LEN: 0  
     LENGTH_OF_SIMULATION: 150
-
-    PORT: 41452
 
     FILE_NAMES: ""
     FOLDER_NAMES: ""
@@ -43,9 +40,9 @@ energy_parameters:
     PROJECTION_METHOD: "normal"
 
     ESTIMATION_WINDOW_SIZE: 5
-    FUTURE_WINDOW_SIZE: 3
+    FUTURE_WINDOW_SIZE: 1
 
-    CALIBRATION_WINDOW_SIZE: 20
+    CALIBRATION_WINDOW_SIZE: 40
     PREDEFINED_MOTION_MODE_LENGTH: 10
 
     PARAM_FIND_M: False
@@ -53,7 +50,7 @@ energy_parameters:
 
     QUIET: False
 
-    #mode_3d: 0- gt, 1- naiveback, 2- energy pytorch, 3-energy scipy
+    #mode_3d: 0- gt, 1- naiveback, 3-energy scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
     #bone_len: 0-gt, 1- calib_res
@@ -65,22 +62,27 @@ energy_parameters:
 
     MODEL: "mpi"
     METHOD: "trf"
-    FTOL: 0.001
+    FTOL: 0.00001
+    XTOL: 0.00001
      
+    WEIGHTS_CALIB: 
+        proj: 0.8
+        sym: 0.2
+
     WEIGHTS: 
         proj: 0.001
         smooth: 1
         bone: 1 
-        lift: 0.05
+        lift: 1
 
     WEIGHTS_FUTURE:
         proj: 0.001
         smooth: 1
         bone: 1 
-        lift: 0.05
+        lift: 1
 
-    #init_pose_mode: 0- "gt", "zeros", "backproj", "gt_with_noise"
-    INIT_POSE_MODE: "backproj"
+    #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
+    INIT_POSE_MODE: "initial_optimization"
     
     NOISE_2D_STD: 3
     NOISE_LIFT_STD:  0.05

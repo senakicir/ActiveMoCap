@@ -2,8 +2,12 @@ import torch
 
 def add_noise_to_pose(pose, noise_std):
     noise = torch.normal(torch.zeros(pose.shape), torch.ones(pose.shape)*noise_std).float()
+    if (pose.is_cuda):
+        my_device = torch.device("cuda")
+        noise = noise.to(my_device)
     pose = pose.float().clone() + noise
     return pose 
+
 
 def calculate_bone_lengths(bones, bone_connections, batch):
     if batch:
