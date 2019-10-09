@@ -39,7 +39,6 @@ class Projection_Client(object):
 
     def reset(self, data_list):
         self.window_size = len(data_list)
-        print("WINDOW SIZE", self.window_size)
         self.pose_2d_tensor = torch.zeros(self.window_size , 2, self.num_of_joints).to(self.device)
         self.inverse_transformation_matrix = torch.zeros(self.window_size , 4, 4).to(self.device)
         queue_index = 0

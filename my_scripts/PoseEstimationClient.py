@@ -233,10 +233,20 @@ class PoseEstimationClient(object):
         if self.is_calibrating_energy:
             self.poses_3d_gt[:,:,:] = current_pose_3d_gt.copy()
         else:
-            temp = self.poses_3d_gt[:-1,:,:].copy() 
-            self.poses_3d_gt[0,:,:] = futuremost_pose_3d_gt.copy()
-            self.poses_3d_gt[1:,:,:] = temp.copy()
-            self.poses_3d_gt[self.CURRENT_POSE_INDEX, :, :] = current_pose_3d_gt.copy()
+            old_gt = self.poses_3d_gt.copy()
+            self.poses_3d_gt = np.concatenate([futuremost_pose_3d_gt[np.newaxis, :, :], self.poses_3d_gt[0:-1]], axis=0)
+            assert np.allclose(self.poses_3d_gt[1:], old_gt[:-1])
+            self.poses_3d_gt[self.CURRENT_POSE_INDEX] = current_pose_3d_gt.copy()
+            assert np.allclose(self.poses_3d_gt[0], futuremost_pose_3d_gt)
+            assert np.allclose(self.poses_3d_gt[1:self.CURRENT_POSE_INDEX], old_gt[0:self.CURRENT_POSE_INDEX - 1])
+            assert np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX + 1:], old_gt[self.CURRENT_POSE_INDEX:-1])
+            assert np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX], current_pose_3d_gt)
+            if linecount > self.ONLINE_WINDOW_SIZE:
+                assert not np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX+1], self.poses_3d_gt[-1])
+
+            print("currentpose",current_pose_3d_gt[:,0])
+            print(self.poses_3d_gt[:,:,0])
+            print("*****")
 
             temp = self.lift_pose_tensor[:-1,:,:].clone() 
             self.lift_pose_tensor[0,:,: ] = pose3d_lift.clone()
