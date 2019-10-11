@@ -281,13 +281,15 @@ class PotentialStatesFetcher(object):
                     prev_goal_key = key
             use_weights = adjust_using_prev_pos(prev_goal_key, use_weights.copy())
         use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
+        future_weight_list = [1, 4, 9]
 
         for key, ind in use_keys.items():
             [weight_side, weight_up] = use_weights[key] 
             potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE)
 
             for future_pos_ind in range(0, self.FUTURE_WINDOW_SIZE):
-                future_weight = future_pos_ind + 1
+                #future_weight = future_pos_ind + 1
+                future_weight = future_weight_list[future_pos_ind]
                 pos_go = new_drone_vec + self.future_human_pos[:, self.hip_index] +  (up_vec_norm_go*weight_up*future_weight + side_vec_norm_go*future_weight*weight_side)
 
                 potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]

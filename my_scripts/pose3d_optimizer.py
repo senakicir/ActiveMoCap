@@ -264,7 +264,7 @@ class pose3d_online_parallel_traj(torch.nn.Module):
         self.bone_connections = np.array(bone_connections)
         self.window_size = pose_client.ONLINE_WINDOW_SIZE
 
-        self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS), requires_grad=True).to(pose_client.device)
+        self.pose3d = torch.nn.Parameter(torch.zeros(self.num_of_traj_param, 3, self.NUM_OF_JOINTS).to(pose_client.device), requires_grad=True)
         self.result_shape = pose_client.result_shape
         if pose_client.animation == "noise":
             self.bone_lengths = pose_client.multiple_bone_lengths

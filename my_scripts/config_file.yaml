@@ -8,7 +8,7 @@ parameters:
     SIMULATION_MODE: "use_airsim"
 
     # run_loc = "server", "local"
-    run_loc: "local"
+    run_loc: "server"
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-normal_simulation, teleport_simulation, 1-openpose, 2-toy_example, 3-create_dataset, 4- save_gt_poses 5-calibration
@@ -24,7 +24,7 @@ parameters:
     NUM_OF_NOISE_TRIALS: 5
 
     PREDEFINED_TRAJ_LEN: 0  
-    LENGTH_OF_SIMULATION: 150
+    LENGTH_OF_SIMULATION: 120
 
     FILE_NAMES: ""
     FOLDER_NAMES: ""
@@ -40,7 +40,7 @@ energy_parameters:
     PROJECTION_METHOD: "normal"
 
     ESTIMATION_WINDOW_SIZE: 5
-    FUTURE_WINDOW_SIZE: 1
+    FUTURE_WINDOW_SIZE: 3
 
     CALIBRATION_WINDOW_SIZE: 40
     PREDEFINED_MOTION_MODE_LENGTH: 10
