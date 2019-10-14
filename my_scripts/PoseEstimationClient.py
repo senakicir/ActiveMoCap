@@ -149,8 +149,9 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
             else:
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
-        self.result_size =  np.prod(np.array(self.result_shape))
 
+        self.result_size= np.prod(np.array(self.result_shape))
+                
         self.intrinsics_focal = intrinsics_focal
         self.intrinsics_px = intrinsics_px
         self.intrinsics_py = intrinsics_py
@@ -370,6 +371,6 @@ class PoseEstimationClient(object):
         new_pose_client.simulate_error_mode = False
         new_pose_client.trial_ind = trial_ind
         new_pose_client.is_calibrating_energy = self.is_calibrating_energy
-        new_pose_client.result_shape, new_pose_client.result_size = self.result_shape, self.result_size
+        new_pose_client.result_shape_whole = self.result_shape_whole
 
         return new_pose_client

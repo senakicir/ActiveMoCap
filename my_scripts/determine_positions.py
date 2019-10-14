@@ -123,6 +123,9 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
     return pose3d_lift_directions
 
 def initialize_empty_frames(linecount, pose_client, current_state, file_manager):
+    objective_calib.my_init(pose_client)
+    objective_online.my_init(pose_client)
+
     plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
     pose_3d_gt, _, _, transformation_matrix = current_state.get_frame_parameters()
@@ -219,16 +222,14 @@ def perform_optimization(pose_client, linecount):
         objective = objective_online
         objective_jacobian = objective_online.jacobian
 
-    if linecount < pose_client.PREDEFINED_MOTION_MODE_LENGTH//2:
-        pose_client.weights_online["smooth"] = 0
-    else:
-        pose_client.weights_online["smooth"] = pose_client.weights_smooth
-        #bounds = (pose3d_init-2, pose3d_init+2)    
     bounds = (-np.inf, np.inf)
 
     start_time = time.time()
-    objective.reset(pose_client)
+    objective.reset_current(pose_client)
     optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol, xtol=pose_client.xtol)
+    objective.reset_future(pose_client)
+    optimized_res = least_squares(objective.forward, optimized_res.x, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol, xtol=pose_client.xtol)
+
     func_eval_time = time.time() - start_time
     print("least squares eval time", func_eval_time)
     if not pose_client.USE_TRAJECTORY_BASIS:

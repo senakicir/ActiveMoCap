@@ -461,7 +461,7 @@ class PotentialStatesFetcher(object):
 
     def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:
-            self.objective.reset_future(pose_client, potential_trajectory)
+            self.objective.reset_hessian(pose_client, potential_trajectory)
             file_manager.record_projection_est_values(pose_client.potential_projected_est, online_linecount)
 
             if pose_client.USE_TRAJECTORY_BASIS:
