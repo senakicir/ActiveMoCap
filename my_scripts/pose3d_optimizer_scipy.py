@@ -73,14 +73,15 @@ class pose3d_calibration_parallel_wrapper():
         self.device = pose_client.device
         self.bone_connections, _, _, self.hip_index = pose_client.model_settings()
         self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
+        self.result_shape = pose_client.result_shape
 
-    def reset(self, pose_client):        
+    def reset_current(self, pose_client):        
         data_list = pose_client.requiredEstimationData
 
-        projection_client = pose_client.projection_client
-        projection_client.reset(data_list)
+        self.projection_client.reset(data_list)
+        self.optimization_mode = "estimate_current"
 
-        self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
+        self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, self.projection_client)
         self.result_shape = pose_client.result_shape
         self.device = pose_client.device
 
@@ -96,9 +97,6 @@ class pose3d_calibration_parallel_wrapper():
         projection_client.reset_future(data_list, potential_trajectory.inv_transformation_matrix, potential_projected_est)
         self.pytorch_objective = pytorch_optimizer.pose3d_calibration_parallel(pose_client, projection_client)
 
-        self.result_shape = pose_client.result_shape
-        self.device = pose_client.device
-
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)
         self.pltpts = self.pytorch_objective.pltpts
@@ -106,7 +104,7 @@ class pose3d_calibration_parallel_wrapper():
         return overall_output
 
     def jacobian(self,x):
-        gradient = fun_jacobian(self.pytorch_objective, x, self.result_shape)
+        gradient = fun_jacobian(self.pytorch_objective, x, self.result_shape, self.optimization_mode, 0)
         return gradient
 
     def hessian(self, x):
@@ -154,7 +152,7 @@ class pose3d_online_parallel_wrapper():
                 potential_pose3d_lift_directions = calculate_bone_directions_simple(future_poses, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(self.bone_connections), self.hip_index, batch=True)
             self.lift_client.reset_future(pose_client.lift_pose_tensor, potential_pose3d_lift_directions)
             
-        self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, projection_client, lift_client, optimization_mode=self.optimization_mode)
+        self.pytorch_objective = pytorch_optimizer.pose3d_online_parallel(pose_client, self.projection_client, self.lift_client, optimization_mode=self.optimization_mode)
 
     def forward(self, x):
         overall_output = fun_forward(self.pytorch_objective, x, self.result_shape)

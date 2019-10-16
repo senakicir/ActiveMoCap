@@ -810,8 +810,8 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     Z = np.concatenate([multip*bones_GT[2,:], multip*predicted_bones[2,:]])
 
     ind_offset = ind
-    if ind > 7:
-        ind_offset = 7
+    if ind > 50:
+        ind_offset = 50
     if ind > len(plot_info):
         ind_offset = len(plot_info) 
     alphas = np.linspace(0.01,1,ind_offset)

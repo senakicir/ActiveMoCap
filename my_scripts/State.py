@@ -37,8 +37,6 @@ def find_pose_at_time (anim_time, search_array, num_of_joints):
         raise NotImplementedError
     return pose
 
-
-
 class State(object):
     def __init__(self, use_single_joint, active_parameters, model_settings, anim_gt_array, future_window_size):
         self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = model_settings
@@ -79,10 +77,11 @@ class State(object):
         self.drone_pos_est = np.zeros([3,1])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
-        self.anim_time = 0.05
+        self.anim_time = 1
 
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
-        self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
+        if self.anim_gt_array is not None:
+            self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def deepcopy_state(self):
         model_settings =[self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index]
@@ -158,7 +157,8 @@ class State(object):
     def update_anim_time(self, anim_time):
         self.anim_time = anim_time
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
-        self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
+        if self.anim_gt_array is not None:
+            self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def get_first_future_poses(self):
         future_poses_3d_gt = np.zeros([self.future_window_size, 3, self.num_of_joints])

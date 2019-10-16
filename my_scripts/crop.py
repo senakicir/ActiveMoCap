@@ -9,7 +9,7 @@ crop_alpha = 0.5
 STABLE_FRAME = 10
 
 class Crop (object):
-    def __init__(self, size_x, size_y, loop_mode = "normal", animation = None):
+    def __init__(self, size_x, size_y, loop_mode = "normal"):
         bbox_init = [0,0,size_x,size_y]
         self.old_bbox = bbox_init
         self.bbox = bbox_init
@@ -22,7 +22,7 @@ class Crop (object):
         self.size_y = size_y
 
         if loop_mode != "normal":
-            self.unstable = False
+            self.unstable = True 
             global crop_alpha
             crop_alpha = 1
             self.bbox = [size_x//2-135,size_y//2-135,270,270]

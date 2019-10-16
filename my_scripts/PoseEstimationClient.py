@@ -89,6 +89,7 @@ class PoseEstimationClient(object):
         self.pose_3d_preoptimization = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
 
         self.poses_3d_gt = np.zeros([self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints])
+        self.poses_3d_gt_debugger = np.zeros([10, 3, self.num_of_joints])
 
         self.boneLengths = torch.zeros([self.num_of_joints-1]).to(self.device)
         self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
@@ -185,8 +186,9 @@ class PoseEstimationClient(object):
     def read_bone_lengths_from_file(self, file_manager):
         if self.animation == "noise":
             raise NotImplementedError
-        self.boneLengths[:] = torch.from_numpy(file_manager.f_bone_len_array)
-        self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
+        if file_manager.f_bone_len_array is not None:
+            self.boneLengths[:] = torch.from_numpy(file_manager.f_bone_len_array)
+            self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
 
     def update_bone_lengths(self, bones):
         if self.modes["bone_len"] == "calib_res":
@@ -230,6 +232,9 @@ class PoseEstimationClient(object):
 
     def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt):
         self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
+        self.poses_3d_gt_debugger = np.concatenate([current_pose_3d_gt[np.newaxis, :, :], self.poses_3d_gt_debugger[0:-1]], axis=0)
+        if linecount > 2 and not self.is_calibrating_energy:
+            assert np.mean(np.std(self.poses_3d_gt_debugger, axis=0)) != 0 
 
         if self.is_calibrating_energy:
             self.poses_3d_gt[:,:,:] = current_pose_3d_gt.copy()
@@ -245,7 +250,6 @@ class PoseEstimationClient(object):
             if linecount > self.ONLINE_WINDOW_SIZE:
                 assert not np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX+1], self.poses_3d_gt[-1])
 
-            print("currentpose",current_pose_3d_gt[:,0])
             print(self.poses_3d_gt[:,:,0])
             print("*****")
 
@@ -264,6 +268,7 @@ class PoseEstimationClient(object):
     def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt):
         self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = np.repeat(pose_3d_gt[np.newaxis, :, :].copy(), self.ESTIMATION_WINDOW_SIZE, axis=0)
         self.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
+        self.poses_3d_gt_debugger[:,:,:] = pose_3d_gt.copy()
         if self.is_calibrating_energy:
             self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
         else:

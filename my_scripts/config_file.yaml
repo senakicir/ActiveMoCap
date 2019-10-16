@@ -42,8 +42,8 @@ energy_parameters:
     ESTIMATION_WINDOW_SIZE: 5
     FUTURE_WINDOW_SIZE: 3
 
-    CALIBRATION_WINDOW_SIZE: 40
-    PREDEFINED_MOTION_MODE_LENGTH: 10
+    CALIBRATION_WINDOW_SIZE: 100
+    PREDEFINED_MOTION_MODE_LENGTH: 5
 
     PARAM_FIND_M: False
     PARAM_READ_M: False
@@ -56,8 +56,8 @@ energy_parameters:
     #bone_len: 0-gt, 1- calib_res
     MODES: 
         mode_3d: "scipy"
-        mode_2d: "gt_with_noise"
-        mode_lift: "gt_with_noise"
+        mode_2d: "openpose"
+        mode_lift: "lift"
         bone_len: "calib_res"
 
     MODEL: "mpi"

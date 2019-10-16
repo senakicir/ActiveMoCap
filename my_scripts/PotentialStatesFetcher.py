@@ -261,7 +261,7 @@ class PotentialStatesFetcher(object):
 
         new_drone_vec = new_radius*(drone_vec/cur_radius)
 
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0],0])
+        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0], 0])
         unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
 
         up_vec = np.cross(unit_horizontal, new_drone_vec)
@@ -281,7 +281,7 @@ class PotentialStatesFetcher(object):
                     prev_goal_key = key
             use_weights = adjust_using_prev_pos(prev_goal_key, use_weights.copy())
         use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
-        future_weight_list = [1, 4, 9]
+        future_weight_list = [1, 2, 3]
 
         for key, ind in use_keys.items():
             [weight_side, weight_up] = use_weights[key] 
@@ -295,9 +295,6 @@ class PotentialStatesFetcher(object):
                 potential_drone_vec_go = pos_go-self.future_human_pos[:, self.hip_index]
                 norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
                 go_pos = norm_potential_drone_vec_go + self.future_human_pos[:, self.hip_index]
-
-                #if key == "c" or key == "l" or key == "r":
-                #    go_pos[2] = current_drone_pos[2]
 
                 new_theta_go = acos((go_pos[2] - self.future_human_pos[2, self.hip_index])/new_radius)
                 new_pitch_go = pi/2 -new_theta_go

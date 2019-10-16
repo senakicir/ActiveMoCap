@@ -204,13 +204,10 @@ class pose3d_online_parallel(torch.nn.Module):
         if self.smoothness_mode == "velocity":
             if self.optimization_mode == "estimate_past":
                 vel_tensor = self.pose3d[self.FUTURE_WINDOW_SIZE+1:, :, :] - self.pose3d[self.FUTURE_WINDOW_SIZE:-1, :, :]
-                smooth_N = (self.ESTIMATION_WINDOW_SIZE-2)*self.NUM_OF_JOINTS
-            elif self.optimization_mode == "estimate_whole":
+                smooth_N = (self.ESTIMATION_WINDOW_SIZE)*self.NUM_OF_JOINTS
+            elif self.optimization_mode == "estimate_whole" or self.optimization_mode == "estimate_future":
                 vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
-                smooth_N = (self.ONLINE_WINDOW_SIZE-2)*self.NUM_OF_JOINTS
-            elif self.optimization_mode == "estimate_future":
-                vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
-                smooth_N = (self.FUTURE_WINDOW_SIZE-2)*self.NUM_OF_JOINTS
+                smooth_N = (self.ONLINE_WINDOW_SIZE)*self.NUM_OF_JOINTS
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], smooth_N)
 
         elif self.smoothness_mode == "position":
@@ -229,10 +226,12 @@ class pose3d_online_parallel(torch.nn.Module):
         if not self.use_single_joint and self.use_lift_term:
             if self.lift_method == "complex":
                 raise NotImplementedError
-                if self.optimization_mode == "estimate_past":
+                if self.optimization_mode == "estimate_future":
+                    output["lift"]=0
+                elif self.optimization_mode == "estimate_past":
                     pose_est_directions = calculate_bone_directions(self.pose3d[self.FUTURE_WINDOW_SIZE:,:,:], self.lift_bone_directions, batch=True)
                     output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
-                else:
+                elif self.optimization_mode == "estimate_whole":
                     pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
                     output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
 

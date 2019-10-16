@@ -171,14 +171,13 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     if simulation_mode == "use_airsim":
         airsim_client = airsim.MultirotorClient(length_of_simulation, port=port)
         #airsim_client = airsim.MultirotorClient(length_of_simulation)
-        airsim_client.reset()
         airsim_client.confirmConnection()
+        airsim_client.reset()
         if loop_mode == "normal_simulation":
             airsim_client.enableApiControl(True)
             airsim_client.armDisarm(True)
         airsim_client.initInitialDronePos()
         airsim_client.changeAnimation(ANIM_TO_UNREAL[file_manager.anim_num])
-        airsim_client.changeCalibrationMode(True)
         if loop_mode == "normal_simulation":
             airsim_client.takeoffAsync(timeout_sec = 15)#.join()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
@@ -199,6 +198,12 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     if loop_mode != "calibration":
         pose_client.read_bone_lengths_from_file(file_manager)
     file_manager.save_initial_drone_pos(airsim_client)
+
+    #if pose_client.modes["mode_2d"] == "openpose":
+    #    import openpose as openpose_module
+    #if pose_client.modes["mode_lift"] == "lift":
+    #    import liftnet as liftnet_module
+
     #shoulder_vector = initial_positions[R_SHOULDER_IND, :] - initial_positions[L_SHOULDER_IND, :] #find initial human orientation!
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
 
@@ -419,13 +424,10 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     print("experiment ended at:", date_time_name)
 
 def save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager):
-    #don't take a photo but retrieve initial gt values 
-    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-
-    airsim_client.simPause(True)
-    while airsim_client.linecount < 250:    
+    while airsim_client.linecount < 1000:    
         #update state values read from AirSim and take picture
         airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+        print("currentpose",current_state.bone_pos_gt[:,0])
         anim_time = airsim_client.getAnimationTime()
         file_manager.write_gt_pose_values(anim_time, current_state.bone_pos_gt)
 
@@ -484,8 +486,15 @@ def set_position(goal_state, airsim_client, current_state, pose_client, loop_mod
     airsim_client.simPause(False)
     if not pose_client.is_calibrating_energy:
         airsim_client.updateAnimation(current_state.DELTA_T)
-    print("anim time is", airsim_client.getAnimationTime())
-    current_state.update_anim_time(airsim_client.getAnimationTime())
+    anim_time = airsim_client.getAnimationTime()
+    print("anim time is", anim_time)
+    if anim_time != 0:
+        current_state.update_anim_time(anim_time)
+    else:
+        airsim_client.setAnimationTime(current_state.anim_time + current_state.DELTA_T)
+        current_state.update_anim_time(current_state.anim_time + current_state.DELTA_T)
+        anim_time = airsim_client.getAnimationTime()
+        assert anim_time != 0
 
     if loop_mode == "teleport_simulation" or loop_mode == "toy_example" or loop_mode == "calibration":
         airsim_client.simSetVehiclePose(goal_state)

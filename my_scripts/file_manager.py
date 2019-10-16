@@ -118,18 +118,21 @@ class FileManager(object):
 
         if self.loop_mode == "save_gt_poses":
             self.f_anim_gt = open(saved_vals_loc_anim + "/gt_poses.txt", "w")
+            self.f_anim_gt_array = None
             self.f_anim_gt.write("time\tgt_poses\n")
             self.saved_anim_time = []
+            self.f_bone_len_array = None
         else:
             #read into matrix
             self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
 
-        if self.loop_mode == "calibration":
-            self.f_bone_len = open(saved_vals_loc_anim + bone_len_file_name, "w")
-            self.f_bone_len.write("bone_lengths\n")
-        else:
-            #read into matrix
-            self.f_bone_len_array =  pd.read_csv(saved_vals_loc_anim + bone_len_file_name, sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
+            if self.loop_mode == "calibration":
+                self.f_bone_len = open(saved_vals_loc_anim + bone_len_file_name, "w")
+                self.f_bone_len.write("bone_lengths\n")
+                self.f_bone_len_array = None
+            else:
+                #read into matrix
+                self.f_bone_len_array =  pd.read_csv(saved_vals_loc_anim + bone_len_file_name, sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])

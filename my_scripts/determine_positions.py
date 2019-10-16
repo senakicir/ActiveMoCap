@@ -15,8 +15,8 @@ from PoseEstimationClient import PoseEstimationClient
 from Lift_Client import calculate_bone_directions, calculate_bone_directions_simple, scale_with_bone_lengths
 from crop import SimpleCrop
 
-#import openpose as openpose_module
-#import liftnet as liftnet_module
+import openpose as openpose_module
+import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -40,7 +40,7 @@ def determine_positions(linecount, pose_client, current_state, file_manager):
 
 def determine_2d_positions(pose_client, current_state, return_heatmaps=True, input_image = 0, linecount=0):    
     if (pose_client.modes["mode_2d"] != "openpose"):
-        if pose_client.cropping_tool != None:
+        if pose_client.cropping_tool is not None:
             input_image, _ = pose_client.cropping_tool.crop(input_image, linecount)
         pose_2d_gt, heatmaps = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=input_image, cropping_tool=pose_client.cropping_tool, return_heatmaps=(pose_client.modes["mode_lift"]=="lift"))
         pose_2d = pose_2d_gt.clone()
@@ -56,7 +56,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, inp
             pose_2d_gt, _ = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=input_image, cropping_tool=pose_client.cropping_tool.copy_cropping_tool(), return_heatmaps=False)
 
         else:
-            if pose_client.cropping_tool != None:
+            if pose_client.cropping_tool is not None:
                 input_image, scales = pose_client.cropping_tool.crop(input_image, linecount)
             pose_2d, heatmaps, _, _ = find_2d_pose_openpose(input_image,  scales)
             pose_2d_gt, _ = find_2d_pose_gt(projection_client=pose_client.projection_client, current_state=current_state, input_image=input_image, cropping_tool=pose_client.cropping_tool.copy_cropping_tool(), return_heatmaps=(pose_client.modes["mode_lift"]=="lift"))
@@ -227,8 +227,11 @@ def perform_optimization(pose_client, linecount):
     start_time = time.time()
     objective.reset_current(pose_client)
     optimized_res = least_squares(objective.forward, pose3d_init, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol, xtol=pose_client.xtol)
-    objective.reset_future(pose_client)
-    optimized_res = least_squares(objective.forward, optimized_res.x, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol, xtol=pose_client.xtol)
+    optimization_losses_weighted = objective.pltpts_weighted
+    optimization_losses = objective.pltpts
+    if not pose_client.is_calibrating_energy:
+        objective.reset_future(pose_client)
+        optimized_res = least_squares(objective.forward, optimized_res.x, jac=objective_jacobian, bounds=bounds, method=pose_client.method, ftol=pose_client.ftol, xtol=pose_client.xtol)
 
     func_eval_time = time.time() - start_time
     print("least squares eval time", func_eval_time)
@@ -241,8 +244,7 @@ def perform_optimization(pose_client, linecount):
 
     #adjusted_optimized_poses = adjust_with_M(pose_client.M, optimized_poses, hip_index)
     adjusted_optimized_poses = optimized_poses.copy()
-    optimization_losses_weighted = objective.pltpts_weighted
-    optimization_losses = objective.pltpts
+
     return optimized_poses, adjusted_optimized_poses, optimization_losses_weighted, func_eval_time
 
 
