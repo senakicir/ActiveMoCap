@@ -29,16 +29,7 @@ def adjust_with_M(M, pose, hip_index):
         root_pose = pose[:,:,hip_index]
         return np.matmul(pose-root_pose[:,:,np.newaxis], M) + root_pose[:,:,np.newaxis]
 
-def determine_positions(linecount, pose_client, current_state, file_manager):
-    if (pose_client.modes["mode_3d"] == "scipy"):
-        determine_3d_positions_energy_scipy(linecount, pose_client, current_state, file_manager.plot_loc, file_manager.get_photo_loc())
-    else:
-        print("error! you removed this")
-    current_state.update_human_info(pose_client.current_pose)
-    file_manager.record_reconstruction_values(pose_client.current_pose, linecount)
-    return pose_client.current_pose
-
-def determine_2d_positions(pose_client, current_state, return_heatmaps=True, input_image = 0, linecount=0):    
+def determine_2d_positions(pose_client, current_state, my_rng, return_heatmaps=True, input_image = 0, linecount=0):    
     if (pose_client.modes["mode_2d"] != "openpose"):
         if pose_client.cropping_tool is not None:
             input_image, _ = pose_client.cropping_tool.crop(input_image, linecount)
@@ -46,7 +37,7 @@ def determine_2d_positions(pose_client, current_state, return_heatmaps=True, inp
         pose_2d = pose_2d_gt.clone()
         if (pose_client.modes["mode_2d"] == "gt_with_noise"):
             noise_std= pose_client.NOISE_2D_STD
-            pose_2d = add_noise_to_pose(pose_2d, noise_std)
+            pose_2d = add_noise_to_pose(pose_2d, noise_std, my_rng, noise_type="proj")
     else:            
         if pose_client.animation == "drone_flight":
             cropped_pose_2d, heatmap_2d, _, _ = find_2d_pose_openpose(input_image, scales=[0.5,0.75,1])
@@ -97,7 +88,7 @@ def find_lifted_pose(pose_2d, cropped_image, heatmap_2d):
     pose3d_lift = rearrange_bones_to_mpi(pose3d_lift, is_torch=True)
     return pose3d_lift
 
-def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_image, heatmap_2d):
+def determine_relative_3d_pose(pose_client, current_state, my_rng, pose_2d, cropped_image, heatmap_2d):
     if not pose_client.USE_LIFT_TERM or pose_client.USE_SINGLE_JOINT:
         return None
 
@@ -107,7 +98,7 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
     if (pose_client.modes["mode_lift"] != 'lift'):
         pose3d_relative = torch.from_numpy(current_pose_3d_GT).clone()
         if (pose_client.modes["mode_lift"] == "gt_with_noise"):
-            pose3d_relative = add_noise_to_pose(pose3d_relative, pose_client.NOISE_LIFT_STD)
+            pose3d_relative = add_noise_to_pose(pose3d_relative, pose_client.NOISE_LIFT_STD, my_rng, noise_type="lift")
     elif (pose_client.modes["mode_lift"]   == 'lift'):
         pose3d_lift = find_lifted_pose(pose_2d, cropped_image, heatmap_2d)
         pose3d_relative = pose_client.projection_client.camera_to_world(pose3d_lift.cpu(), transformation_matrix)
@@ -122,7 +113,7 @@ def determine_relative_3d_pose(pose_client, current_state, pose_2d, cropped_imag
 
     return pose3d_lift_directions
 
-def initialize_empty_frames(linecount, pose_client, current_state, file_manager):
+def initialize_empty_frames(linecount, pose_client, current_state, file_manager, my_rng):
     objective_calib.my_init(pose_client)
     objective_online.my_init(pose_client)
 
@@ -130,8 +121,10 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager)
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
     pose_3d_gt, _, _, transformation_matrix = current_state.get_frame_parameters()
 
-    pose_2d, _ = prepare_frames_for_optimization(linecount, pose_client, current_state, plot_loc, photo_loc, init_empty_frames=True)
-    
+    pose_2d, _ = prepare_frames_for_optimization(linecount, pose_client, current_state, my_rng, plot_loc, photo_loc, init_empty_frames=True)
+    file_manager.save_pose_2d(pose_2d, -1)
+    superimpose_on_image(pose_2d.cpu().numpy(), plot_loc, -2, bone_connections, photo_loc, custom_name="projected_res_", scale = -1)
+
     #initial frames
     if pose_client.INIT_POSE_MODE == "gt" or pose_client.INIT_POSE_MODE == "gt_with_noise":
         optimized_poses = pose_3d_gt.copy()
@@ -139,16 +132,18 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager)
         optimized_poses = np.zeros([3,num_of_joints])
     elif pose_client.INIT_POSE_MODE == "backproj" or pose_client.INIT_POSE_MODE == "initial_optimization":
         optimized_poses = pose_client.projection_client.take_single_backprojection(pose_2d, transformation_matrix, joint_names)
+
         if not pose_client.is_calibrating_energy:
             optimized_poses = scale_with_bone_lengths(optimized_poses, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections), batch=False).numpy()
         else:
             optimized_poses = optimized_poses.numpy()
+    plot_human(optimized_poses, optimized_poses, plot_loc, -2, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
             
     if not pose_client.is_calibrating_energy:
         optimized_poses = np.repeat(optimized_poses[np.newaxis, :, :], pose_client.ONLINE_WINDOW_SIZE, axis=0)
 
     if pose_client.INIT_POSE_MODE == "gt_with_noise":
-        optimized_poses = add_noise_to_pose(torch.from_numpy(optimized_poses), pose_client.NOISE_3D_INIT_STD)
+        optimized_poses = add_noise_to_pose(torch.from_numpy(optimized_poses), pose_client.NOISE_3D_INIT_STD, my_rng, noise_type="initial")
         optimized_poses = optimized_poses.numpy()
 
     if pose_client.INIT_POSE_MODE == "initial_optimization":
@@ -182,16 +177,16 @@ def determine_openpose_error(linecount, pose_client, current_state, plot_loc, ph
     pose_client.append_res(plot_end)
     return pose_2d, pose3d_lift
 
-def prepare_frames_for_optimization(linecount, pose_client, current_state, plot_loc, photo_loc, init_empty_frames):
+def prepare_frames_for_optimization(linecount, pose_client, current_state, my_rng, plot_loc, photo_loc, init_empty_frames):
     current_pose_3d_gt, futuremost_pose_3d_gt, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
 
     input_image = cv.imread(photo_loc)
 
     #find 2d pose (using openpose or gt)
-    pose_2d, pose_2d_gt, heatmap_2d, cropped_image = determine_2d_positions(pose_client=pose_client, current_state=current_state, return_heatmaps=(pose_client.modes["mode_lift"]=="lift"), input_image=input_image, linecount=linecount)
-
+    pose_2d, pose_2d_gt, heatmap_2d, cropped_image = determine_2d_positions(pose_client=pose_client, current_state=current_state, my_rng=my_rng, return_heatmaps=(pose_client.modes["mode_lift"]=="lift"), input_image=input_image, linecount=linecount)
+    
     #find relative 3d pose using liftnet or GT relative pose
-    pose3d_lift_directions = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, pose_2d=pose_2d, cropped_image=cropped_image, heatmap_2d=heatmap_2d)
+    pose3d_lift_directions = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, my_rng=my_rng, pose_2d=pose_2d, cropped_image=cropped_image, heatmap_2d=heatmap_2d)
         
     #uncrop 2d pose
     if pose_client.cropping_tool != None:
@@ -212,6 +207,8 @@ def perform_optimization(pose_client, linecount):
     result_shape, result_size, loss_dict = pose_client.result_shape, pose_client.result_size, pose_client.loss_dict
 
     pose3d_init = np.reshape(a = pose_client.pose_3d_preoptimization.copy(), newshape = [result_size,], order = "C")
+    assert not np.isnan(pose3d_init).any()
+
     if pose_client.USE_TRAJECTORY_BASIS:
         raise NotImplementedError
 
@@ -222,7 +219,7 @@ def perform_optimization(pose_client, linecount):
         objective = objective_online
         objective_jacobian = objective_online.jacobian
 
-    bounds = (-np.inf, np.inf)
+    bounds = (np.min(pose3d_init)-20, np.max(pose3d_init)+20)
 
     start_time = time.time()
     objective.reset_current(pose_client)
@@ -248,12 +245,15 @@ def perform_optimization(pose_client, linecount):
     return optimized_poses, adjusted_optimized_poses, optimization_losses_weighted, func_eval_time
 
 
-def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, plot_loc, photo_loc):
+def determine_positions(linecount, pose_client, current_state, file_manager, my_rng):
+    plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
     current_pose_3d_gt, futuremost_pose_3d_gt, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
 
-    pose_2d, pose3d_lift_directions =  prepare_frames_for_optimization(linecount, pose_client, current_state, plot_loc, photo_loc, init_empty_frames=False)
-    
+    pose_2d, pose3d_lift_directions =  prepare_frames_for_optimization(linecount, pose_client, current_state, my_rng, plot_loc, photo_loc, init_empty_frames=False)
+    file_manager.save_pose_2d(pose_2d, linecount)
+    file_manager.save_lift(pose3d_lift_directions, linecount)
+
     #add current pose as initial pose
     pose_client.set_initial_pose()
 
@@ -283,12 +283,15 @@ def determine_3d_positions_energy_scipy(linecount, pose_client, current_state, p
             plot_all_optimization_results(adjusted_optimized_poses, pose_client.poses_3d_gt, pose_client.FUTURE_WINDOW_SIZE, plot_loc, linecount, bone_connections, pose_client.animation,  pose_client.errors, pose_client.average_errors)
             #plot_human(current_pose_3d_gt, pose_client.adj_current_pose, plot_loc, linecount-pose_client.MIDDLE_POSE_INDEX+1, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, errors["middle_error"], custom_name="middle_pose_", label_names = ["GT", "Estimate"], additional_text = errors["ave_middle_error"])
             hip_joint_gt = current_pose_3d_gt[:,hip_index]
-            plot_human(pose3d_lift_directions.numpy(), current_pose_3d_gt-hip_joint_gt[:, np.newaxis], plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, -1, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
+            plot_human(current_pose_3d_gt-hip_joint_gt[:, np.newaxis], pose3d_lift_directions.numpy(), plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, -1, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
         end_plot_time = time.time()
         print("Time it took to plot", end_plot_time - start_plot_time)
     plot_end = {"est": pose_client.adj_current_pose, "GT": current_pose_3d_gt, "drone": current_state.C_drone_gt, "eval_time": func_eval_time}
     pose_client.append_res(plot_end)
     #file_manager.write_reconstruction_values(adjusted_current_pose, current_pose_3d_gt, current_state.C_drone_gt, current_state.R_drone_gt, linecount, num_of_joints)
+    
+    current_state.update_human_info(pose_client.current_pose)
+    file_manager.record_reconstruction_values(pose_client.current_pose, linecount)
     return  pose_client.adj_current_pose
 
 def switch_energy(value):

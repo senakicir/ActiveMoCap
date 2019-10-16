@@ -319,7 +319,7 @@ class PotentialStatesFetcher(object):
             #        print("state inv transformation matrix",  potential_state.inv_transformation_matrix)
             #print("********end")
 
-    def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager):
+    def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager, my_rng):
         if linecount < self.PREDEFINED_MOTION_MODE_LENGTH:
             self.choose_go_up_down()
         else:
@@ -337,7 +337,7 @@ class PotentialStatesFetcher(object):
                         print("Not implemented yet as it makes my brain hurt")
                         raise NotImplementedError
                 if (self.trajectory == "random"): 
-                    self.find_random_next_state(online_linecount)
+                    self.find_random_next_state(online_linecount, my_rng)
                 if (self.trajectory == "constant_angle"):
                     self.constant_angle_baseline_future(online_linecount)
 
@@ -407,10 +407,10 @@ class PotentialStatesFetcher(object):
             if potential_trajectory.trajectory_index == key_indices["c"]:
                 self.goal_trajectory = potential_trajectory
 
-    def find_random_next_state(self, online_linecount):
+    def find_random_next_state(self, online_linecount, my_rng):
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
-        random_ind = np.random.randint(0, len(self.potential_trajectory_list)-1)
-        self.goal_trajectory = self.potential_trajectory_list[random_ind]
+        random_state_ind = my_rng.get_random_state(len(self.potential_trajectory_list))
+        self.goal_trajectory = self.potential_trajectory_list[random_state_ind]
 
     def find_next_state_active(self, pose_client, online_linecount, file_manager):
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:

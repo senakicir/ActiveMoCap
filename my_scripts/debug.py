@@ -9,7 +9,6 @@ from State import State
 from file_manager import FileManager, get_bone_len_file_name
 from drone_flight_client import DroneFlightClient
 from crop import Crop
-from rng_object import rng_object
 import copy
 from PIL import Image
 
@@ -165,19 +164,21 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     port =  parameters["PORT"]
 
     #set random seeds once and for all
-    my_rng = rng_object(parameters["SEED"])
+    np.random.seed(parameters["SEED"])
+    torch.manual_seed(parameters["SEED"])
 
     #connect to the AirSim simulator
     if simulation_mode == "use_airsim":
         airsim_client = airsim.MultirotorClient(length_of_simulation, port=port)
         #airsim_client = airsim.MultirotorClient(length_of_simulation)
-        airsim_client.confirmConnection()
         airsim_client.reset()
+        airsim_client.confirmConnection()
         if loop_mode == "normal_simulation":
             airsim_client.enableApiControl(True)
             airsim_client.armDisarm(True)
         airsim_client.initInitialDronePos()
         airsim_client.changeAnimation(ANIM_TO_UNREAL[file_manager.anim_num])
+        airsim_client.changeCalibrationMode(True)
         if loop_mode == "normal_simulation":
             airsim_client.takeoffAsync(timeout_sec = 15)#.join()
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
@@ -199,25 +200,25 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         pose_client.read_bone_lengths_from_file(file_manager)
     file_manager.save_initial_drone_pos(airsim_client)
 
-    #if pose_client.modes["mode_2d"] == "openpose":
-    #    import openpose as openpose_module
-    #if pose_client.modes["mode_lift"] == "lift":
-    #    import liftnet as liftnet_module
+    if pose_client.modes["mode_2d"] == "openpose":
+        import openpose as openpose_module
+    if pose_client.modes["mode_lift"] == "lift":
+        import liftnet as liftnet_module
 
     #shoulder_vector = initial_positions[R_SHOULDER_IND, :] - initial_positions[L_SHOULDER_IND, :] #find initial human orientation!
     #INITIAL_HUMAN_ORIENTATION = np.arctan2(-shoulder_vector[0], shoulder_vector[1]) #in unreal coordinates
 
     ################
     if loop_mode == "normal_simulation" or loop_mode == "teleport_simulation" or loop_mode == "toy_example" or loop_mode == "calibration":
-        general_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters, my_rng)
+        general_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters)
     elif loop_mode == "openpose":
-        openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, my_rng)
+        openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     #elif loop_mode == "teleport":
      #   teleport_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode, parameters)
     elif loop_mode == "save_gt_poses":
         save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager)
     elif loop_mode == "create_dataset":
-        create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, my_rng)
+        create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager)
     ################
 
     #calculate errors
@@ -234,7 +235,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
 
     return ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error 
 
-def general_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters, my_rng):
+def general_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters):
     """
     Description:
         General simulation loop
@@ -253,7 +254,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
 
     take_photo(airsim_client, pose_client, current_state, file_manager)
     
-    initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager, my_rng)
+    initialize_empty_frames(airsim_client.linecount, pose_client, current_state, file_manager)
 
     airsim_client.simPause(True)
     potential_states_fetcher.reset(pose_client, airsim_client, current_state)
@@ -262,13 +263,15 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         #### if we have the best traj finder 
         if potential_error_finder.find_best_traj and not pose_client.is_calibrating_energy:
             start_best_sim = time.time()   
-            my_rng.freeze_all_rng_states()
+            torch_seed_state = torch.get_rng_state()
+            np_seed_state = np.random.get_state()
             current_anim_time = airsim_client.getAnimationTime()
 
             #find goal location
             for trajectory_ind in range(0, len(potential_states_fetcher.potential_trajectory_list)):
                 print("* trajectory_ind", trajectory_ind)
-                my_rng.reload_all_rng_states() 
+                torch.set_rng_state(torch_seed_state)
+                np.random.set_state(np_seed_state)                    
                 goal_traj = potential_states_fetcher.choose_trajectory_using_trajind(trajectory_ind)
                 for trial_ind in range(potential_error_finder.num_of_noise_trials):
                     #print("** trial ind", trial_ind)
@@ -283,12 +286,13 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
                         set_position(goal_state, airsim_client, state_copy, pose_client_copy, loop_mode=potential_states_fetcher.loop_mode)
                     
                         take_photo(airsim_client, pose_client_copy, state_copy, file_manager, trajectory_ind)           
-                        determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager, my_rng) 
+                        determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager) 
                         goal_traj.record_error_for_trial(future_ind, pose_client_copy.middle_error, pose_client_copy.overall_error)
                 goal_traj.find_overall_error()
             #file_manager.record_toy_example_results_error(linecount, self.potential_trajectory_list, self.goal_trajectory)
             potential_states_fetcher.restart_trajectory()
-            my_rng.reload_all_rng_states()
+            torch.set_rng_state(torch_seed_state)
+            np.random.set_state(np_seed_state)
             airsim_client.setAnimationTime(current_anim_time)
             end_best_sim = time.time()
             print("Simulating errors for all locations took", end_best_sim-start_best_sim, "seconds")
@@ -296,7 +300,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         #find goal location
         if airsim_client.linecount != 0:
             start2=time.time()
-            potential_states_fetcher.choose_trajectory(pose_client, airsim_client.linecount, airsim_client.online_linecount, file_manager, my_rng)
+            potential_states_fetcher.choose_trajectory(pose_client, airsim_client.linecount, airsim_client.online_linecount, file_manager)
             goal_state = potential_states_fetcher.move_along_trajectory()
             end2= time.time()
             print("Choosing a trajectory took", end2-start2, "seconds")
@@ -309,7 +313,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
 
         #find human pose 
         start3=time.time() 
-        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager, my_rng)
+        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager)
         end3=time.time()
         print("finding human pose took", end3-start3, "seconds")
 
@@ -327,7 +331,52 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         potential_states_fetcher.reset(pose_client, airsim_client, current_state)
         potential_states_fetcher.get_potential_positions(pose_client.is_calibrating_energy)
 
-def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, my_rng):
+        
+def normal_simulation_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, loop_mode):
+    """
+    Description: 
+        Simulation loop that is called when loop_mode is either "normal_simulation" or "teleport_simulation"
+        Runs with AirSim.
+
+    Inputs: 
+        current_state: an object of type State
+        pose_client: an object of type PoseEstimationClient
+        airsim_client: an object of type VehicleClient or DroneFlightClient
+        potential_states_fetcher: an object of type PotentialStatesFetcher
+        file_manager: object of type FileManager
+        loop_mode: string, either "normal_simulation" or "teleport_simulation"
+    """
+
+    #don't take a photo but retrieve initial gt values 
+    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+    #time.sleep(0.5)
+
+    airsim_client.simPause(True)
+    while airsim_client.linecount < airsim_client.length_of_simulation:    
+
+        #update state values read from AirSim and take picture
+        take_photo(airsim_client, pose_client, current_state, file_manager)
+
+        #find human pose 
+        determine_positions(airsim_client.linecount, pose_client, current_state, file_manager)
+
+        #find goal location
+        potential_states_fetcher.reset(pose_client, airsim_client, current_state)
+        potential_states_fetcher.get_potential_positions(pose_client.is_calibrating_energy)
+        potential_states_fetcher.choose_trajectory(pose_client, airsim_client.linecount, airsim_client.online_linecount, file_manager)
+        goal_state = potential_states_fetcher.move_along_trajectory()
+
+        #move there
+        set_position(goal_state, airsim_client, current_state, pose_client, loop_mode=loop_mode)
+
+        #plotting
+        if not pose_client.quiet and airsim_client.linecount > 0:
+            plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
+
+        file_manager.write_error_values(pose_client.errors, airsim_client.linecount)
+        airsim_client.increment_linecount(pose_client.is_calibrating_energy)
+       
+def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     #animations_to_test = ["64_06", "02_01", "05_08", "38_03"]
     file_manager.write_openpose_prefix(potential_states_fetcher.THETA_LIST, potential_states_fetcher.PHI_LIST, pose_client.num_of_joints)
 
@@ -356,7 +405,7 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
                 take_photo(airsim_client, pose_client, current_state, file_manager)
                 airsim_client.simPause(True)
                 
-                determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager, my_rng)
+                determine_openpose_error(airsim_client.linecount, pose_client, current_state, file_manager)
 
                 #SAVE ALL VALUES OF THIS SIMULATION
                 file_manager.append_openpose_error(pose_client.openpose_error, pose_client.openpose_arm_error,  pose_client.openpose_leg_error)
@@ -376,10 +425,13 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
     print("experiment ended at:", date_time_name)
 
 def save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager):
+    #don't take a photo but retrieve initial gt values 
+    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+
+    airsim_client.simPause(True)
     while airsim_client.linecount < 1000:    
         #update state values read from AirSim and take picture
         airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-        print("currentpose",current_state.bone_pos_gt[:,0])
         anim_time = airsim_client.getAnimationTime()
         file_manager.write_gt_pose_values(anim_time, current_state.bone_pos_gt)
 
@@ -388,7 +440,7 @@ def save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager):
         airsim_client.increment_linecount(pose_client.is_calibrating_energy)
 
 
-def create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, my_rng):
+def create_test_set(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment began at:", date_time_name)
     airsim_client.simPause(False)
@@ -438,15 +490,8 @@ def set_position(goal_state, airsim_client, current_state, pose_client, loop_mod
     airsim_client.simPause(False)
     if not pose_client.is_calibrating_energy:
         airsim_client.updateAnimation(current_state.DELTA_T)
-    anim_time = airsim_client.getAnimationTime()
-    print("anim time is", anim_time)
-    if anim_time != 0:
-        current_state.update_anim_time(anim_time)
-    else:
-        airsim_client.setAnimationTime(current_state.anim_time + current_state.DELTA_T)
-        current_state.update_anim_time(current_state.anim_time + current_state.DELTA_T)
-        anim_time = airsim_client.getAnimationTime()
-        assert anim_time != 0
+    print("anim time is", airsim_client.getAnimationTime())
+    current_state.update_anim_time(airsim_client.getAnimationTime())
 
     if loop_mode == "teleport_simulation" or loop_mode == "toy_example" or loop_mode == "calibration":
         airsim_client.simSetVehiclePose(goal_state)

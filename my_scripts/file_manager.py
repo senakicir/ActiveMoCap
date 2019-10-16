@@ -162,6 +162,18 @@ class FileManager(object):
             photo_locs.append(self.non_simulation_filenames["input_image_dir"] + '/img_' + str(0) + "_viewpoint_" + str(viewpoint) + '.png')
         return photo_locs
 
+    def save_pose_2d(self, pose_2d, linecount):
+        openpose_str = ""
+        for i in range(pose_2d.shape[1]):
+            openpose_str += str(pose_2d[0, i].item()) + '\t' + str(pose_2d[1, i].item()) + '\t'
+        self.f_openpose_results.write(str(linecount)+ '\t' + openpose_str + '\n')
+
+    def save_lift(self, pose3d_lift_directions, linecount):
+        liftnet_str = ""
+        for i in range(pose3d_lift_directions.shape[1]):
+            liftnet_str += str(pose3d_lift_directions[0, i].item()) + '\t' + str(pose3d_lift_directions[1, i].item()) + '\t' + str(pose3d_lift_directions[2, i].item())
+        self.f_liftnet_results.write(str(linecount)+ '\t'+ liftnet_str + '\n')
+
     
     def close_files(self):
         self.f_drone_pos.close()

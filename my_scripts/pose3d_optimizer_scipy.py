@@ -13,7 +13,9 @@ def fun_forward(pytorch_objective, x, new_shape):
     x_scrambled = np.reshape(a = x, newshape = new_shape, order = "C")
     pytorch_objective.init_pose3d(x_scrambled)
     overall_output = pytorch_objective.forward()
-    return overall_output.detach().cpu().numpy()
+    output_numpy = overall_output.detach().cpu().numpy()
+    assert not np.isnan(output_numpy).any()
+    return output_numpy
 
 def fun_jacobian(pytorch_objective, x, new_shape, optimization_mode, FUTURE_WINDOW_SIZE):
     multip_dim = np.prod(new_shape)
@@ -27,6 +29,8 @@ def fun_jacobian(pytorch_objective, x, new_shape, optimization_mode, FUTURE_WIND
         gradient_torch[FUTURE_WINDOW_SIZE:, :, :] = 0
     gradient_scrambled = gradient_torch.detach().cpu().numpy()
     gradient = np.reshape(a = gradient_scrambled, newshape =  [multip_dim, ], order = "C")
+    
+    assert not np.isnan(gradient).any()
     return gradient
  
 def fun_jacobian_residuals(pytorch_objective, x, new_shape):

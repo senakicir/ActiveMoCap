@@ -127,4 +127,4 @@ active_parameters:
     #active_sampling = "ellipse", "uniform"
     ACTIVE_SAMPLING_MODE: "uniform"
     TOP_SPEED: 3 
-    DELTA_T: 0.05
+    DELTA_T: 0.2

@@ -61,6 +61,11 @@ class PoseEstimationClient(object):
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
 
+        self.rng_projection_noise = None
+        self.rng_lift_noise = None
+        self.rng_future_projection_noise = None
+        self.rng_initialization = None
+
 
         if self.loop_mode == "calibration":
             self.is_calibrating_energy = True

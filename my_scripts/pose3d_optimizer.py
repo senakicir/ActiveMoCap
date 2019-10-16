@@ -259,8 +259,6 @@ class pose3d_online_parallel(torch.nn.Module):
         pose3d_ = torch.from_numpy(pose3d_np).float()
         self.pose3d.data[:] = pose3d_.data[:]
 
-
-
 ###################################################
 ################################################### 
 ###################################################

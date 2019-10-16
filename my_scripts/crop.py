@@ -6,7 +6,7 @@ from helpers import numpy_to_tuples
 import pdb
 
 crop_alpha = 0.5
-STABLE_FRAME = 10
+STABLE_FRAME = 1
 
 class Crop (object):
     def __init__(self, size_x, size_y, loop_mode = "normal"):
@@ -90,7 +90,7 @@ class Crop (object):
 
         if self.unstable:
             print("unstable, will not crop")
-            return image, [1]
+            return image, [0.5, 0.75, 1]
         else:
             self.update_bbox_margin(1)
             crop_frame = self.crop_function(image)

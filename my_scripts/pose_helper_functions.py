@@ -1,13 +1,12 @@
 import torch
 
-def add_noise_to_pose(pose, noise_std):
-    noise = torch.normal(torch.zeros(pose.shape), torch.ones(pose.shape)*noise_std).float()
+def add_noise_to_pose(pose, noise_std, my_rng, noise_type):
+    noise = my_rng.get_pose_noise(pose.shape, noise_std, noise_type)
     if (pose.is_cuda):
         my_device = torch.device("cuda")
         noise = noise.to(my_device)
     pose = pose.float().clone() + noise
     return pose 
-
 
 def calculate_bone_lengths(bones, bone_connections, batch):
     if batch:

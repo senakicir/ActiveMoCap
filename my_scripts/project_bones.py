@@ -62,7 +62,7 @@ class Projection_Client(object):
         flip_x_y = self.flip_x_y_pre.repeat(self.FUTURE_WINDOW_SIZE , 1, 1)
         future_projection = self.take_batch_projection(future_poses, self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :], self.ones_tensor_future, camera_intrinsics, flip_x_y) 
         #add some noise to future projection so that the error is not zero
-        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = add_noise_to_pose(future_projection, self.noise_2d_std)
+        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = future_projection#add_noise_to_pose(future_projection, self.noise_2d_std, my_rng, noise_type="future_proj")
        
         queue_index = self.FUTURE_WINDOW_SIZE
         for bone_2d, _, inverse_transformation_matrix in data_list:
