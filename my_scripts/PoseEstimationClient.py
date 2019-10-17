@@ -61,11 +61,6 @@ class PoseEstimationClient(object):
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
 
-        self.rng_projection_noise = None
-        self.rng_lift_noise = None
-        self.rng_future_projection_noise = None
-        self.rng_initialization = None
-
 
         if self.loop_mode == "calibration":
             self.is_calibrating_energy = True
@@ -254,6 +249,8 @@ class PoseEstimationClient(object):
             assert np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX], current_pose_3d_gt)
             if linecount > self.ONLINE_WINDOW_SIZE:
                 assert not np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX+1], self.poses_3d_gt[-1])
+
+            assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<1
 
             print(self.poses_3d_gt[:,:,0])
             print("*****")
