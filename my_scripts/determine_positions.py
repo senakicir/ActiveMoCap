@@ -15,8 +15,8 @@ from PoseEstimationClient import PoseEstimationClient
 from Lift_Client import calculate_bone_directions, calculate_bone_directions_simple, scale_with_bone_lengths
 from crop import SimpleCrop
 
-import openpose as openpose_module
-import liftnet as liftnet_module
+#import openpose as openpose_module
+#import liftnet as liftnet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -89,7 +89,7 @@ def find_lifted_pose(pose_2d, cropped_image, heatmap_2d):
     return pose3d_lift
 
 def determine_relative_3d_pose(pose_client, current_state, my_rng, pose_2d, cropped_image, heatmap_2d):
-    if not pose_client.USE_LIFT_TERM or pose_client.USE_SINGLE_JOINT:
+    if not pose_client.USE_LIFT_TERM or pose_client.USE_SINGLE_JOINT or pose_client.is_calibrating_energy:
         return None
 
     current_pose_3d_GT, _, _, transformation_matrix = current_state.get_frame_parameters()
@@ -219,7 +219,7 @@ def perform_optimization(pose_client, linecount):
         objective = objective_online
         objective_jacobian = objective_online.jacobian
 
-    bounds = (np.min(pose3d_init)-20, np.max(pose3d_init)+20)
+    bounds = (-np.inf, np.inf)#(np.min(pose3d_init)-20, np.max(pose3d_init)+20)
 
     start_time = time.time()
     objective.reset_current(pose_client)

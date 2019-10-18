@@ -184,29 +184,36 @@ class PoseEstimationClient(object):
         return 0   
 
     def read_bone_lengths_from_file(self, file_manager):
-        if self.animation == "noise":
-            raise NotImplementedError
-        if file_manager.f_bone_len_array is not None:
-            self.boneLengths[:] = torch.from_numpy(file_manager.f_bone_len_array)
+        assert not self.is_calibrating_energy
+        if self.modes["bone_len"] == "calib_res":
+            if self.animation == "noise":
+                raise NotImplementedError
+            if file_manager.bone_lengths_dict is not None:
+                self.boneLengths[:] = torch.from_numpy(file_manager.bone_lengths_dict[self.BONE_LEN_METHOD])
+                self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
+        
+        elif self.modes["bone_len"] == "gt":
+            use_bones = torch.from_numpy(self.poses_3d_gt[0,:,:].copy())
+            if self.BONE_LEN_METHOD == "no_sqrt":
+                current_bone_lengths = calculate_bone_lengths(bones=use_bones, bone_connections=bone_connections, batch=False)
+            elif self.BONE_LEN_METHOD == "sqrt":
+                current_bone_lengths = calculate_bone_lengths_sqrt(bones=use_bones, bone_connections=bone_connections, batch=False)
+            self.boneLengths = current_bone_lengths.clone()
             self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
 
     def update_bone_lengths(self, bones):
-        if self.modes["bone_len"] == "calib_res":
-            use_bones = bones.clone()
-        elif self.modes["bone_len"] == "gt":
-            use_bones = torch.from_numpy(self.poses_3d_gt[0,:,:].copy())
-
+        assert self.is_calibrating_energy
         bone_connections = np.array(self.bone_connections)
-        if self.BONE_LEN_METHOD == "no_sqrt":
-            current_bone_lengths = calculate_bone_lengths(bones=use_bones, bone_connections=bone_connections, batch=False)
-        elif self.BONE_LEN_METHOD == "sqrt":
-            current_bone_lengths = calculate_bone_lengths_sqrt(bones=use_bones, bone_connections=bone_connections, batch=False)
-       
+        use_bones = bones.clone()
+        current_bone_lengths_no_sqrt = calculate_bone_lengths(bones=use_bones, bone_connections=bone_connections, batch=False)
+        current_bone_lengths_sqrt = calculate_bone_lengths_sqrt(bones=use_bones, bone_connections=bone_connections, batch=False)
         if self.animation == "noise":
+            raise NotImplementedError
             self.multiple_bone_lengths = torch.cat((current_bone_lengths.unsqueeze(0),self.multiple_bone_lengths[:-1,:]), dim=0)
         else:
-            self.boneLengths = current_bone_lengths
-            self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
+            self.boneLengths = {}
+            self.boneLengths["no_sqrt"] = current_bone_lengths_no_sqrt.clone()
+            self.boneLengths["sqrt"] = current_bone_lengths_sqrt.clone()
 
     def append_res(self, new_res):
         self.processing_time.append(new_res["eval_time"])

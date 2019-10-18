@@ -121,18 +121,21 @@ class FileManager(object):
             self.f_anim_gt_array = None
             self.f_anim_gt.write("time\tgt_poses\n")
             self.saved_anim_time = []
-            self.f_bone_len_array = None
+            self.bone_lengths_dict = None
         else:
             #read into matrix
-            self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
+            self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=None, skiprows=[0]).to_numpy()[:,:-1].astype('float')
 
             if self.loop_mode == "calibration":
                 self.f_bone_len = open(saved_vals_loc_anim + bone_len_file_name, "w")
                 self.f_bone_len.write("bone_lengths\n")
-                self.f_bone_len_array = None
+                self.bone_lengths_dict = None
             else:
                 #read into matrix
-                self.f_bone_len_array =  pd.read_csv(saved_vals_loc_anim + bone_len_file_name, sep='\t', header=None, skiprows=[0]).values[:,:-1].astype('float')
+                self.bone_lengths_dict = {}
+                bone_len_file =  pd.read_csv(saved_vals_loc_anim + bone_len_file_name, sep='\t', header=None, skiprows=[0]).to_numpy()
+                for i in range(2):
+                    self.bone_lengths_dict[bone_len_file[i,0]] = bone_len_file[i,1:-1].astype('float')
 
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
@@ -169,10 +172,11 @@ class FileManager(object):
         self.f_openpose_results.write(str(linecount)+ '\t' + openpose_str + '\n')
 
     def save_lift(self, pose3d_lift_directions, linecount):
-        liftnet_str = ""
-        for i in range(pose3d_lift_directions.shape[1]):
-            liftnet_str += str(pose3d_lift_directions[0, i].item()) + '\t' + str(pose3d_lift_directions[1, i].item()) + '\t' + str(pose3d_lift_directions[2, i].item())
-        self.f_liftnet_results.write(str(linecount)+ '\t'+ liftnet_str + '\n')
+        if pose3d_lift_directions is not None:
+            liftnet_str = ""
+            for i in range(pose3d_lift_directions.shape[1]):
+                liftnet_str += str(pose3d_lift_directions[0, i].item()) + '\t' + str(pose3d_lift_directions[1, i].item()) + '\t' + str(pose3d_lift_directions[2, i].item())
+            self.f_liftnet_results.write(str(linecount)+ '\t'+ liftnet_str + '\n')
 
     
     def close_files(self):
@@ -294,11 +298,12 @@ class FileManager(object):
                 f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
             self.f_anim_gt.write(str(anim_time)+ '\t' + f_groundtruth_str + '\n')
 
-    def save_bone_lengths(self, bone_lengths):
-        f_bone_len_str = ""
-        for i in range(bone_lengths.shape[0]):
-            f_bone_len_str += str(bone_lengths[i].item()) + '\t'
-        self.f_bone_len.write(f_bone_len_str + '\n')
+    def save_bone_lengths(self, bone_lengths_dict):
+        for key, bone_lengths in bone_lengths_dict.items():
+            f_bone_len_str = key+"\t"
+            for i in range(bone_lengths.shape[0]):
+                f_bone_len_str += str(bone_lengths[i].item()) + '\t'
+            self.f_bone_len.write(f_bone_len_str + '\n')
 
    # def read_gt_pose_values(self, anim_time):
      #   return self.f_anim_gt_array[abs(self.f_anim_gt_array[:,0]-anim_time)<1e-4, 1:]

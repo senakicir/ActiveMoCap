@@ -18,7 +18,7 @@ def scale_with_bone_lengths(pose_to_scale, bone_lengths, bone_length_method, bon
         scale = torch.sum(bone_lengths)/torch.sum(our_pose_bone_lengths)
 
     if bone_length_method == "no_sqrt":
-        return np.sqrt(scale)*pose_to_scale
+        return torch.sqrt(scale)*pose_to_scale
     elif bone_length_method == "sqrt":
         return scale*pose_to_scale
 

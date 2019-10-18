@@ -224,32 +224,26 @@ class pose3d_online_parallel(torch.nn.Module):
 
         #lift term  
         if not self.use_single_joint and self.use_lift_term:
-            if self.lift_method == "complex":
-                raise NotImplementedError
-                if self.optimization_mode == "estimate_future":
-                    output["lift"]=0
-                elif self.optimization_mode == "estimate_past":
-                    pose_est_directions = calculate_bone_directions(self.pose3d[self.FUTURE_WINDOW_SIZE:,:,:], self.lift_bone_directions, batch=True)
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS)
-                elif self.optimization_mode == "estimate_whole":
-                    pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, pose_est_directions,  self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS)
-
-            elif self.lift_method == "simple":
-                if self.optimization_mode == "estimate_future":
-                    output["lift"]=0
-                elif self.optimization_mode == "estimate_past":
+            if self.optimization_mode == "estimate_future":
+                output["lift"]=0
+            else:
+                if self.optimization_mode == "estimate_past":
                     lift_N = self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d[self.FUTURE_WINDOW_SIZE:, :, :]-self.pose3d[self.FUTURE_WINDOW_SIZE:, :, self.hip_index].unsqueeze(2), lift_N)
+                    if self.lift_method == "complex":
+                        pose_est_directions = calculate_bone_directions(self.pose3d[self.FUTURE_WINDOW_SIZE:,:,:], self.lift_bone_directions, batch=True)
+                    elif self.lift_method == "simple":
+                        pose_est_direction = self.pose3d[self.FUTURE_WINDOW_SIZE:, :, :]-self.pose3d[self.FUTURE_WINDOW_SIZE:, :, self.hip_index].unsqueeze(2)
+
                 elif self.optimization_mode == "estimate_whole":
                     lift_N = self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS
-                    output["lift"] = mse_loss(self.pose3d_lift_directions, self.pose3d-self.pose3d[:, :, self.hip_index].unsqueeze(2), lift_N)
+                    if self.lift_method == "complex":   
+                        pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
+                    elif self.lift_method == "simple":                    
+                        pose_est_direction = self.pose3d-self.pose3d[:, :, self.hip_index].unsqueeze(2)
+                output["lift"]=mse_loss(self.pose3d_lift_directions, pose_est_direction, lift_N)
 
         overall_output = 0
         for loss_key in self.loss_dict:
-            #print(loss_key)
-            #$print(self.energy_weights[loss_key])
-            #print(output[loss_key])
             overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])
             self.pltpts_weighted[loss_key].append(output[loss_key]*self.energy_weights[loss_key])

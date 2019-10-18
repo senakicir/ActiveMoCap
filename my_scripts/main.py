@@ -9,12 +9,12 @@ import sys
 
 if __name__ == "__main__":
     port_num = sys.argv[1]
-
     SEED_LIST = [41, 5, 2, 3, 10]#, 12, 1995]#, 100, 150, 200, 190, 0]
-    ANIMATIONS = ["05_08", "02_01", "38_03"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+
+    ANIMATIONS = ["05_08", "02_01", "38_03"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
                   #["06_13", "13_06", "28_19"]
-                  #05_08, 02_01, 38_03
+                  #"05_08", "02_01", "38_03", "14_32"
     #animations = {"02_01": len(SEED_LIST)}
 
     with open("config_file.yaml", 'r') as ymlfile:
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     active_parameters["POSITION_GRID"] = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["random"]
+    TRAJECTORY_LIST = ["random", "active", "constant_rotation"]
 
     ablation_study = False
     if ablation_study:
@@ -71,6 +71,13 @@ if __name__ == "__main__":
                 energy_parameters["WEIGHTS_FUTURE"]["lift"]=0
 
         active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[experiment_ind]
+
+        if energy_parameters["MODES"]["mode_2d"] == "openpose" and energy_parameters["MODES"]["mode_lift"] == "lift":
+            if active_parameters["TRAJECTORY"] == "random":
+                SEED_LIST = [41, 5, 2, 3, 10]
+            else:
+                SEED_LIST =[41]
+
 
         fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
 
