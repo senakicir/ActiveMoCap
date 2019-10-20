@@ -16,7 +16,6 @@ INCREMENT_RADIUS = 3
 
 z_pos = -1.5
 N = 4.0
-SAFE_RADIUS = 7
 
 def find_current_polar_info(drone_pos, human_pos):
     polar_pos = drone_pos - human_pos  #subtrack the human_pos in order to find the current polar position vector.
@@ -31,11 +30,14 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 def find_pose_at_time (anim_time, search_array, num_of_joints):
     flat_pose = search_array[abs(search_array[:,0]-anim_time)<1e-3, 1:]
-    if flat_pose.size != 0:
-        pose = flat_pose.reshape([3,num_of_joints], order="F")
-    else:
-        raise NotImplementedError
+    assert flat_pose.size != 0
+    pose = flat_pose.reshape([3,num_of_joints], order="F")
     return pose
+
+def find_human_pose_orientation(pose_3d, left_arm_ind, right_arm_ind):
+    shoulder_vector_gt = pose_3d[:, left_arm_ind] - pose_3d[:, right_arm_ind] 
+    return np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
+
 
 class State(object):
     def __init__(self, use_single_joint, active_parameters, model_settings, anim_gt_array, future_window_size):
@@ -51,7 +53,7 @@ class State(object):
             self.left_arm_ind = 0
             self.right_arm_ind = 0
 
-        self.radius = SAFE_RADIUS#np.linalg.norm(projected_distance_vect[0:2,]) #to do
+        self.radius = active_parameters["SAFE_RADIUS"]#np.linalg.norm(projected_distance_vect[0:2,]) #to do
         
         self.TOP_SPEED = active_parameters["TOP_SPEED"]
         self.DELTA_T = active_parameters["DELTA_T"]
@@ -113,9 +115,7 @@ class State(object):
     def change_human_gt_info(self, bone_pos_gt_updated):
         self.bone_pos_gt =  bone_pos_gt_updated.copy()
         self.human_pos_gt = self.bone_pos_gt[:, self.hip_index]
-
-        shoulder_vector_gt = self.bone_pos_gt[:, self.left_arm_ind] - self.bone_pos_gt[:, self.right_arm_ind] 
-        self.human_orientation_gt = np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
+        self.human_orientation_gt = find_human_pose_orientation(self.bone_pos_gt, self.left_arm_ind, self.right_arm_ind)
 
     def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt):
         self.change_human_gt_info(bone_pos_gt)

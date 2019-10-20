@@ -1,6 +1,6 @@
-from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories, plot_dome
+from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories, plot_dome, plot_potential_uncertainties
 import numpy as np
-from State import find_current_polar_info, find_delta_yaw, SAFE_RADIUS
+from State import find_current_polar_info, find_delta_yaw
 from determine_positions import objective_calib, objective_online
 from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
 from project_bones import Projection_Client, C_cam_torch, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
@@ -183,6 +183,7 @@ class PotentialStatesFetcher(object):
         self.go_distance = active_parameters["GO_DISTANCE"]
         self.FUTURE_WINDOW_SIZE = pose_client.FUTURE_WINDOW_SIZE
         self.ACTIVE_SAMPLING_MODE = active_parameters["ACTIVE_SAMPLING_MODE"]
+        self.SAFE_RADIUS = active_parameters["SAFE_RADIUS"]
         self.loop_mode = loop_mode
 
         self.PREDEFINED_MOTION_MODE_LENGTH = pose_client.PREDEFINED_MOTION_MODE_LENGTH
@@ -251,7 +252,7 @@ class PotentialStatesFetcher(object):
             self.trajectory_dome_experiment()
 
     def get_potential_positions_sample(self):
-        new_radius = SAFE_RADIUS
+        new_radius = self.SAFE_RADIUS
         unit_z = np.array([0,0,-1])
 
         current_drone_pos = np.copy(self.current_drone_pos)
@@ -346,7 +347,7 @@ class PotentialStatesFetcher(object):
                 viewpoint_ind = 0
                 states_dict = {}
                 for theta, phi in self.POSITION_GRID:
-                    new_potential_state = sample_states_spherical(self, SAFE_RADIUS, theta, phi, viewpoint_ind)
+                    new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind)
                     states_dict[viewpoint_ind] = new_potential_state
                     viewpoint_ind += 1
                 plot_dome(states_dict, self.current_human_pos[:, self.hip_index], file_manager.plot_loc)
@@ -366,7 +367,7 @@ class PotentialStatesFetcher(object):
         current_drone_pos = self.current_drone_pos.copy()
         drone_orientation = self.current_drone_orientation.copy()
 
-        new_radius = SAFE_RADIUS
+        new_radius = self.SAFE_RADIUS
         baseline_lim_up = -3
         baseline_lim_down = -1
         
@@ -427,7 +428,7 @@ class PotentialStatesFetcher(object):
     #    if self.is_using_airsim:
     #        ind = 0
     #        for theta, phi in self.POSITION_GRID:
-    #            sample_states_spherical(self, SAFE_RADIUS, theta, phi, ind)
+    #            sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, ind)
     #            ind += 1
     #    else:
     #        self.potential_states_go = self.drone_flight_states.copy()
@@ -441,7 +442,7 @@ class PotentialStatesFetcher(object):
         else:
             viewpoint_ind = 0
             for theta, phi in self.POSITION_GRID:
-                new_potential_state = sample_states_spherical(self, SAFE_RADIUS, theta, phi, viewpoint_ind)
+                new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind)
                 viewpoint_ind += 1
                 potential_trajectory_copy = potential_trajectory.deep_copy_trajectory()    
                 potential_trajectory_copy.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
@@ -477,9 +478,9 @@ class PotentialStatesFetcher(object):
             potential_trajectory.find_uncertainty(self.uncertainty_calc_method, self.hessian_part)
             self.uncertainty_dict[potential_trajectory.trajectory_index] = potential_trajectory.uncertainty
 
-        if (self.minmax):
+        if (self.minmax =="use_min"):
             self.goal_state_ind = min(self.uncertainty_dict, key=self.uncertainty_dict.get)
-        else:
+        elif (self.minmax=="use_max"):
             self.goal_state_ind = max(self.uncertainty_dict, key=self.uncertainty_dict.get)
         #print("uncertainty list var:", np.std(uncertainty_dict.values()), "uncertainty list min max", np.min(uncertainty_dict.values()), np.max(uncertainty_dict.values()), "best ind", self.goal_state_ind)
 
@@ -533,6 +534,8 @@ class PotentialStatesFetcher(object):
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
             plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
             plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
+            plot_potential_uncertainties(self, plot_loc, linecount)
+
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)
 
             #if plot_potential_errors_bool:

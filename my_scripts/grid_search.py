@@ -10,8 +10,9 @@ import yaml
 if __name__ == "__main__":
     port_num = sys.argv[1]
 
-    SEED_LIST = [200, 3]
-    ANIMATIONS = ["07_05", "06_03", "05_11"]
+    SEED_LIST = [200, 3]#, 81]
+    ANIMATIONS = [ "13_06", "28_19"]
+    #"06_13",
 
     with open("config_file.yaml", 'r') as ymlfile:
         cfg = yaml.load(ymlfile)
@@ -42,7 +43,7 @@ if __name__ == "__main__":
     parameters["LENGTH_OF_SIMULATION"] = 100
     energy_parameters["QUIET"] = True
     energy_parameters["ESTIMATION_WINDOW_SIZE"] = 5
-    energy_parameters["FUTURE_WINDOW_SIZE"] = 1
+    energy_parameters["FUTURE_WINDOW_SIZE"] = 3
     active_parameters["TRAJECTORY"] = "active"
 
     theta_list = [270]#list(range(270, 190, -35))#list(range(270, 235, -20))

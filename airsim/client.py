@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .utils import *
 from .types import *
-
+import airsim
 import msgpackrpc #install as admin: pip install msgpack-rpc-python
 import numpy as np #pip install numpy
 import msgpack
@@ -43,6 +43,10 @@ class VehicleClient:
         self.program_started = False
         self.linecount = 0
         self.client.call('reset')
+        time.sleep(1)
+        for _ in range(5):
+            self.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
+            time.sleep(1)
 
     #sena was here
     def increment_linecount(self, is_calibrating_energy):
@@ -266,8 +270,9 @@ class VehicleClient:
 
 # -----------------------------------  Multirotor APIs ---------------------------------------------
 class MultirotorClient(VehicleClient, object):
-    def __init__(self, length_of_simulation):
-        super(MultirotorClient, self).__init__(length_of_simulation)
+    def __init__(self, length_of_simulation, port):
+        #sena was here
+        super(MultirotorClient, self).__init__(length_of_simulation, port=port)
 
     def takeoffAsync(self, timeout_sec = 20, vehicle_name = ''):
         return self.client.call_async('takeoff', timeout_sec, vehicle_name)  

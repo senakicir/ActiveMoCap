@@ -285,24 +285,6 @@ class PoseEstimationClient(object):
                 self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
             self.lift_pose_tensor[:, :, :] = pose3d_lift.clone()
 
-    def set_initial_pose_old(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
-        if (linecount != 0):
-            current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
-        else:
-            if self.INIT_POSE_MODE == "gt":
-                current_frame_init = pose_3d_gt.copy()
-            elif self.INIT_POSE_MODE == "gt_with_noise":
-                current_frame_init = add_noise_to_pose(torch.from_numpy(pose_3d_gt), self.NOISE_3D_INIT_STD).numpy()
-            elif self.INIT_POSE_MODE == "backproj":
-                current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
-            elif self.INIT_POSE_MODE == "zeros":
-                current_frame_init = np.zeros([3, self.num_of_joints])
-
-        if self.is_calibrating_energy:
-            self.pose_3d_preoptimization = current_frame_init.copy()
-        else:
-            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
-
     def set_initial_pose(self):
         current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
 

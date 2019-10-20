@@ -1,5 +1,6 @@
 import setup_path 
 import airsim
+import my_scripts
 
 import shutil
 import skimage.io
@@ -1562,6 +1563,14 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     #ax.legend(handles=[plot1, plot2, plot3])
 
     file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
+    plt.savefig(file_name)
+    plt.close(fig)
+
+def plot_potential_uncertainties(self, plot_loc, linecount):
+
+    
+
+    file_name = plot_loc + "/potential_uncertainties_flat_" + str(ind) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
 
