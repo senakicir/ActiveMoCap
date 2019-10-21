@@ -2,14 +2,7 @@ import torch as torch
 import numpy as np
 from scipy.io import loadmat
 import pdb
-
-
-
-#dataset_loc = "/Users/kicirogl/workspace/cvlabdata2/cvlab/datasets_sena/MPI-3D-HP-allcam/sotnychenko_seq_1"
-dataset_loc = "/Users/kicirogl/workspace/cvlabdata1/home/rhodin/datasets/MPI-3D-HP-allcam/sotnychenko_seq_1"
-x = loadmat(dataset_loc+"/internal_annot.mat")
-pdb.set_trace()
-
+from configobj import ConfigObj
 
 #original_joint_names_dataset = ['spine3', 'spine4', 'spine2', 'spine', 'pelvis', 'neck', 'head', 'head_top',
           #           'left_clavicle', 'left_shoulder', 'left_elbow','left_wrist', 'left_hand',  
@@ -38,18 +31,36 @@ def rearrange_bones_to_mpi(joints_unarranged, joint_map):
     joints_rearranged = joints_unarranged[:, joint_map]
     return joints_rearranged
 
-def process_camera_locs_and_angles():
-    pass
+
+dataset_loc = "/Users/kicirogl/workspace/cvlabdata1/home/rhodin/datasets/MPI-3D-HP-allcam/sotnychenko_seq_1"
+internal_annot_file = loadmat(dataset_loc+"/internal_annot.mat")
+camera_calib_file = ConfigObj(dataset_loc+"/cameras.calib")
+pdb.set_trace()
 
 new_dataset_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets/mpi_inf_3dhp"
-
-
 cameras_file = open(new_dataset_loc+"/cameras.txt", "w")
+joint_map = find_bone_map()
+record_gt_poses()
+record_camera_poses()
+
+def record_gt_poses():
+    camera_list_poses = internal_annot_file["annot3"]
+    for i in range(14):
+        anim_time = 0
+        poses_file = open(new_dataset_loc+"/camera_"+str(i)+"/gt_3d_poses.txt", "w")
+        camera_i = camera_list_poses[i][0] 
+        for linecount in range(camera_i.shape[0]):
+            flattened_pose = camera_i[linecount]
+            anim_time += 1/50
+            pose = flattened_pose.reshape([3,:])
+            rearranged_pose = rearrange_bones_to_mpi(pose, joint_map)
+            pose_str = ""
+            for i in range(rearranged_pose.shape[1]):
+                pose_str += str(rearranged_pose[0, i]) + '\t' + str(rearranged_pose[1, i]) + '\t' + str(rearranged_pose[2, i])
+            poses_file.write(str(anim_time)+ '\t'+ pose_str + '\n')
 
 
-camera_list_poses = x["annot3"]
-for i in range(14):
-    camera_i = camera_list_poses[i][0] 
-    for linecount in range(camera_i.shape[0]):
-        flattened_pose = camera_i[linecount]
-
+def record_camera_poses():
+    camera_calib_file[]
+    poses_file = open(new_dataset_loc+"/camera_calib.txt", "w")
+    
