@@ -31,7 +31,7 @@ bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
               [8, 14], [14, 15], [15, 16], [16, 17], #left arm
               [8, 11], [11, 12], [12, 13], [13, 18]] #right arm
 
-joint_indices_h36m=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
+joint_indices_h36m=list(range(20))
 joint_names_h36m = ['hip','right_up_leg','right_leg','right_foot','left_up_leg','left_leg', 'left_foot','spine1','neck', 'head', 'head_top', 'left_arm','left_forearm','left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip', 'right_foot_tip', 'left_foot_tip']
 
 bones_mpi = [[0, 1], [14, 1], #middle
@@ -811,10 +811,6 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     Z = np.concatenate([multip*bones_GT[2,:], multip*predicted_bones[2,:]])
 
     ind_offset = ind
-    if ind > 50:
-        ind_offset = 50
-    if ind > len(plot_info):
-        ind_offset = len(plot_info) 
     alphas = np.linspace(0.01,1,ind_offset)
 
     #plot drone
@@ -1566,11 +1562,80 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     plt.savefig(file_name)
     plt.close(fig)
 
-def plot_potential_uncertainties(self, plot_loc, linecount):
+def plot_potential_uncertainties(potential_states_fetcher, plot_loc, linecount):
+    hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
+    current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
 
+    fig = plt.figure(figsize=(8,4))
+    ax = fig.add_subplot(121, projection='3d')
+    ax_top_down = fig.add_subplot(122) 
+
+    uncertainty_dict = potential_states_fetcher.uncertainty_dict
+    potential_trajectory_list = potential_states_fetcher.potential_trajectory_list
+    key_max = max(uncertainty_dict.keys(), key=(lambda k: uncertainty_dict[k]))
+    key_min = min(uncertainty_dict.keys(), key=(lambda k: uncertainty_dict[k]))
+    cmap = cm.cool
+    norm = colors.Normalize(vmin=uncertainty_dict[key_min], vmax=uncertainty_dict[key_max])
+
+    #plot the people
+    plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='^', label="current human pos")
+    plot2, = ax.plot([future_human_pos[0]], [future_human_pos[1]], [-future_human_pos[2]], c='xkcd:royal blue', marker='^', label="future human pos")
+    plot3, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='^', label="GT current human pos")
+
+    #for ax limits
+    X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
+    Y = np.array([current_human_pos[1], future_human_pos[1], gt_human_pos[1]])
+    Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
+
+    #plot ellipses
+    centers = []
+    state_inds = []
+    for potential_trajectory in potential_trajectory_list:
+        state_inds.append(potential_trajectory.trajectory_index)
+        state_pos =  potential_trajectory.drone_positions[-1, :,0].numpy()
+        center = np.copy(state_pos)
+        center[2] = -center[2]
+        centers.append(center)
     
 
-    file_name = plot_loc + "/potential_uncertainties_flat_" + str(ind) + ".png"
+    for traj_ind, potential_trajectory in enumerate(potential_trajectory_list):
+        state_ind = potential_trajectory.trajectory_index
+        center = potential_trajectory.drone_positions[-1, :,0].numpy()
+        markersize=3
+        if (state_ind == potential_states_fetcher.goal_state_ind):
+            markersize=10
+        
+        ax.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[uncertainty_dict[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
+        ax_top_down.scatter([center[0]], [center[2]], marker='^', c=[uncertainty_dict[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
+
+        #point_text = '{0:d}:{1:d}'.format(state_ind, round(uncertainty_dict[state_ind]))
+        point_text = '{0:d}'.format(state_ind)
+        ax.text(center[0], center[1], center[2], point_text, color="b")
+        ax_top_down.text(center[0], center[2], point_text)
+
+        X = np.concatenate([X, np.array([center[0]])])
+        Y = np.concatenate([Y, np.array([center[1]])])
+        Z = np.concatenate([Z, np.array([center[2]])])
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.5
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.set_xlabel('X')
+    ax.set_ylabel('Y')
+    ax.set_zlabel('Z')
+
+    ax_top_down.set_xlim(mid_x - max_range*2, mid_x + max_range*2)
+    ax_top_down.set_ylim(mid_z - max_range*2, mid_z + max_range*2)
+    ax_top_down.set_xlabel('X')
+    ax_top_down.set_ylabel('Z')
+
+    file_name = plot_loc + "/potential_uncertainties_" + str(linecount) + ".png"
     plt.savefig(file_name)
     plt.close(fig)
 

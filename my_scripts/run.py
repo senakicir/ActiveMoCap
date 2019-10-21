@@ -328,6 +328,8 @@ def move_drone_to_front(airsim_client, pose_client, radius):
     right_arm_ind = pose_client.joint_names.index('right_arm')
     human_orientation_GT = find_human_pose_orientation(pose_3d_gt, left_arm_ind, right_arm_ind)
 
+    print("Initial human orientation is:", human_orientation_GT)
+
     new_yaw = human_orientation_GT
     new_theta = 3*pi/2
     x = radius*cos(new_yaw)*sin(new_theta) + pose_3d_gt[0, pose_client.hip_index]
