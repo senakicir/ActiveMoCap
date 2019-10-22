@@ -113,6 +113,10 @@ class State(object):
         return new_state
 
     def change_human_gt_info(self, bone_pos_gt_updated):
+        if self.anim_gt_array is not None:
+            saved_pose_gt = find_pose_at_time(self.anim_time, self.anim_gt_array, self.num_of_joints)
+            assert np.allclose(bone_pos_gt_updated,saved_pose_gt)
+
         self.bone_pos_gt =  bone_pos_gt_updated.copy()
         self.human_pos_gt = self.bone_pos_gt[:, self.hip_index]
         self.human_orientation_gt = find_human_pose_orientation(self.bone_pos_gt, self.left_arm_ind, self.right_arm_ind)

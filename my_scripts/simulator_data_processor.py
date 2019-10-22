@@ -62,6 +62,10 @@ def get_simulator_responses(airsim_client):
         response_image = response.image_data_uint8
     return response_image, response_poses
 
+def airsim_retrieve_poses_gt(airsim_client, pose_client):
+    response_image, response_poses = get_simulator_responses(airsim_client)
+    poses_3d_gt, _, _ = get_client_gt_values(airsim_client, pose_client, response_poses)
+    return poses_3d_gt
 
 def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     """
@@ -98,7 +102,6 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     #image_buffer =  Image.frombytes(mode="I", size=(airsim_client.SIZE_X, airsim_client.SIZE_Y), data=image)
    # print(image_buffer.shape)
     #image_buffer.show()
-
     return image
 
 def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoint = ""):
@@ -116,8 +119,8 @@ def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoin
     Returns:
         photo: photo taken at simulation step
     """
+    photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     if airsim_client.is_using_airsim:
-        photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
         loc = file_manager.update_photo_loc(linecount=airsim_client.linecount, viewpoint=viewpoint)
         airsim.write_file(os.path.normpath(loc), photo)
         if airsim_client.linecount > 3 and pose_client.quiet:
@@ -125,6 +128,5 @@ def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoin
             if os.path.isfile(loc_rem):
                 os.remove(loc_rem)
     else:
-        photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
         file_manager.update_photo_loc(linecount=airsim_client.linecount, viewpoint=viewpoint)
     return photo

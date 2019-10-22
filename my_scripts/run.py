@@ -10,7 +10,7 @@ from file_manager import FileManager, get_bone_len_file_name
 from drone_flight_client import DroneFlightClient
 from crop import Crop
 from rng_object import rng_object
-from simulator_data_processor import get_client_gt_values, airsim_retrieve_gt, take_photo, get_simulator_responses
+from simulator_data_processor import get_client_gt_values, airsim_retrieve_gt, take_photo, get_simulator_responses, airsim_retrieve_poses_gt
 import copy
 from PIL import Image
 
@@ -60,6 +60,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
             airsim_client.armDisarm(True)
         airsim_client.initInitialDronePos()
         airsim_client.changeAnimation(ANIM_TO_UNREAL[file_manager.anim_num])
+        
         if loop_mode == "normal_simulation":
             airsim_client.takeoffAsync(timeout_sec = 15)#.join()
     elif simulation_mode == "saved_simulation":
@@ -77,6 +78,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     potential_states_fetcher = PotentialStatesFetcher(airsim_client=airsim_client, pose_client=pose_client, 
                                 active_parameters=active_parameters, loop_mode=loop_mode)
 
+    set_animation_to_frame(airsim_client, pose_client, current_state, 1)
     move_drone_to_front(airsim_client, pose_client, current_state.radius)
     #airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
 
@@ -160,7 +162,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
                     potential_states_fetcher.restart_trajectory()
                     pose_client_copy = pose_client.deepcopy_PEC(trial_ind)
                     state_copy = current_state.deepcopy_state()
-                    airsim_client.setAnimationTime(current_anim_time)
+                    set_animation_to_frame(airsim_client, pose_client, state_copy, current_anim_time)
                     for future_ind in range(pose_client_copy.FUTURE_WINDOW_SIZE):
                         #print("*** future_ind", future_ind)
                         goal_state = potential_states_fetcher.move_along_trajectory()
@@ -174,7 +176,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
             #file_manager.record_toy_example_results_error(linecount, self.potential_trajectory_list, self.goal_trajectory)
             potential_states_fetcher.restart_trajectory()
             my_rng.reload_all_rng_states()
-            airsim_client.setAnimationTime(current_anim_time)
+            set_animation_to_frame(airsim_client, pose_client, current_state, current_anim_time)
             end_best_sim = time.time()
             print("Simulating errors for all locations took", end_best_sim-start_best_sim, "seconds")
 
@@ -256,20 +258,27 @@ def openpose_loop(current_state, pose_client, airsim_client, potential_states_fe
             pose_client.calib_res_list.clear()
 
             #implement a human pause function in airsim
-            airsim_client.updateAnimation(0.3)
+            update_animation(airsim_client, pose_client, current_state, delta_t=0.3)
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     print("experiment ended at:", date_time_name)
 
 def save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager):
-    while airsim_client.linecount < 1000:    
+    airsim_client.simPause(False)
+    prev_pose_3d_gt = np.zeros([3, pose_client.num_of_joints])
+    while airsim_client.linecount < 140:    
         #update state values read from AirSim and take picture
         airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-        print("currentpose",current_state.bone_pos_gt[:,0])
+        take_photo(airsim_client, pose_client, current_state, file_manager)
+        assert not np.allclose(prev_pose_3d_gt, current_state.bone_pos_gt)
         anim_time = airsim_client.getAnimationTime()
         file_manager.write_gt_pose_values(anim_time, current_state.bone_pos_gt)
 
-        #move there
-        airsim_client.updateAnimation(0.05)
+        print(current_state.bone_pos_gt[:,0])
+        prev_pose_3d_gt = current_state.bone_pos_gt.copy()
+        start1=time.time()
+        update_animation(airsim_client, pose_client, current_state, delta_t=0.2)
+        print("updating animation took", time.time()-start1)
+
         airsim_client.increment_linecount(pose_client.is_calibrating_energy)
 
 
@@ -279,7 +288,7 @@ def create_test_set(current_state, pose_client, airsim_client, potential_states_
     airsim_client.simPause(False)
 
     for _ in range(62):        
-        airsim_client.updateAnimation(current_state.DELTA_T)
+        update_animation(airsim_client, pose_client, current_state)
 
         airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
         pose_client.future_pose = current_state.bone_pos_gt
@@ -341,26 +350,37 @@ def move_drone_to_front(airsim_client, pose_client, radius):
     airsim_client.simSetVehiclePose(goal_state)
     airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(0, 0, 0))
 
-def set_position(goal_state, airsim_client, current_state, pose_client, loop_mode):
-    airsim_client.simPause(False)
+def update_animation(airsim_client, pose_client, current_state, delta_t=None):
+    if delta_t is None:
+        delta_t = current_state.DELTA_T
+    set_animation_to_frame(airsim_client, pose_client, current_state, current_state.anim_time+delta_t)
+
+def set_animation_to_frame(airsim_client, pose_client, current_state, anim_frame):
     if not pose_client.is_calibrating_energy:
-        airsim_client.updateAnimation(current_state.DELTA_T)
-    anim_time = airsim_client.getAnimationTime()
-    print("anim time is", anim_time)
-    if anim_time != 0:
-        current_state.update_anim_time(anim_time)
-    else:
-        airsim_client.setAnimationTime(current_state.anim_time + current_state.DELTA_T)
-        current_state.update_anim_time(current_state.anim_time + current_state.DELTA_T)
+        prev_gt_pose = current_state.bone_pos_gt.copy()
+        airsim_client.setAnimationTime(anim_frame)
+        new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
+        i = 0
+        while (np.allclose(prev_gt_pose, new_gt_pose) and i < 10):
+            time.sleep(0.05)
+            new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
+            i += 1
+            if i==10:
+                print("waited until i==10")
+
         anim_time = airsim_client.getAnimationTime()
         assert anim_time != 0
+        current_state.update_anim_time(anim_time)
+
+def set_position(goal_state, airsim_client, current_state, pose_client, loop_mode):
+    airsim_client.simPause(False)
+    update_animation(airsim_client, pose_client, current_state)
 
     if loop_mode == "teleport_simulation" or loop_mode == "toy_example" or loop_mode == "calibration":
         airsim_client.simSetVehiclePose(goal_state)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(goal_state.pitch, 0, 0))
         current_state.cam_pitch = goal_state.pitch
         airsim_client.simPause(True)
-
 
     elif loop_mode == "normal_simulation" or loop_mode == "calibration_with_momentum":
         #if (airsim_client.linecount < 5):
