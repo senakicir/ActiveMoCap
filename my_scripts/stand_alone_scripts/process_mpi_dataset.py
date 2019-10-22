@@ -75,10 +75,15 @@ def get_stripped_word_list(file_name):
     return first_word, stripped_word_list
 
 def get_camera_transformation_matrix(cam_c, cam_up, cam_right):
-    camera_transormation_matrix = np.zeros([14,4,4])
+    camera_transformation_matrix = np.zeros([14,4,4])
     for cam_index in range(14):
-        camera_transormation_matrix[cam_index, 3, :] = np.array([0,0,0,1]) 
-        camera_transormation_matrix[cam_index, 0:3, 3] = cam_c[cam_index, :].copy()
+        camera_transformation_matrix[cam_index, 3, :] = np.array([0,0,0,1]) 
+        camera_transformation_matrix[cam_index, 0:3, 3] = cam_c[cam_index, :].copy()
+        camera_transformation_matrix[cam_index, 0:3, 0] = cam_right[cam_index, :].copy()
+        camera_transformation_matrix[cam_index, 0:3, 2] = cam_up[cam_index, :].copy()
+        vec_forward = np.cross(cam_right[cam_index, :], cam_up[cam_index, :])
+        camera_transformation_matrix[cam_index, 0:3, 1] = vec_forward.copy()
+    return camera_transformation_matrix
 
 
 def record_camera_poses(camera_calib_file, new_dataset_loc):
@@ -124,9 +129,14 @@ def record_camera_poses(camera_calib_file, new_dataset_loc):
             first_word, stripped_word_list = get_stripped_word_list(camera_calib_file)
         cam_right[cam_index, :] = np.array([float(stripped_word_list[1]), float(stripped_word_list[2]), float(stripped_word_list[3])])
 
-    camera_transormation_matrix = get_camera_transformation_matrix(cam_c, cam_up, cam_right)
-
-    return camera_transormation_matrix
+    camera_transformation_matrix = get_camera_transformation_matrix(cam_c, cam_up, cam_right)
+    for cam_index in range(14):
+        flattened_cam_matrix = np.reshape(camera_transformation_matrix[cam_index, :], (16,-1))
+        cam_str = str(cam_index)+'\t'
+        for i in range(16):
+            cam_str += str(flattened_cam_matrix[i]) +'\t'
+        camera_poses_file.write(cam_str+'\n')
+    return camera_transformation_matrix
     
    
 def display_pose(pose):
