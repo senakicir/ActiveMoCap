@@ -205,7 +205,7 @@ def move_M(destination_folder):
     os.rename("M_rel.txt", destination_folder+"/M_rel.txt")
 
 
-def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc):
+def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc, test_sets_loc):
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     main_folder_name =  base_save_loc + '/' + date_time_name
 
@@ -222,6 +222,7 @@ def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc):
     file_names = {}
     file_names["main_folder"] = base_save_loc
     file_names["saved_vals_loc"] = saved_vals_loc
+    file_names["test_sets_loc"] = test_sets_loc
 
     for animation in animation_list:
         sub_folder_name = main_folder_name + "/" + str(animation)

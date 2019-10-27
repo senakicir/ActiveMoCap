@@ -19,22 +19,22 @@ class Projection_Client(object):
         self.num_of_joints = num_of_joints
         self.noise_2d_std = noise_2d_std
 
-        assert (intrinsics.ndim == 1 and test_set != "mpi_inf_3dhp") or (intrinsics.ndim == 2 and test_set == "mpi_inf_3dhp")
-        if (intrinsics.ndim == 1):
-            focal_length = intrinsics[0]
-            px = intrinsics[1]
-            py = intrinsics[2]
+        if self.test_set != "mpi_inf_3dhp":
+            focal_length = intrinsics["f"]
+            px = intrinsics["px"]
+            py = intrinsics["py"]
 
             self.K_torch = (torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])).to(self.device)
             self.K_inv_torch = torch.inverse(self.K_torch)
-        elif (intrinsics.ndim == 2):
-            self.K_torch = torch.zeros([intrinsics.shape[0], 3, 3]).to(self.device)
-            self.K_inv_torch = torch.zeros([intrinsics.shape[0], 3, 3]).to(self.device)
+        else:
+            self.K_torch = torch.zeros([len(intrinsics), 3, 3]).to(self.device)
+            self.K_inv_torch = torch.zeros([len(intrinsics), 3, 3]).to(self.device)
 
-            for cam_index in range(intrinsics.shape[0]):
-                focal_length = intrinsics[cam_index, 0]
-                px = intrinsics[cam_index, 1]
-                py = intrinsics[cam_index, 2]
+            for cam_index in range(len(intrinsics)):
+                cam_intrinsics = intrinsics[cam_index]
+                focal_length = cam_intrinsics["f"]
+                px = cam_intrinsics["px"]
+                py = cam_intrinsics["py"]
                 self.K_torch[cam_index, :, :] = torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])
                 self.K_inv_torch[cam_index, :, :] = torch.inverse(self.K_torch[cam_index, :, :])
         
@@ -63,7 +63,7 @@ class Projection_Client(object):
         self.inverse_transformation_matrix = torch.zeros(self.window_size , 4, 4).to(self.device)
         queue_index = 0
         cam_list = []
-        for cam_index, bone_2d, _, inverse_transformation_matrix in data_list:
+        for (cam_index, bone_2d, _, inverse_transformation_matrix) in data_list:
             cam_list.append(cam_index)
             self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
             self.inverse_transformation_matrix[queue_index, :, :]= inverse_transformation_matrix.clone()
@@ -72,7 +72,7 @@ class Projection_Client(object):
         self.ones_tensor = torch.ones(self.window_size, 1, self.num_of_joints).to(self.device)
         self.flip_x_y_batch = self.flip_x_y_pre.repeat(self.window_size , 1, 1)
         
-        if test_set != "mpi_inf_3dhp":
+        if self.test_set != "mpi_inf_3dhp":
             self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
         else:
             self.camera_intrinsics = K_torch[cam_list, :, :]
@@ -101,7 +101,7 @@ class Projection_Client(object):
         self.ones_tensor = torch.ones(self.online_window_size, 1, self.num_of_joints).to(self.device)*1.0
         self.flip_x_y_batch = self.flip_x_y_pre.repeat(self.online_window_size , 1, 1)
 
-        if test_set != "mpi_inf_3dhp":
+        if self.test_set != "mpi_inf_3dhp":
             self.camera_intrinsics = self.K_torch.repeat(self.online_window_size , 1,1)
         else:
             self.camera_intrinsics = K_torch[cam_list, :, :]
@@ -113,7 +113,7 @@ class Projection_Client(object):
         return self.take_batch_projection(pose_3d, self.inverse_transformation_matrix, self.ones_tensor, self.camera_intrinsics, self.flip_x_y_batch)
 
     def take_single_projection(self, P_world, inv_transformation_matrix, cam_index):
-        if test_set != "mpi_inf_3dhp":
+        if self.test_set != "mpi_inf_3dhp":
             camera_intrinsics = self.K_torch
         else:
             camera_intrinsics = self.K_torch[cam_index, :, :]
@@ -141,18 +141,21 @@ class Projection_Client(object):
         result[:,1,:] = proj_homog[:,1,:]/z
         return result
 
-    def take_single_backprojection(self, pose_2d, transformation_matrix, joint_names, cam_index):
-        if test_set != "mpi_inf_3dhp":
+    def take_single_backprojection(self, pose_2d, transformation_matrix, joint_names, cam_index=0):
+        if self.test_set != "mpi_inf_3dhp":
             camera_intrinsics_inv = self.K_inv_torch
+            focal_length = self.intrinsics["f"]
         else:
             camera_intrinsics_inv = self.K_inv_torch[cam_index, :, :]
+            focal_length = self.intrinsics[cam_index]["f"]
+
 
         transformation_matrix_device = transformation_matrix.to(self.device)
         img_torso_size = torch.norm(pose_2d[:, joint_names.index('neck')] - pose_2d[:, joint_names.index('spine1')]).float()
         if img_torso_size == 0:
             return torch.normal(torch.zeros(3, self.num_of_joints), torch.ones(3, self.num_of_joints)*10).float()
 
-        z_val = ((self.focal_length * DEFAULT_TORSO_SIZE) / (img_torso_size)).float()
+        z_val = ((focal_length * DEFAULT_TORSO_SIZE) / (img_torso_size)).float()
 
         self.single_backproj_res[0,:] = pose_2d[0,:]*z_val
         self.single_backproj_res[1,:] = pose_2d[1,:]*z_val

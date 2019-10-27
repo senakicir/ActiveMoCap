@@ -86,15 +86,15 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
         bone_pos_gt, drone_orientation_gt, drone_pos_gt = get_client_gt_values(airsim_client, pose_client, response_poses)
         file_manager.record_gt_pose(bone_pos_gt, airsim_client.linecount)
         file_manager.record_drone_info(drone_pos_gt, drone_orientation_gt, airsim_client.linecount)
-
+        camera_id = 0
         #multirotor_state = airsim_client.getMultirotorState()
         #estimated_state =  multirotor_state.kinematics_estimated
         #drone_pos_est = estimated_state.position
 
-        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt)
+        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, camera_id)
     else:
-        bone_pos_gt, drone_transformation_matrix = airsim_client.read_frame_gt_values()
-        current_state.store_frame_transformation_matrix_joint_gt(bone_pos_gt, drone_transformation_matrix)
+        bone_pos_gt, drone_transformation_matrix, camera_id = airsim_client.read_frame_gt_values(current_state.anim_time)
+        current_state.store_frame_transformation_matrix_joint_gt(bone_pos_gt, drone_transformation_matrix, camera_id)
 
     #figure out a way to convert png bytes to float array
     image = response_image

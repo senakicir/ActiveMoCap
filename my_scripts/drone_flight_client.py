@@ -6,8 +6,8 @@ import pdb
 from PotentialStatesFetcher import PotentialState_Drone_Flight
 from Lift_Client import calculate_bone_directions
 
-def read_transformation_matrix(f_drone_pos, test_set):
-    whole_file = pd.read_csv(f_drone_pos, sep='\t', header=None).values
+def read_transformation_matrix(f_drone_pos):
+    whole_file =  pd.read_csv(f_drone_pos, sep='\t', header=None).to_numpy()
     num_of_files = int(whole_file[-1,0])+1
     num_of_samples = int(np.max(whole_file[:,1]))+1
     print("num of files", num_of_files, ". num of samples", num_of_samples)
@@ -80,21 +80,6 @@ class DroneFlightClient(object):
 
         self.DRONE_INITIAL_POS = np.zeros([3,1])     
 
-
-    def simPauseHuman(self, arg1):
-        pass
-
-    def simPauseDrone(self, arg1):
-        pass
-
-    def simPause(self, arg1):
-        pass
-
-    def simSetCameraOrientation(self, arg1, arg2): 
-        pass
-
-    def moveToPositionAsync(self, sth):
-        pass
 
     def increment_linecount(self, is_calibrating_energy):
         self.linecount += 1

@@ -11,7 +11,7 @@ if __name__ == "__main__":
     port_num = sys.argv[1]
     SEED_LIST = [41, 5, 2, 3, 10]#, 12, 1995, 100, 150, 200, 190, 0]
 
-    ANIMATIONS = ["38_03", "05_08", "02_01"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["38_03","05_08", "02_01"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
                   #["06_13", "13_06", "28_19"]
                   #"05_08", "02_01", "38_03", "14_32"
@@ -29,9 +29,12 @@ if __name__ == "__main__":
     if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/simulation_results"
         saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
     elif (parameters["run_loc"] == "server"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/simulation_results"
         saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+
 
     if energy_parameters["PROJECTION_METHOD"] == "scaled":
         energy_parameters["WEIGHTS"] =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
@@ -53,7 +56,7 @@ if __name__ == "__main__":
         num_of_experiments = len(TRAJECTORY_LIST)
 
     for experiment_ind in range(num_of_experiments):
-        file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc)
+        file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
         
         parameters["FILE_NAMES"] = file_names
         parameters["FOLDER_NAMES"] = folder_names

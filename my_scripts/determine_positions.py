@@ -61,13 +61,12 @@ def determine_2d_positions(pose_client, current_state, my_rng, return_heatmaps=T
     return pose_2d.clone(), pose_2d_gt.clone(), heatmaps, input_image
 
 def find_2d_pose_gt(projection_client, current_state, input_image, cropping_tool, return_heatmaps=True):
-    bone_pos_3d_GT, _, inv_transformation_matrix, _ = current_state.get_frame_parameters()
-
-    pose_2d_torch = projection_client.take_single_projection(torch.from_numpy(bone_pos_3d_GT).float(), inv_transformation_matrix)
+    camera_id, bone_pos_3d_GT, _, inv_transformation_matrix, _ = current_state.get_frame_parameters()
+    pose_2d_torch = projection_client.take_single_projection(torch.from_numpy(bone_pos_3d_GT).float(), inv_transformation_matrix, camera_id)
     
     pose_2d = pose_2d_torch.clone()
     
-    if cropping_tool != None:
+    if cropping_tool is not None:
         pose_2d = cropping_tool.crop_pose(pose_2d)
 
     heatmaps = 0
@@ -92,7 +91,7 @@ def determine_relative_3d_pose(pose_client, current_state, my_rng, pose_2d, crop
     if not pose_client.USE_LIFT_TERM or pose_client.USE_SINGLE_JOINT or pose_client.is_calibrating_energy:
         return None
 
-    current_pose_3d_GT, _, _, transformation_matrix = current_state.get_frame_parameters()
+    _, current_pose_3d_GT, _, _, transformation_matrix = current_state.get_frame_parameters()
     bone_connections, _, _, hip_index = pose_client.model_settings()
 
     if (pose_client.modes["mode_lift"] != 'lift'):
@@ -119,7 +118,7 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager,
 
     plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
-    pose_3d_gt, _, _, transformation_matrix = current_state.get_frame_parameters()
+    camera_id, pose_3d_gt, _, _, transformation_matrix = current_state.get_frame_parameters()
 
     pose_2d, _ = prepare_frames_for_optimization(linecount, pose_client, current_state, my_rng, plot_loc, photo_loc, init_empty_frames=True)
     file_manager.save_pose_2d(pose_2d, -1)
@@ -131,7 +130,7 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager,
     elif pose_client.INIT_POSE_MODE == "zeros":
         optimized_poses = np.zeros([3,num_of_joints])
     elif pose_client.INIT_POSE_MODE == "backproj" or pose_client.INIT_POSE_MODE == "initial_optimization":
-        optimized_poses = pose_client.projection_client.take_single_backprojection(pose_2d, transformation_matrix, joint_names)
+        optimized_poses = pose_client.projection_client.take_single_backprojection(pose_2d, transformation_matrix, joint_names, camera_id)
 
         if not pose_client.is_calibrating_energy:
             optimized_poses = scale_with_bone_lengths(optimized_poses, pose_client.boneLengths, pose_client.BONE_LEN_METHOD, np.array(bone_connections), batch=False).numpy()
@@ -163,7 +162,7 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager,
 
 
 def determine_openpose_error(linecount, pose_client, current_state, plot_loc, photo_loc):
-    bone_pos_3d_GT, _,  inv_transformation_matrix, _ = current_state.get_frame_parameters()
+    _, bone_pos_3d_GT, _,  inv_transformation_matrix, _ = current_state.get_frame_parameters()
     bone_connections, _, num_of_joints, _ =  pose_client.model_settings()
 
     input_image = cv.imread(photo_loc)
@@ -178,7 +177,7 @@ def determine_openpose_error(linecount, pose_client, current_state, plot_loc, ph
     return pose_2d, pose3d_lift
 
 def prepare_frames_for_optimization(linecount, pose_client, current_state, my_rng, plot_loc, photo_loc, init_empty_frames):
-    current_pose_3d_gt, futuremost_pose_3d_gt, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
+    camera_id, current_pose_3d_gt, futuremost_pose_3d_gt, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
 
     input_image = cv.imread(photo_loc)
 
@@ -196,9 +195,9 @@ def prepare_frames_for_optimization(linecount, pose_client, current_state, my_rn
     #add information you need to your window
     if init_empty_frames:
         future_poses_3d_gt = current_state.get_first_future_poses()
-        pose_client.init_frames(pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift_directions, current_pose_3d_gt, future_poses_3d_gt)
+        pose_client.init_frames(pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift_directions, current_pose_3d_gt, future_poses_3d_gt, camera_id)
     else:
-        pose_client.addNewFrame(linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift_directions, current_pose_3d_gt, futuremost_pose_3d_gt)
+        pose_client.addNewFrame(linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift_directions, current_pose_3d_gt, futuremost_pose_3d_gt, camera_id)
   
     return pose_2d, pose3d_lift_directions
 
@@ -248,7 +247,7 @@ def perform_optimization(pose_client, linecount):
 def determine_positions(linecount, pose_client, current_state, file_manager, my_rng):
     plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
-    current_pose_3d_gt, futuremost_pose_3d_gt, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
+    camera_index, current_pose_3d_gt, futuremost_pose_3d_gt, inv_transformation_matrix, transformation_matrix = current_state.get_frame_parameters()
 
     pose_2d, pose3d_lift_directions =  prepare_frames_for_optimization(linecount, pose_client, current_state, my_rng, plot_loc, photo_loc, init_empty_frames=False)
     file_manager.save_pose_2d(pose_2d, linecount)
@@ -267,7 +266,7 @@ def determine_positions(linecount, pose_client, current_state, file_manager, my_
 
     if (plot_loc != 0 and not pose_client.quiet): 
         start_plot_time = time.time()
-        check = pose_client.projection_client.take_single_projection(torch.from_numpy(pose_client.current_pose).float(), inv_transformation_matrix)
+        check = pose_client.projection_client.take_single_projection(torch.from_numpy(pose_client.current_pose).float(), inv_transformation_matrix, camera_index)
         superimpose_on_image(pose_2d.cpu().numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.cpu().numpy())
         #superimpose_on_image(pose_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
         #plot_2d_projection(check.numpy(), plot_loc, linecount, bone_connections, custom_name="proj_2d")
