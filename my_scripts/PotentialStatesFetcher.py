@@ -7,6 +7,7 @@ from project_bones import Projection_Client, C_cam_torch, CAMERA_ROLL_OFFSET, CA
 import time as time
 import torch
 
+
 key_indices= {"c":0, "l":1, "r":2, "u":3, "d":4, "lu":5, "ld":6, "ru":7, "rd":8} 
 key_weights= {"c":np.array([0,0]), "l":np.array([-1,0]), "r":np.array([1,0]), "u":np.array([0,-1]),
               "d":np.array([0,1]), "lu":np.array([-0.707,-0.707]), "ld":np.array([-0.707,0.707]), 
@@ -31,6 +32,7 @@ class PotentialState(object):
         self.orientation = orientation
         self.pitch = pitch
         self.index = index
+        self.camera_id = 0
 
         self.potential_C_drone = torch.from_numpy(self.position[:, np.newaxis]).float()
         self.potential_R_drone = euler_to_rotation_matrix(0,0,self.orientation, returnTensor=True)
@@ -55,16 +57,21 @@ class PotentialState(object):
     def print_state(self):
         print("State index:"+str(index)+". Position:", self.potential_C_drone)
 
-class PotentialState_Drone_Flight(object):
-    def __init__(self, transformation_matrix, index):
+class PotentialState_External_Dataset(object):
+    def __init__(self, transformation_matrix, index, camera_id):
         self.transformation_matrix = transformation_matrix
         self.position = self.transformation_matrix[0:3,3]
         self.inv_transformation_matrix = torch.inverse(self.transformation_matrix)
         self.index = index
         self.pitch = 0
+        self.camera_id=camera_id
 
     def get_goal_pos_yaw_pitch(self, arg):
         return self.position, 0, 0
+
+    def deep_copy_state(self):
+        new_state = PotentialState_External_Dataset(self.transformation_matrix, self.index, self.camera_id)
+        return new_state
 
 class Potential_Trajectory(object):
     def __init__(self, index, future_window_size):
@@ -81,6 +88,7 @@ class Potential_Trajectory(object):
         self.errors_overall_dict = {}
         self.error_middle = 42
         self.error_overall = 42
+        self.cam_list = []
         for future_ind in range(future_window_size):
             self.errors_middle_dict[future_ind] = []
             self.errors_overall_dict[future_ind] = []        
@@ -89,6 +97,7 @@ class Potential_Trajectory(object):
         self.states[future_ind] = potential_state.deep_copy_state()
         self.inv_transformation_matrix[self.future_window_size-future_ind-1, :, :] = potential_state.inv_transformation_matrix
         self.drone_positions[self.future_window_size-future_ind-1, :, :] = potential_state.potential_C_drone
+        self.cam_list.append(potential_state.camera_id)
         #self.pitches[future_ind] = potential_state.pitch
 
     def set_cov(self, potential_hessian, future_pose_index, middle_pose_index, number_of_joints):
@@ -155,10 +164,11 @@ class Potential_Trajectory(object):
             new_trajectory.states[key] = value.deep_copy_state()
         new_trajectory.inv_transformation_matrix = self.inv_transformation_matrix.clone()
         new_trajectory.drone_positions = self.drone_positions.clone()
-        #new_trajectory.pitches = self.pitches.clone()
+        #new_trajectory.pitches = self.pitches
         for future_ind in range(self.future_window_size):
             new_trajectory.errors_middle_dict[future_ind] = self.errors_middle_dict[future_ind].copy()
             new_trajectory.errors_overall_dict[future_ind] = self.errors_overall_dict[future_ind].copy()
+        new_trajectory.cam_list = self.cam_list.copy()
         return new_trajectory
 
     def print_trajectory(self):
@@ -211,9 +221,17 @@ class PotentialStatesFetcher(object):
         self.visited_ind_list =[]
 
         if not self.is_using_airsim:
-            self.drone_flight_states = airsim_client.get_drone_flight_states()
-            self.number_of_samples = len(self.drone_flight_states)
-    
+            self.external_dataset_states = airsim_client.get_external_dataset_states()
+            self.number_of_views =  airsim_client.num_of_camera_views
+            self.external_dataset_trajectories = []
+            future_pos_ind = 0 
+            potential_trajectory = Potential_Trajectory(42, self.FUTURE_WINDOW_SIZE)
+            self.prep_external_trajectories(future_pos_ind, potential_trajectory)
+        else:
+            self.external_dataset_states = None
+            self.number_of_samples = None
+            self.external_dataset_trajectories = None
+            self.external_dataset_trajectories = None
 
     def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
@@ -448,14 +466,27 @@ class PotentialStatesFetcher(object):
                 potential_trajectory_copy.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
                 self.prep_theta_phi_pairs(future_pos_ind+1, potential_trajectory_copy)
 
+    def prep_external_trajectories(self, future_pos_ind, potential_trajectory):
+        if future_pos_ind == self.FUTURE_WINDOW_SIZE:
+            potential_trajectory.trajectory_index = len( self.external_trajectory_list)
+            self.external_trajectory_list.append(potential_trajectory)
+
+        else:
+            viewpoint_ind = 0
+            for viewpoint_ind in range(self.number_of_views):
+                new_potential_state = self.external_dataset_states[viewpoint_ind]
+                potential_trajectory_copy = potential_trajectory.deep_copy_trajectory()    
+                potential_trajectory_copy.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
+                self.external_trajectory_list(future_pos_ind+1, potential_trajectory_copy)
+
     def trajectory_dome_experiment(self):
         if self.is_using_airsim:
             future_pos_ind = 0 
             potential_trajectory = Potential_Trajectory(42, self.FUTURE_WINDOW_SIZE)
             self.prep_theta_phi_pairs(future_pos_ind, potential_trajectory)
-        else:
-            print("Not implemented yet like all other drone data stuff")
-            raise NotImplementedError
+        elif self.animation == "mpi_inf_3dhp" or self.animation == "drone_flight":
+            self.potential_trajectory_list = self.external_trajectory_list.copy()
+
 
     def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:

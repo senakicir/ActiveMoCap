@@ -41,7 +41,8 @@ def find_human_pose_orientation(pose_3d, left_arm_ind, right_arm_ind):
 
 class State(object):
     def __init__(self, use_single_joint, active_parameters, model_settings, anim_gt_array, future_window_size):
-        self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = model_settings
+        self.model_settings = model_settings
+        self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index = self.model_settings
         self.anim_gt_array = anim_gt_array
         self.active_parameters = active_parameters 
         self.future_window_size = future_window_size
@@ -54,7 +55,6 @@ class State(object):
             self.right_arm_ind = 0
 
         self.radius = active_parameters["SAFE_RADIUS"]#np.linalg.norm(projected_distance_vect[0:2,]) #to do
-        
         self.TOP_SPEED = active_parameters["TOP_SPEED"]
         self.DELTA_T = active_parameters["DELTA_T"]
 
@@ -80,14 +80,14 @@ class State(object):
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
         self.anim_time = 1
+        self.camera_id = 0
 
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
         if self.anim_gt_array is not None:
             self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def deepcopy_state(self):
-        model_settings =[self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index]
-        new_state = State(self.use_single_joint, self.active_parameters, model_settings, self.anim_gt_array, self.future_window_size)
+        new_state = State(self.use_single_joint, self.active_parameters, self.model_settings, self.anim_gt_array, self.future_window_size)
 
         new_state.R_drone_gt = self.R_drone_gt.clone()
         new_state.C_drone_gt = self.C_drone_gt.clone()
@@ -106,10 +106,13 @@ class State(object):
         new_state.drone_orientation_est = self.drone_orientation_est.copy()
         new_state.drone_pos_est = self.drone_pos_est.copy()
         new_state.bone_pos_est = self.bone_pos_est.copy()
-        new_state.cam_pitch = self.cam_pitch
 
+        new_state.cam_pitch = self.cam_pitch
         new_state.anim_time = self.anim_time
-        new_state.futuremost_pose_3d_gt = self.futuremost_pose_3d_gt.copy()
+        new_state.camera_id = self.camera_id
+        
+        if self.anim_gt_array is not None:
+            new_state.futuremost_pose_3d_gt = self.futuremost_pose_3d_gt.copy()
         return new_state
 
     def change_human_gt_info(self, bone_pos_gt_updated):
@@ -121,7 +124,8 @@ class State(object):
         self.human_pos_gt = self.bone_pos_gt[:, self.hip_index]
         self.human_orientation_gt = find_human_pose_orientation(self.bone_pos_gt, self.left_arm_ind, self.right_arm_ind)
 
-    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt):
+    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, camera_id):
+        self.camera_id = camera_id
         self.change_human_gt_info(bone_pos_gt)
         
         self.drone_orientation_gt = drone_orientation_gt
@@ -136,7 +140,8 @@ class State(object):
         self.drone_transformation_matrix = drone_transformation@camera_transformation
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
-    def store_frame_transformation_matrix_joint_gt(self, bone_pos_gt, drone_transformation_matrix):
+    def store_frame_transformation_matrix_joint_gt(self, bone_pos_gt, drone_transformation_matrix, camera_id):
+        self.camera_id = camera_id
         self.change_human_gt_info(bone_pos_gt)
 
         self.R_cam_gt = torch.zeros([3,3])
@@ -150,7 +155,7 @@ class State(object):
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
 
     def get_frame_parameters(self):
-        return self.bone_pos_gt.copy(), self.futuremost_pose_3d_gt, self.inv_drone_transformation_matrix.clone(), self.drone_transformation_matrix.clone()
+        return self.camera_id, self.bone_pos_gt.copy(), self.futuremost_pose_3d_gt, self.inv_drone_transformation_matrix.clone(), self.drone_transformation_matrix.clone()
 
     def update_human_info(self, bone_pos_est):
         self.bone_pos_est = bone_pos_est.copy()

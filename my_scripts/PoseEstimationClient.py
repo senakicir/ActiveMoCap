@@ -9,7 +9,7 @@ from Lift_Client import Lift_Client
 from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose
 
 class PoseEstimationClient(object):
-    def __init__(self, param, general_param, intrinsics_focal, intrinsics_px, intrinsics_py, image_size):
+    def __init__(self, param, general_param, intrinsics):
         self.param = param
         self.general_param = general_param
         self.simulate_error_mode = False
@@ -150,18 +150,13 @@ class PoseEstimationClient(object):
                 self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
             else:
                 self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
-
+    
         self.result_size= np.prod(np.array(self.result_shape))
                 
-        self.intrinsics_focal = intrinsics_focal
-        self.intrinsics_px = intrinsics_px
-        self.intrinsics_py = intrinsics_py
-        self.SIZE_X, self.SIZE_Y = image_size
-
-        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py, noise_2d_std=self.NOISE_2D_STD, device=self.device)
+        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, intrinsics=intrinsics, noise_2d_std=self.NOISE_2D_STD, device=self.device)
         self.lift_client = Lift_Client(self.NOISE_LIFT_STD)
 
-        if self.animation == "drone_flight":
+        if self.animation == "drone_flight" or self.animation == "mpi_inf_3hdp" :
             self.cropping_tool = None
         else:
             self.cropping_tool = Crop(loop_mode = self.loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
@@ -172,7 +167,7 @@ class PoseEstimationClient(object):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
 
     def reset_crop(self, loop_mode):
-        if self.animation == "drone_flight":
+        if self.animation == "drone_flight" or self.animation == "mpi_inf_3hdp" :
             self.cropping_tool = None
         else:
             self.cropping_tool = Crop(loop_mode = loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
@@ -237,8 +232,8 @@ class PoseEstimationClient(object):
             #print(self.average_errors)
         return self.errors
 
-    def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt):
-        self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
+    def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt, camera_id):
+        self.requiredEstimationData.insert(0, [camera_id, pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
         self.poses_3d_gt_debugger = np.concatenate([current_pose_3d_gt[np.newaxis, :, :], self.poses_3d_gt_debugger[0:-1]], axis=0)
         if linecount > 2 and not self.is_calibrating_energy:
             assert np.mean(np.std(self.poses_3d_gt_debugger, axis=0)) != 0 
@@ -275,15 +270,15 @@ class PoseEstimationClient(object):
             while len(self.requiredEstimationData) > self.ESTIMATION_WINDOW_SIZE:
                 self.requiredEstimationData.pop()
 
-    def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt):
+    def init_frames(self, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, pose_3d_gt, future_poses_3d_gt, camera_id):
         self.poses_3d_gt[self.FUTURE_WINDOW_SIZE:, :, :] = np.repeat(pose_3d_gt[np.newaxis, :, :].copy(), self.ESTIMATION_WINDOW_SIZE, axis=0)
         self.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :] = future_poses_3d_gt.copy()
         self.poses_3d_gt_debugger[:,:,:] = pose_3d_gt.copy()
         if self.is_calibrating_energy:
-            self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
+            self.requiredEstimationData.insert(0, [camera_id, pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
         else:
             for _ in range(self.ESTIMATION_WINDOW_SIZE):
-                self.requiredEstimationData.insert(0, [pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
+                self.requiredEstimationData.insert(0, [camera_id, pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
             self.lift_pose_tensor[:, :, :] = pose3d_lift.clone()
 
     def set_initial_pose(self):
@@ -323,7 +318,7 @@ class PoseEstimationClient(object):
             self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
 
     def deepcopy_PEC(self, trial_ind):
-        new_pose_client = PoseEstimationClient(self.param, self.general_param, self.intrinsics_focal, self.intrinsics_px, self.intrinsics_py, (self.SIZE_X, self.SIZE_Y))
+        new_pose_client = PoseEstimationClient(self.param, self.general_param, self.intrinsics)
 
         new_pose_client.projection_client = self.projection_client.deepcopy_projection_client()
         new_pose_client.lift_client = self.lift_client.deepcopy_lift_client()
@@ -361,7 +356,7 @@ class PoseEstimationClient(object):
 
         new_pose_client.potential_projected_est = self.potential_projected_est.clone()
 
-        if self.animation != "drone_flight":
+        if self.animation != "drone_flight" and self.animation != "mpi_inf_3hdp" :
             new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
 
         new_pose_client.quiet = True

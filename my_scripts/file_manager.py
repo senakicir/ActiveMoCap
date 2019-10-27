@@ -63,6 +63,7 @@ class FileManager(object):
         self.filenames_anim = self.file_names[self.experiment_name]
         self.main_folder = self.file_names["main_folder"]
         self.saved_vals_loc = self.file_names["saved_vals_loc"]
+        self.test_sets_loc = self.file_names["test_sets_loc"]
 
 
         #open files
@@ -101,6 +102,7 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
+        '''
         if (self.simulation_mode == "saved_simulation"):
             self.non_simulation_filenames = get_filenames(self.test_set_name)  
             self.label_list = []
@@ -109,8 +111,9 @@ class FileManager(object):
                                         "f_pose_lift":open(self.non_simulation_filenames["f_pose_lift"], "r"),
                                         "f_groundtruth": open(self.non_simulation_filenames["f_groundtruth"], "r"),
                                         "f_drone_pos": open(self.non_simulation_filenames["f_drone_pos"], "r")}
-            if self.non_simulation_filenames["f_intrinsics"] != None:
+            if self.non_simulation_filenames["f_intrinsics"] is not None:
                 self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
+        '''
 
         saved_vals_loc_anim = self.saved_vals_loc + "/" + str(self.anim_num)
         if not os.path.exists(saved_vals_loc_anim):
