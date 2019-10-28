@@ -58,6 +58,7 @@ class FileManager(object):
         self.folder_names = parameters["FOLDER_NAMES"]
         self.simulation_mode = parameters["SIMULATION_MODE"]
         self.loop_mode = parameters["LOOP_MODE"]
+        self.calibration_mode = parameters["CALIBRATION_MODE"]
 
         self.foldernames_anim = self.folder_names[self.experiment_name]
         self.filenames_anim = self.file_names[self.experiment_name]
@@ -102,19 +103,6 @@ class FileManager(object):
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
 
-        '''
-        if (self.simulation_mode == "saved_simulation"):
-            self.non_simulation_filenames = get_filenames(self.test_set_name)  
-            self.label_list = []
-            self.non_simulation_files =  {"f_intrinsics":None,
-                                        "f_pose_2d":open(self.non_simulation_filenames["f_pose_2d"], "r"),
-                                        "f_pose_lift":open(self.non_simulation_filenames["f_pose_lift"], "r"),
-                                        "f_groundtruth": open(self.non_simulation_filenames["f_groundtruth"], "r"),
-                                        "f_drone_pos": open(self.non_simulation_filenames["f_drone_pos"], "r")}
-            if self.non_simulation_filenames["f_intrinsics"] is not None:
-                self.non_simulation_files["f_intrinsics"] = open(self.non_simulation_filenames["f_intrinsics"], "r")
-        '''
-
         saved_vals_loc_anim = self.saved_vals_loc + "/" + str(self.anim_num)
         if not os.path.exists(saved_vals_loc_anim):
             os.makedirs(saved_vals_loc_anim) 
@@ -129,7 +117,7 @@ class FileManager(object):
             #read into matrix
             self.f_anim_gt_array =  pd.read_csv(saved_vals_loc_anim + "/gt_poses.txt", sep='\t', header=None, skiprows=[0]).to_numpy()[:,:-1].astype('float')
 
-            if self.loop_mode == "calibration":
+            if self.calibration_mode:
                 self.f_bone_len = open(saved_vals_loc_anim + bone_len_file_name, "w")
                 self.f_bone_len.write("bone_lengths\n")
                 self.bone_lengths_dict = None
@@ -144,6 +132,9 @@ class FileManager(object):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
         self.f_initial_drone_pos.write(initial_drone_pos_str + '\n')
 
+    def init_photo_loc_dir(self, photo_loc_dir):
+        self.take_photo_loc = photo_loc_dir
+
     def update_photo_loc(self, linecount, viewpoint):
         if (self.simulation_mode == "use_airsim"):
             if viewpoint == "":
@@ -152,15 +143,17 @@ class FileManager(object):
                 self.photo_loc = self.take_photo_loc + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
         elif (self.simulation_mode == "saved_simulation"):
             if self.test_set_name == "drone_flight":
-                linecount = 0
-            self.photo_loc = self.non_simulation_filenames["input_image_dir"] + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
+                #linecount = 0 not necessary anymore?
+                self.photo_loc = self.take_photo_loc + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
+            elif self.test_set_name == "mpi_inf_3dhp":
+                self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.jpg'
         return self.photo_loc
 
     def get_photo_loc(self):
         return self.photo_loc
 
     def get_photo_locs(self):
-        if self.loop_mode == "normal":
+        if self.loop_mode == "normal_simulation":
             return [self.photo_loc]*9
 
         photo_locs = []

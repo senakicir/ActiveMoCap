@@ -29,10 +29,17 @@ def find_delta_yaw(current_yaw, desired_yaw):
     return yaw_candidates[np.argmin(min_diff)]
 
 def find_pose_at_time (anim_time, search_array, num_of_joints):
-    flat_pose = search_array[abs(search_array[:,0]-anim_time)<1e-3, 1:]
+    flat_pose = search_array[abs(search_array[:,0]-anim_time)<1e-4, 1:]
     assert flat_pose.size != 0
     pose = flat_pose.reshape([3,num_of_joints], order="F")
     return pose
+
+def find_pose_and_frame_at_time (anim_time, search_array, num_of_joints):
+    flat_pose = search_array[abs(search_array[:,1]-anim_time)<1e-4, 2:]
+    assert flat_pose.size != 0
+    pose = flat_pose.reshape([3,num_of_joints], order="F")
+    frame_num = search_array[abs(search_array[:,1]-anim_time)<1e-4, 0]
+    return pose, int(frame_num[0])
 
 def find_human_pose_orientation(pose_3d, left_arm_ind, right_arm_ind):
     shoulder_vector_gt = pose_3d[:, left_arm_ind] - pose_3d[:, right_arm_ind] 
@@ -79,8 +86,13 @@ class State(object):
         self.drone_pos_est = np.zeros([3,1])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
         self.cam_pitch = 0
-        self.anim_time = 1
         self.camera_id = 0
+
+        self.anim_time = 1
+        self.futuremost_pose_3d_gt = None
+
+    def init_anim_time(self, anim_time):
+        self.anim_time = anim_time
 
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
         if self.anim_gt_array is not None:

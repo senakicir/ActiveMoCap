@@ -75,7 +75,7 @@ class Projection_Client(object):
         if self.test_set != "mpi_inf_3dhp":
             self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
         else:
-            self.camera_intrinsics = K_torch[cam_list, :, :]
+            self.camera_intrinsics =  self.K_torch[cam_list, :, :]
 
     def reset_future(self, data_list, future_poses, potential_trajectory):
         self.online_window_size = len(data_list)+self.FUTURE_WINDOW_SIZE
@@ -85,9 +85,12 @@ class Projection_Client(object):
         ##find future projections
         self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.inv_transformation_matrix.clone()
         cam_list = potential_trajectory.cam_list.copy()
-        camera_intrinsics = self.K_torch.repeat(self.FUTURE_WINDOW_SIZE , 1,1)
+        if self.test_set != "mpi_inf_3dhp":
+            self.camera_intrinsics = self.K_torch.repeat(self.online_window_size , 1,1)
+        else:
+            self.camera_intrinsics = self.K_torch[cam_list, :, :]
         flip_x_y = self.flip_x_y_pre.repeat(self.FUTURE_WINDOW_SIZE , 1, 1)
-        future_projection = self.take_batch_projection(future_poses, self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :], self.ones_tensor_future, camera_intrinsics, flip_x_y) 
+        future_projection = self.take_batch_projection(future_poses, self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :], self.ones_tensor_future, self.camera_intrinsics, flip_x_y) 
         #add some noise to future projection so that the error is not zero
         self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = future_projection#add_noise_to_pose(future_projection, self.noise_2d_std, my_rng, noise_type="future_proj")
        
@@ -104,7 +107,7 @@ class Projection_Client(object):
         if self.test_set != "mpi_inf_3dhp":
             self.camera_intrinsics = self.K_torch.repeat(self.online_window_size , 1,1)
         else:
-            self.camera_intrinsics = K_torch[cam_list, :, :]
+            self.camera_intrinsics = self.K_torch[cam_list, :, :]
 
     def deepcopy_projection_client(self):
         return Projection_Client(self.test_set, self.FUTURE_WINDOW_SIZE, self.num_of_joints, self.intrinsics, self.noise_2d_std, self.device) 

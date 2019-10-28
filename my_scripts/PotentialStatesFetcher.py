@@ -66,6 +66,8 @@ class PotentialState_External_Dataset(object):
         self.pitch = 0
         self.camera_id=camera_id
 
+        self.potential_C_drone = self.position.unsqueeze(1)
+
     def get_goal_pos_yaw_pitch(self, arg):
         return self.position, 0, 0
 
@@ -218,20 +220,21 @@ class PotentialStatesFetcher(object):
         self.goal_state_ind = 0 
         self.goal_state = None
         self.goal_trajectory = None
-        self.visited_ind_list =[]
+        self.visited_ind_index = 0
 
         if not self.is_using_airsim:
             self.external_dataset_states = airsim_client.get_external_dataset_states()
             self.number_of_views =  airsim_client.num_of_camera_views
-            self.external_dataset_trajectories = []
+            self.external_trajectory_list = []
             future_pos_ind = 0 
             potential_trajectory = Potential_Trajectory(42, self.FUTURE_WINDOW_SIZE)
             self.prep_external_trajectories(future_pos_ind, potential_trajectory)
+            self.constant_rotation_camera_sequence = airsim_client.constant_rotation_camera_sequence
         else:
             self.external_dataset_states = None
-            self.number_of_samples = None
-            self.external_dataset_trajectories = None
-            self.external_dataset_trajectories = None
+            self.number_of_views = None
+            self.external_trajectory_list = None
+            self.constant_rotation_camera_sequence = None
 
     def reset(self, pose_client, airsim_client, current_state):
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
@@ -255,10 +258,6 @@ class PotentialStatesFetcher(object):
         self.potential_pose2d_list = []   
         
         self.uncertainty_dict = {}
-
-        if not self.is_using_airsim:
-            self.drone_flight_states = airsim_client.get_drone_flight_states()
-            self.number_of_samples = len(self.drone_flight_states)
 
     def restart_trajectory(self):
         self.immediate_future_ind = 0
@@ -323,27 +322,15 @@ class PotentialStatesFetcher(object):
                 
             self.potential_trajectory_list.append(potential_trajectory)
 
-            #debug
-            #print("*******begin")
-            #for potential_trajectory in self.potential_trajectory_list:
-            #    print("trajectory index", potential_trajectory.index)
-            #    print("trajectory transformation matrix", potential_trajectory.inv_transformation_matrix)
-            #    potential_states = potential_trajectory.states
-            #    for potential_state_key, potential_state in potential_states.items():
-            #        print("future ind", potential_state_key)
-            #        print("state index", potential_state.index)
-            #        print("state position", potential_state.position)
-            #        print("state orientation", potential_state.orientation)
-            #        print("state pitch", potential_state.pitch)
-            #        print("state inv transformation matrix",  potential_state.inv_transformation_matrix)
-            #print("********end")
-
     def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager, my_rng):
         if linecount < self.PREDEFINED_MOTION_MODE_LENGTH:
             self.choose_go_up_down()
         else:
             if pose_client.is_calibrating_energy:
-                self.choose_constant_rotation()
+                if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
+                    self.choose_constant_rotation()
+                elif self.loop_mode == "toy_example":
+                    self.choose_constant_rotation_toy_example()
             else:
                 if (self.trajectory == "active"):
                     self.find_next_state_active(pose_client, online_linecount, file_manager)                    
@@ -353,8 +340,7 @@ class PotentialStatesFetcher(object):
                     if self.loop_mode == "normal_simulation" or self.loop_mode == "teleport_simulation":
                         self.choose_constant_rotation()
                     elif self.loop_mode == "toy_example":
-                        print("Not implemented yet as it makes my brain hurt")
-                        raise NotImplementedError
+                        self.choose_constant_rotation_toy_example()
                 if (self.trajectory == "random"): 
                     self.find_random_next_state(online_linecount, my_rng)
                 if (self.trajectory == "constant_angle"):
@@ -380,6 +366,14 @@ class PotentialStatesFetcher(object):
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.trajectory_index == key_indices["r"]:
                 self.goal_trajectory = potential_trajectory
+
+
+    def choose_constant_rotation_toy_example(self):
+        potential_state = self.external_dataset_states[self.constant_rotation_camera_sequence[self.visited_ind_index]]
+        potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE)
+        potential_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
+        self.goal_trajectory = potential_trajectory
+        self.visited_ind_index = (self.visited_ind_index+1) % len(self.constant_rotation_camera_sequence)
 
     def choose_go_up_down(self):
         current_drone_pos = self.current_drone_pos.copy()
@@ -417,10 +411,6 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind = 0
 
     def constant_angle_baseline_future(self, online_linecount):       
-        #for potential_trajectory in self.potential_trajectory_list:
-        #    if potential_trajectory.index == key_indices["c"]:
-        #        goal_state = potential_trajectory[self.immediate_future_ind]
-        #self.goal_state_ind = key_indices["c"]
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.trajectory_index == key_indices["c"]:
@@ -477,7 +467,7 @@ class PotentialStatesFetcher(object):
                 new_potential_state = self.external_dataset_states[viewpoint_ind]
                 potential_trajectory_copy = potential_trajectory.deep_copy_trajectory()    
                 potential_trajectory_copy.append_to_traj(future_ind=future_pos_ind, potential_state=new_potential_state)
-                self.external_trajectory_list(future_pos_ind+1, potential_trajectory_copy)
+                self.prep_external_trajectories(future_pos_ind+1, potential_trajectory_copy)
 
     def trajectory_dome_experiment(self):
         if self.is_using_airsim:
@@ -486,7 +476,6 @@ class PotentialStatesFetcher(object):
             self.prep_theta_phi_pairs(future_pos_ind, potential_trajectory)
         elif self.animation == "mpi_inf_3dhp" or self.animation == "drone_flight":
             self.potential_trajectory_list = self.external_trajectory_list.copy()
-
 
     def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:
@@ -518,34 +507,6 @@ class PotentialStatesFetcher(object):
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.trajectory_index == self.goal_state_ind:
                 self.goal_trajectory = potential_trajectory
-
-    def find_next_state_constant_rotation(self, linecount):
-        if self.animation != "drone_flight":
-            self.goal_state_ind = (linecount)%(len(self.potential_states_go))
-            for potential_states in self.potential_states_go:
-                if potential_states.index == self.goal_state_ind:
-                    self.goal_state = potential_states
-        else:
-            prev_goal_state_ind = self.goal_state_ind
-            for potential_states in self.potential_states_go:
-                if potential_states.index == prev_goal_state_ind:
-                    prev_goal_state_position = potential_states.position
-            
-            min_dist = 1000000
-            for potential_states in self.potential_states_go:
-                next_position = potential_states.position
-                dist_to_next_position = torch.norm(next_position-prev_goal_state_position)
-                if potential_states.index not in self.visited_ind_list:
-                    if  min_dist > dist_to_next_position:
-                        min_dist = dist_to_next_position
-                        self.goal_state = potential_states
-                        self.goal_state_ind = self.goal_state.index
-
-            if len(self.visited_ind_list) == len(self.potential_states_go)-5:
-                self.visited_ind_list.pop(0)
-            self.visited_ind_list.append(self.goal_state_ind)
-
-        return self.goal_state
 
     def choose_state(self, index, future_step):
         self.goal_state_ind = index

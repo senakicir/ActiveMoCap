@@ -51,7 +51,7 @@ def get_client_gt_values(airsim_client, pose_client, simulated_value_dict):
 
 def get_simulator_responses(airsim_client):
     airsim_client.simPause(False) #unpause drone to take picture
-    if  airsim_client.is_using_airsim:
+    if airsim_client.is_using_airsim:
         time.sleep(0.01)
     response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
     airsim_client.simPause(True) #pause everything to start processing
@@ -59,12 +59,17 @@ def get_simulator_responses(airsim_client):
     response = response[0]
     if airsim_client.is_using_airsim:
         response_poses = vector3r_arr_to_dict(response.bones)
-        response_image = response.image_data_uint8
+        response_image = response.image_data_uint    
+    else:
+        response_image, response_poses = None, None
     return response_image, response_poses
 
 def airsim_retrieve_poses_gt(airsim_client, pose_client):
-    response_image, response_poses = get_simulator_responses(airsim_client)
-    poses_3d_gt, _, _ = get_client_gt_values(airsim_client, pose_client, response_poses)
+    if airsim_client.is_using_airsim:
+        response_image, response_poses = get_simulator_responses(airsim_client)
+        poses_3d_gt, _, _ = get_client_gt_values(airsim_client, pose_client, response_poses)
+    else:
+        poses_3d_gt, _, _ = airsim_client.read_frame_gt_values(airsim_client.internal_anim_time)
     return poses_3d_gt
 
 def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
@@ -104,7 +109,7 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     #image_buffer.show()
     return image
 
-def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoint = ""):
+def take_photo(airsim_client, pose_client, current_state, file_manager):
     """
     Description: 
         Calls simulator to take picture and return GT values simultaneously.
@@ -119,6 +124,10 @@ def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoin
     Returns:
         photo: photo taken at simulation step
     """
+    viewpoint = ""
+    if pose_client.animation == "mpi_inf_3dhp":
+        viewpoint = airsim_client.chosen_cam_view
+
     photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     if airsim_client.is_using_airsim:
         loc = file_manager.update_photo_loc(linecount=airsim_client.linecount, viewpoint=viewpoint)
@@ -128,5 +137,5 @@ def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoin
             if os.path.isfile(loc_rem):
                 os.remove(loc_rem)
     else:
-        file_manager.update_photo_loc(linecount=airsim_client.linecount, viewpoint=viewpoint)
+        file_manager.update_photo_loc(linecount=airsim_client.framecount, viewpoint=viewpoint)
     return photo

@@ -21,6 +21,7 @@ class VehicleClient:
         #sena was here
         self.program_started = False #sena was here
         self.DRONE_INITIAL_POS = np.array([0, 0, 0])
+        self.default_initial_anim_time = 1
         self.requiredEstimationData = []
         self.isCalibratingEnergy = False
         self.linecount = 0 #sena was here
@@ -30,11 +31,12 @@ class VehicleClient:
         self.is_using_airsim = True
         self.end = False
 
-        self.SIZE_X = 1024
-        self.SIZE_Y = 576
-        self.focal_length = self.SIZE_X/2
-        self.px = self.SIZE_X/2
-        self.py = self.SIZE_Y/2
+        SIZE_X = 1024
+        SIZE_Y = 576
+        focal_length = SIZE_X/2
+        px = SIZE_X/2
+        py = SIZE_Y/2
+        self.intrinsics = {"f":focal_length, "px":px, "py":py, "size_x":SIZE_X, "size_y":SIZE_Y}
         
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
@@ -44,7 +46,7 @@ class VehicleClient:
         self.linecount = 0
         self.client.call('reset')
         time.sleep(1)
-        for _ in range(5):
+        for _ in range(1):
             self.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
             time.sleep(1)
 
@@ -80,15 +82,22 @@ class VehicleClient:
     #sena was here
     def simPauseDrone(self, is_paused):
         self.client.call('simPauseDrone', is_paused)
-        time.sleep(0.01)
+
     def updateAnimation(self, increment_time):
         self.client.call('updateAnimation', increment_time)
     def setAnimationTime(self, time):
         self.client.call('setAnimationTime', time)
     def getAnimationTime(self):
         return self.client.call('getAnimationTime')
+    def changeAnimation(self, newAnimNum, vehicle_name = ''):
+        self.client.call('changeAnimation', vehicle_name, newAnimNum)
+        self.client.call('setAnimationTime', self.default_initial_anim_time)
+        time.sleep(1)
+
+
     def simIsPause(self):
         return self.client.call("simIsPaused")
+
     def simContinueForTime(self, seconds):
         self.client.call('simContinueForTime', seconds)
 
@@ -188,10 +197,6 @@ class VehicleClient:
     #sena was here
     def getBonePositions(self, vehicle_name = ''):
         return Vector3r_arr.from_msgpack(self.client.call('getBonePositions', vehicle_name))
-    #sena was here
-    def changeAnimation(self, newAnimNum, vehicle_name = ''):
-        self.client.call('changeAnimation', vehicle_name, newAnimNum)
-        self.client.call('setAnimationTime', 1)
 
     #sena was here
     def changeCalibrationMode(self, calibMode, vehicle_name = ''):

@@ -13,6 +13,7 @@ class PoseEstimationClient(object):
         self.param = param
         self.general_param = general_param
         self.simulate_error_mode = False
+        self.intrinsics = intrinsics
 
         self.modes = param["MODES"]
         self.method = param["METHOD"]
@@ -25,6 +26,7 @@ class PoseEstimationClient(object):
         self.device = torch.device("cpu")
         self.loop_mode = general_param["LOOP_MODE"]
         self.animation = general_param["ANIMATION_NUM"]
+        self.is_calibrating_energy = general_param["CALIBRATION_MODE"]
 
         self.bone_connections, self.joint_names, self.num_of_joints = model_settings(self.model)
         if self.USE_SINGLE_JOINT:
@@ -45,7 +47,8 @@ class PoseEstimationClient(object):
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.PREDEFINED_MOTION_MODE_LENGTH = param["PREDEFINED_MOTION_MODE_LENGTH"]
-        
+        self.save_errors_after = self.PREDEFINED_MOTION_MODE_LENGTH-1
+
         self.quiet = param["QUIET"]
         self.INIT_POSE_MODE = param["INIT_POSE_MODE"]
         self.NOISE_2D_STD = param["NOISE_2D_STD"]
@@ -61,16 +64,37 @@ class PoseEstimationClient(object):
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
 
+        self.weights_calib = param["WEIGHTS_CALIB"]
+        self.weights_online = param["WEIGHTS"]
+        self.weights_smooth = self.weights_online["smooth"]
+        self.weights_future = param["WEIGHTS_FUTURE"]
 
-        if self.loop_mode == "calibration":
-            self.is_calibrating_energy = True
+        self.loss_dict_calib = ["proj"]
+        if self.USE_SYMMETRY_TERM:  
+            self.loss_dict_calib.append("sym")
+        self.loss_dict_online = ["proj", "smooth"]
+        if not self.USE_SINGLE_JOINT:
+            if self.USE_BONE_TERM:
+                self.loss_dict_online.append("bone")
+            if self.USE_LIFT_TERM:
+                self.loss_dict_online.append("lift")
+        self.loss_dict = {}
+
+        if self.is_calibrating_energy:
+            self.result_shape = [3, self.num_of_joints]
+            self.loss_dict = self.loss_dict_calib
         else:
-            self.is_calibrating_energy = False
+            self.loss_dict = self.loss_dict_online
+            if self.USE_TRAJECTORY_BASIS:
+                self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
+            else:
+                self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
+
+        self.result_size= np.prod(np.array(self.result_shape))
 
         self.optimized_traj = np.zeros([self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints])
 
         self.plot_info = []
-        self.error_2d = []
         
         self.errors = {}
         self.average_errors = {}
@@ -98,7 +122,6 @@ class PoseEstimationClient(object):
         self.lift_pose_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints]).to(self.device)
         self.potential_projected_est = torch.zeros([2, self.num_of_joints]).to(self.device)
 
-
         self.requiredEstimationData = []
 
         self.calib_res_list = []
@@ -124,50 +147,26 @@ class PoseEstimationClient(object):
             self.M = read_M(self.num_of_joints, "M_rel")
         else:
             self.M = np.eye(self.num_of_joints)
-
-        self.weights_calib = param["WEIGHTS_CALIB"]
-        self.weights_online = param["WEIGHTS"]
-        self.weights_smooth = self.weights_online["smooth"]
-        self.weights_future = param["WEIGHTS_FUTURE"]
-
-        self.loss_dict_calib = ["proj"]
-        if self.USE_SYMMETRY_TERM:  
-            self.loss_dict_calib.append("sym")
-        self.loss_dict_online = ["proj", "smooth"]
-        if not self.USE_SINGLE_JOINT:
-            if self.USE_BONE_TERM:
-                self.loss_dict_online.append("bone")
-            if self.USE_LIFT_TERM:
-                self.loss_dict_online.append("lift")
-        self.loss_dict = {}
-
-        if self.is_calibrating_energy:
-            self.result_shape = [3, self.num_of_joints]
-            self.loss_dict = self.loss_dict_calib
-        else:
-            self.loss_dict = self.loss_dict_online
-            if self.USE_TRAJECTORY_BASIS:
-                self.result_shape = [self.NUMBER_OF_TRAJ_PARAM, 3, self.num_of_joints]
-            else:
-                self.result_shape = [self.ONLINE_WINDOW_SIZE, 3, self.num_of_joints]
-    
-        self.result_size= np.prod(np.array(self.result_shape))
                 
         self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, intrinsics=intrinsics, noise_2d_std=self.NOISE_2D_STD, device=self.device)
         self.lift_client = Lift_Client(self.NOISE_LIFT_STD)
 
-        if self.animation == "drone_flight" or self.animation == "mpi_inf_3hdp" :
+        if self.animation == "mpi_inf_3dhp":
+            self.SIZE_X, self.SIZE_Y = intrinsics[0]["size_x"],  intrinsics[0]["size_y"]
+        else:
+            self.SIZE_X, self.SIZE_Y = intrinsics["size_x"],  intrinsics["size_y"]
+
+        if self.animation == "drone_flight" or self.animation == "mpi_inf_3dhp":
             self.cropping_tool = None
         else:
             self.cropping_tool = Crop(loop_mode = self.loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
 
-        self.save_errors_after = self.PREDEFINED_MOTION_MODE_LENGTH-1
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
 
     def reset_crop(self, loop_mode):
-        if self.animation == "drone_flight" or self.animation == "mpi_inf_3hdp" :
+        if self.animation == "drone_flight" or self.animation == "mpi_inf_3dhp" :
             self.cropping_tool = None
         else:
             self.cropping_tool = Crop(loop_mode = loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
@@ -253,7 +252,7 @@ class PoseEstimationClient(object):
                 assert not np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX+1], self.poses_3d_gt[-1])
 
             fail_msg = "The distance between two consequtive gt values are: " + str(np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index]))
-            assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<1, fail_msg
+            assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<2, fail_msg
 
             print(self.poses_3d_gt[:,:,0])
             print("*****")
@@ -323,27 +322,32 @@ class PoseEstimationClient(object):
         new_pose_client.projection_client = self.projection_client.deepcopy_projection_client()
         new_pose_client.lift_client = self.lift_client.deepcopy_lift_client()
 
+        new_pose_client.requiredEstimationData = []
+        for camera_id, bone_2d, bone_2d_gt, inverse_transformation_matrix in self.requiredEstimationData:
+            new_bone_2d = bone_2d.clone()
+            new_bone_2d_gt = bone_2d_gt.clone()
+            new_inverse_transformation_matrix = inverse_transformation_matrix.clone()
+            new_pose_client.requiredEstimationData.append([camera_id, new_bone_2d, new_bone_2d_gt, new_inverse_transformation_matrix])
+
+        for key, error_list in self.errors.items():
+            new_pose_client.errors[key] = error_list.copy()
+        new_pose_client.average_errors = self.average_errors.copy()
+        new_pose_client.overall_error = self.overall_error
+        new_pose_client.ave_overall_error = self.ave_overall_error
+
         new_pose_client.optimized_poses = self.optimized_poses.copy()
         new_pose_client.adjusted_optimized_poses = self.adjusted_optimized_poses.copy()
         new_pose_client.pose_3d_preoptimization = self.pose_3d_preoptimization.copy()
 
-        new_pose_client.requiredEstimationData = []
-        for bone_2d, bone_2d_gt, inverse_transformation_matrix in self.requiredEstimationData:
-            new_bone_2d = bone_2d.clone()
-            new_bone_2d_gt = bone_2d_gt.clone()
-            new_inverse_transformation_matrix = inverse_transformation_matrix.clone()
-            new_pose_client.requiredEstimationData.append([new_bone_2d, new_bone_2d_gt, new_inverse_transformation_matrix])
-
-        new_pose_client.lift_pose_tensor = self.lift_pose_tensor.clone()
         new_pose_client.poses_3d_gt = self.poses_3d_gt.copy()
+        new_pose_client.poses_3d_gt_debugger = self.poses_3d_gt_debugger.copy()
+
         new_pose_client.boneLengths = self.boneLengths.clone()
         new_pose_client.batch_bone_lengths = self.batch_bone_lengths.clone()
         new_pose_client.multiple_bone_lengths = self.multiple_bone_lengths.clone()
 
-        new_pose_client.error_2d = self.error_2d.copy()
-        for key, error_list in self.errors.items():
-            new_pose_client.errors[key] = error_list.copy()
-        new_pose_client.average_errors = self.average_errors.copy()
+        new_pose_client.lift_pose_tensor = self.lift_pose_tensor.clone()
+        new_pose_client.potential_projected_est = self.potential_projected_est.clone()
 
         new_pose_client.future_poses = self.future_poses.copy()
         new_pose_client.current_pose = self.current_pose.copy()
@@ -354,15 +358,11 @@ class PoseEstimationClient(object):
         new_pose_client.adj_current_pose = self.adj_current_pose.copy()
         new_pose_client.adj_middle_pose = self.adj_middle_pose.copy()
 
-        new_pose_client.potential_projected_est = self.potential_projected_est.clone()
-
-        if self.animation != "drone_flight" and self.animation != "mpi_inf_3hdp" :
+        if self.cropping_tool is not None:
             new_pose_client.cropping_tool = self.cropping_tool.copy_cropping_tool()
 
         new_pose_client.quiet = True
         new_pose_client.simulate_error_mode = False
         new_pose_client.trial_ind = trial_ind
-        new_pose_client.is_calibrating_energy = self.is_calibrating_energy
-        new_pose_client.result_shape_whole = self.result_shape_whole
 
         return new_pose_client

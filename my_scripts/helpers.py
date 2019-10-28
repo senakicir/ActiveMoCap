@@ -524,7 +524,7 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
 
     X = bones_GT[0,:]
     Y = bones_GT[1,:]
-    if test_set != "drone_flight":
+    if test_set != "drone_flight" and test_set != "mpi_inf_3dhp":
         Z = -bones_GT[2,:]
         multip = -1
     else:
@@ -587,7 +587,7 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
 
 
     multip = -1
-    if test_set == "drone_flight":
+    if test_set == "drone_flight" or test_set == "mpi_inf_3dhp":
         multip = 1
 
     num_of_plots = optimized_poses.shape[0]
@@ -663,7 +663,7 @@ def plot_future_poses(poses, future_window_size, location, linecount, bone_conne
 
     X = poses[:future_window_size+1,0,:]
     Y = poses[:future_window_size+1,1,:]
-    if test_set != "drone_flight":
+    if test_set != "drone_flight" and test_set != "mpi_inf_3dhp":
         Z = -poses[:future_window_size, 2,:]
         multip = -1
     else:
@@ -802,7 +802,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     predicted_bones = last_frame_plot_info["est"]
     bones_GT = last_frame_plot_info["GT"]
 
-    if test_set == "drone_flight":
+    if test_set == "drone_flight" or test_set == "mpi_inf_3dhp":
         multip = 1
     else:
         multip = -1
@@ -821,7 +821,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
         drone = frame_plot_info["drone"].squeeze()
         drone_x.append(drone[0])
         drone_y.append(drone[1])
-        drone_z.append(-drone[2])
+        drone_z.append(multip*drone[2])
 
         X = np.concatenate([X, [drone[0]]])
         Y = np.concatenate([Y, [drone[1]]])
@@ -850,7 +850,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
         #ax.legend(handles=[plot1, plot1_r, plot2, plot2_r, plotd])
     else:
         plot1, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], multip*predicted_bones[2,:], c='xkcd:blood red')
-        plot2, = ax.plot(bones_GT[0,:], bones_GT[1,:], -bones_GT[2,:], c='xkcd:royal blue')
+        plot2, = ax.plot(bones_GT[0,:], bones_GT[1,:], multip*bones_GT[2,:], c='xkcd:royal blue')
         #ax.legend(handles=[plot1,plot2]
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4

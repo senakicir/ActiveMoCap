@@ -5,17 +5,18 @@ from PotentialStatesFetcher import PotentialState
 from Lift_Client import calculate_bone_directions
 
 class External_Dataset_Client(object):
-    def __init__(self, length_of_simulation, test_set_name, non_simulation_files):
+    def __init__(self, length_of_simulation, test_set_name):
         #take filenames and save them
         self.linecount = 0
         self.online_linecount = 0
-
+        self.default_initial_anim_time = 0
+        self.internal_anim_time = self.default_initial_anim_time
+        
         self.chosen_cam_view = 0
         self.length_of_simulation = length_of_simulation
 
         self.is_using_airsim = False
         self.end = False
-        self.files = non_simulation_files
         self.test_set_name = test_set_name
 
         self.DRONE_INITIAL_POS = np.zeros([3,1])     
@@ -34,6 +35,15 @@ class External_Dataset_Client(object):
 
     def moveToPositionAsync(self, sth):
         pass
+
+    def setAnimationTime(self, anim_time):
+        self.internal_anim_time = anim_time
+
+    def getAnimationTime(self):
+        return self.internal_anim_time
+
+    def updateAnimation(self, increment_time):
+        self.internal_anim_time += increment_time
 
     def increment_linecount(self, is_calibrating_energy):
         self.linecount += 1
@@ -58,6 +68,8 @@ class External_Dataset_Client(object):
         self.online_linecount = 0
         self.chosen_cam_index = 0
         self.end = False
+
+    
 
 
 class DummyPhotoResponse(object):
