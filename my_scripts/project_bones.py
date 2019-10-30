@@ -86,7 +86,7 @@ class Projection_Client(object):
         self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.inv_transformation_matrix.clone()
         cam_list = potential_trajectory.cam_list.copy()
         if self.test_set != "mpi_inf_3dhp":
-            self.camera_intrinsics = self.K_torch.repeat(self.online_window_size , 1,1)
+            self.camera_intrinsics = self.K_torch.repeat(self.FUTURE_WINDOW_SIZE , 1,1)
         else:
             self.camera_intrinsics = self.K_torch[cam_list, :, :]
         flip_x_y = self.flip_x_y_pre.repeat(self.FUTURE_WINDOW_SIZE , 1, 1)

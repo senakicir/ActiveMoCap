@@ -1,6 +1,5 @@
 from helpers import * 
 from PoseEstimationClient import PoseEstimationClient
-from Potential_Error_Finder import Potential_Error_Finder
 from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
@@ -9,7 +8,6 @@ from State import State
 from file_manager import FileManager, get_bone_len_file_name
 from drone_flight_client import DroneFlightClient
 from mpi_dataset_client import MPI_Dataset_Client
-from crop import Crop
 from rng_object import rng_object
 from simulator_data_processor import get_client_gt_values, airsim_retrieve_gt, take_photo, get_simulator_responses, airsim_retrieve_poses_gt
 import copy
@@ -170,7 +168,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
                     pose_client_copy = pose_client.deepcopy_PEC(trial_ind)
                     state_copy = current_state.deepcopy_state()
                     set_animation_to_frame(airsim_client, pose_client, state_copy, current_anim_time)
-                    for future_ind in range(pose_client_copy.FUTURE_WINDOW_SIZE):
+                    for future_ind in range(pose_client_copy.FUTURE_WINDOW_SIZE-1,0,-1):
                         #print("*** future_ind", future_ind)
                         goal_state = potential_states_fetcher.move_along_trajectory()
                         #set position also updates animation
@@ -192,11 +190,10 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
             start2=time.time()
             potential_states_fetcher.choose_trajectory(pose_client, airsim_client.linecount, airsim_client.online_linecount, file_manager, my_rng)
             goal_state = potential_states_fetcher.move_along_trajectory()
-            end2= time.time()
-            print("Choosing a trajectory took", end2-start2, "seconds")
-
             #move there
             set_position(goal_state, airsim_client, current_state, pose_client, loop_mode=potential_states_fetcher.loop_mode)
+            end2= time.time()
+            print("Choosing a trajectory took", end2-start2, "seconds")
 
         #update state values read from AirSim and take picture
         take_photo(airsim_client, pose_client, current_state, file_manager)        
@@ -208,11 +205,13 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         print("finding human pose took", end3-start3, "seconds")
 
         #plotting
+        start4=time.time() 
         if not pose_client.quiet and airsim_client.linecount > 0:
             plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
-
         file_manager.write_error_values(pose_client.average_errors, airsim_client.linecount)
-        
+        end4=time.time()
+        print("plotting and recording error took ", end4-start4, "seconds")
+
     #    if not pose_client.is_calibrating_energy and not pose_client.quiet and file_manager.loop_mode == "toy_example":
     #       plot_potential_errors_and_uncertainties_matrix(airsim_client.linecount, potential_states_fetcher.potential_trajectory_list,
       #                                                      potential_states_fetcher.goal_trajectory, find_best_traj, file_manager.plot_loc)

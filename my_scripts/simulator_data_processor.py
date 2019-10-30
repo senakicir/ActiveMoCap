@@ -59,7 +59,7 @@ def get_simulator_responses(airsim_client):
     response = response[0]
     if airsim_client.is_using_airsim:
         response_poses = vector3r_arr_to_dict(response.bones)
-        response_image = response.image_data_uint    
+        response_image = response.image_data_uint8  
     else:
         response_image, response_poses = None, None
     return response_image, response_poses

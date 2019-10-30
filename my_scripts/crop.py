@@ -1,134 +1,121 @@
 import numpy as np
 import torch
 from math import ceil
-from square_bounding_box import *
 from helpers import numpy_to_tuples
 import pdb
 
-crop_alpha = 0.5
-STABLE_FRAME = 1
-
-class Crop (object):
-    def __init__(self, size_x, size_y, loop_mode = "normal"):
-        bbox_init = [0,0,size_x,size_y]
-        self.old_bbox = bbox_init
-        self.bbox = bbox_init
-        self.image_bounds = torch.zeros([2,])
-        self.scales= [1]
-        self.bounding_box_calculator = BoundingBox(3)
-        self.bounding_box_margin = 3.5
-        self.unstable = True
-        self.size_x = size_x
-        self.size_y = size_y
-
-        if loop_mode != "normal":
-            self.unstable = True 
-            global crop_alpha
-            crop_alpha = 1
-            self.bbox = [size_x//2-135,size_y//2-135,270,270]
-            self.bounding_box_margin = 3
-
+class Basic_Crop(object):
+    def __init__(self, margin):
+        self.bbox_with_margin = None
+        self.margin = margin #sth like 0.5 would do
+        self.image_bounds = None
 
     def copy_cropping_tool(self):
-        new_cropper = Crop(self.size_x, self.size_y)
+        new_basic_crop = Basic_Crop()
+        new_basic_crop.bbox_with_margin = self.bbox_with_margin
+        new_basic_crop.image_bounds = self.image_bounds
 
-        new_cropper.old_bbox = self.old_bbox
-        new_cropper.bbox = self.bbox
-        new_cropper.image_bounds = self.image_bounds 
-        new_cropper.scales = self.scales
-        new_cropper.bounding_box_calculator = self.bounding_box_calculator
-        new_cropper.bounding_box_margin = self.bounding_box_margin
-        new_cropper.unstable = self.unstable
-        return new_cropper
+    def update_bbox(self, bbox):
+        length =  max(bbox [2], bbox [3])
+        new_width = int(length + length*self.margin)
+        new_height = int(length + length*self.margin)
+    
+        self.bbox_with_margin = [bbox[0], bbox[1], new_width, new_height]
 
-    def crop_function(self, image):
-        orig_image_width  = image.shape[1]
-        orig_image_height = image.shape[0]
+    def crop_image(self, image):
+        image_size_x, image_size_y = image.shape[1], image.shape[0]
+        crop_size_x, crop_size_y = self.bbox_with_margin[2], self.bbox_with_margin[3]
 
-        self.bbox[0] = int(crop_alpha*self.bbox[0] + (1-crop_alpha)*self.old_bbox[0])
-        self.bbox[1] = int(crop_alpha*self.bbox[1] + (1-crop_alpha)*self.old_bbox[1])
-        self.bbox[2] = int(crop_alpha*self.bbox[2] + (1-crop_alpha)*self.old_bbox[2])
-        self.bbox[3] = int(crop_alpha*self.bbox[3] + (1-crop_alpha)*self.old_bbox[3])        
+        bounds = self.find_bbox_bounds()
+        img_min_x = max(0, bounds["min_x"])
+        crop_min_x = 0
+        if img_min_x == 0:
+            crop_min_x = -bounds["min_x"]
+        
+        img_min_y = max(0, bounds["min_y"])
+        crop_min_y = 0
+        if img_min_y == 0:
+            crop_min_y = -bounds["min_y"]
+        
+        img_max_x = min(image_size_x, bounds["max_x"])
+        crop_max_x = crop_size_x
+        if img_max_x == image_size_x:
+            crop_max_x = image_size_x - bounds["min_x"]
 
-        crop_shape = (self.bbox[3], self.bbox[2], image.shape[2])
-        crop_frame = np.zeros(tuple(crop_shape), dtype=image.dtype)
-        if not (self.bbox[0] > image.shape[1] or self.bbox[0] + self.bbox[2] < 0 or
-                        self.bbox[1] > image.shape[0] or self.bbox[1] + self.bbox[3] < 0):
-            img_min_x = max(0, self.bbox[0])
-            img_max_x = min(self.bbox[0] + self.bbox[2], orig_image_width)
-            img_min_y = max(0, self.bbox[1])
-            img_max_y = min(self.bbox[1] + self.bbox[3], orig_image_height)
+        img_max_y = min(image_size_y, bounds["max_y"])
+        crop_max_y = crop_size_y
+        if img_max_y == image_size_y:
+            crop_max_y = image_size_y - bounds["min_y"]
+        
 
-            crop_min_x = img_min_x-self.bbox[0]
-            crop_max_x = img_max_x-self.bbox[0]
-            crop_min_y = img_min_y-self.bbox[1]
-            crop_max_y = img_max_y-self.bbox[1]
+        self.image_bounds = [img_min_x, img_min_y]
 
-            if (crop_min_x > 0):
-                min_bound_x = -crop_min_x
-            else:
-                min_bound_x = img_min_x
-
-            if (crop_min_y > 0):
-                min_bound_y = -crop_min_y
-            else:
-                min_bound_y = img_min_y
-            
-            self.image_bounds = [min_bound_x, min_bound_y]
-        else:
-            pdb.set_trace()
-            return None
-
-        crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y,
-                                                                            img_min_x:img_max_x,
-                                                                            :]
+        crop_frame = np.zeros(tuple((crop_size_y, crop_size_x, image.shape[2])), dtype=image.dtype)
+        crop_frame[crop_min_y:crop_max_y, crop_min_x:crop_max_x, :] = image[img_min_y:img_max_y, img_min_x:img_max_x, :]
         return crop_frame
 
-    def crop(self, image, linecount):
-        if linecount >= STABLE_FRAME:
-            self.unstable = False
+    def find_bbox_from_pose(self, pose_2d):
+        bounds = {}
+        bounds["min_x"] = torch.min(pose_2d[0,:])
+        bounds["min_y"] = torch.min(pose_2d[1,:])
+        bounds["max_x"] = torch.max(pose_2d[0,:])
+        bounds["max_y"] = torch.max(pose_2d[1,:])
 
-        if self.unstable:
-            print("unstable, will not crop")
-            return image, [0.5, 0.75, 1]
-        else:
-            self.update_bbox_margin(1)
-            crop_frame = self.crop_function(image)
+        width = int(bounds["max_x"] - bounds["min_x"])
+        height = int(bounds["max_y"] - bounds["min_y"])
+        length = max(width+width*self.margin, height+height*self.margin)
+        center_x = int((bounds["max_x"] + bounds["min_x"])/2)
+        center_y = int((bounds["max_y"] + bounds["min_y"])/2)
+        bbox = [center_x, center_y, length, length]
+        return bounds, bbox
+
+    def is_pose_in_image(self, pose_2d, image):
+        image_size_x, image_size_y = image.shape[1], image.shape[0]
+
+        bounds = self.find_bbox_from_pose(pose_2d)
+        in_image = True
+        if bounds["min_x"] < 0 or  bounds["min_y"] < 0:
+            in_image = False
+        if bounds["max_x"] > image_size_x or bounds["max_y"] > image_size_y:
+            in_image = False
+        return in_image
+
+    def base_bbox(self, size_x, size_y):
+        return [int(size_x/2), int(size_y/2), int(size_x), int(size_y)]
         
-        self.scales = [0.75, 1, 1.25, 1.5,]
 
-        return crop_frame, self.scales
+    def find_bbox_bounds(self):
+        bounds =    {"min_x" : int(self.bbox_with_margin[0] - self.bbox_with_margin[2]/2),
+                    "max_x" : int(self.bbox_with_margin[0] + self.bbox_with_margin[2]/2),
+                    "min_y" : int(self.bbox_with_margin[1] - self.bbox_with_margin[3]/2),
+                    "max_y" : int(self.bbox_with_margin[1] + self.bbox_with_margin[3]/2)
+        }
+        return bounds
 
-    def uncrop_pose(self, pose_2d):
-        if self.unstable:
-            return pose_2d
-
-        pose_2d[0,:] = pose_2d[0,:] + self.image_bounds[0]
-        pose_2d[1,:] = pose_2d[1,:] + self.image_bounds[1]
-        self.update_bbox(numpy_to_tuples(pose_2d))
-
-        return pose_2d
-    
-    def update_bbox(self, pose_2d):
-        new_bbox = self.bounding_box_calculator.get_bounding_box(pose_2d)
-        self.old_bbox = self.bbox 
-        self.bbox = new_bbox
-    
-    def update_bbox_margin(self, margin):
-        self.bounding_box_calculator.update_margin(margin)
-        self.bounding_box_margin = margin
-
-    def crop_pose(self, pose_2d):
+    def crop_pose(self, pose_2d_input):
+        pose_2d = pose_2d_input.clone()
         pose_2d[0,:] = pose_2d[0,:] - self.image_bounds[0]
         pose_2d[1,:] = pose_2d[1,:] - self.image_bounds[1]
         return pose_2d
-    
-class SimpleCrop (Crop):
-    def __init__(self, pose_2d, size_x, size_y):
-        Crop.__init__(self, size_x, size_y)
-        self.bounding_box_calculator = BoundingBox(margin=0.5)
-        self.bbox = self.bounding_box_calculator.get_bounding_box(pose_2d)     
-        global crop_alpha
-        crop_alpha = 1
-        self.unstable = False
-        self.scales = [0.5, 0.75, 1]
+
+    def uncrop_pose(self, pose_2d_input):
+        pose_2d = pose_2d_input.clone()
+        pose_2d[0,:] = pose_2d[0,:] + self.image_bounds[0]
+        pose_2d[1,:] = pose_2d[1,:] + self.image_bounds[1]
+        return pose_2d
+
+    def return_bbox_coord(self):
+        bounds = self.find_bbox_bounds()
+
+        bbox_corners_x = [  bounds["min_x"], 
+                            bounds["max_x"], 
+                            bounds["max_x"],  
+                            bounds["min_x"], 
+                            bounds["min_x"]]
+        bbox_corners_y = [  bounds["max_y"],
+                            bounds["max_y"], 
+                            bounds["min_y"],  
+                            bounds["min_y"], 
+                            bounds["max_y"]] 
+        return bbox_corners_x, bbox_corners_y
+  

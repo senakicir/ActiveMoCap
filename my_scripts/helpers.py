@@ -1724,9 +1724,9 @@ def plot_potential_errors_and_uncertainties_matrix(linecount, potential_trajecto
     if find_best_traj:
         error_matrix = np.zeros([8,8])
     for potential_trajectory in potential_trajectory_list:
-        uncertainty_matrix[potential_trajectory.states[0].index, potential_trajectory.states[1].index] = potential_trajectory.uncertainty
+        uncertainty_matrix[potential_trajectory.states[1].index, potential_trajectory.states[0].index] = potential_trajectory.uncertainty
         if find_best_traj:
-            error_matrix[potential_trajectory.states[0].index, potential_trajectory.states[1].index] = potential_trajectory.error_middle
+            error_matrix[potential_trajectory.states[1].index, potential_trajectory.states[0].index] = potential_trajectory.error_middle
 
     #plot
     fig = plt.figure()

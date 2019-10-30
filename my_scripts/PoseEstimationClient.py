@@ -2,7 +2,7 @@ from helpers import *
 import pandas as pd
 import torch
 import numpy as np
-from crop import Crop
+from crop import Basic_Crop
 from square_bounding_box import *
 from project_bones import Projection_Client
 from Lift_Client import Lift_Client
@@ -156,20 +156,15 @@ class PoseEstimationClient(object):
         else:
             self.SIZE_X, self.SIZE_Y = intrinsics["size_x"],  intrinsics["size_y"]
 
-        if self.animation == "drone_flight" or self.animation == "mpi_inf_3dhp":
-            self.cropping_tool = None
-        else:
-            self.cropping_tool = Crop(loop_mode = self.loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
-
+        self.margin = 0.2
+        self.cropping_tool = Basic_Crop(margin=self.margin)
 
     def model_settings(self):
         return self.bone_connections, self.joint_names, self.num_of_joints, self.hip_index
 
     def reset_crop(self, loop_mode):
-        if self.animation == "drone_flight" or self.animation == "mpi_inf_3dhp" :
-            self.cropping_tool = None
-        else:
-            self.cropping_tool = Crop(loop_mode = loop_mode, size_x=self.SIZE_X, size_y= self.SIZE_Y)
+        if self.cropping_tool is not None:
+            self.cropping_tool = Basic_Crop(margin=self.margin)
 
     def reset(self, plot_loc):
         if self.param_find_M:
