@@ -172,7 +172,7 @@ class PoseEstimationClient(object):
             #plot_matrix(M, plot_loc, 0, "M", "M")
         return 0   
 
-    def read_bone_lengths_from_file(self, file_manager):
+    def read_bone_lengths_from_file(self, file_manager, pose_3d_gt):
         assert not self.is_calibrating_energy
         if self.modes["bone_len"] == "calib_res":
             if self.animation == "noise":
@@ -182,7 +182,7 @@ class PoseEstimationClient(object):
                 self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
         
         elif self.modes["bone_len"] == "gt":
-            use_bones = torch.from_numpy(self.poses_3d_gt[0,:,:].copy())
+            use_bones = torch.from_numpy(pose_3d_gt.copy())
             bone_connections = np.array(self.bone_connections)
             if self.BONE_LEN_METHOD == "no_sqrt":
                 current_bone_lengths = calculate_bone_lengths(bones=use_bones, bone_connections=bone_connections, batch=False)

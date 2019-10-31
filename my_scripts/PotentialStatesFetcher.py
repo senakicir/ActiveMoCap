@@ -241,7 +241,7 @@ class PotentialStatesFetcher(object):
         self.thrown_view_list = []
 
         if not self.is_using_airsim:
-            self.external_dataset_states = airsim_client.get_external_dataset_states()
+            self.external_dataset_states = airsim_client.get_external_dataset_states(pose_client.modes["mode_2d"])
             self.number_of_views =  airsim_client.num_of_camera_views
             self.constant_rotation_camera_sequence = airsim_client.constant_rotation_camera_sequence
         else:
@@ -259,7 +259,6 @@ class PotentialStatesFetcher(object):
         self.immediate_future_pose = pose_client.immediate_future_pose
         self.future_human_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
         self.future_human_poses_gt = torch.from_numpy(pose_client.poses_3d_gt[:self.FUTURE_WINDOW_SIZE, :, :].copy()).float()
-
 
         self.current_human_pos = pose_client.current_pose
 
@@ -395,10 +394,10 @@ class PotentialStatesFetcher(object):
             if not self.is_using_airsim:
                 potential_state = self.external_dataset_states[self.constant_rotation_camera_sequence[self.visited_ind_index]]
             else:
-                if self.future_window_size == 1:
+                if self.FUTURE_WINDOW_SIZE == 1:
                     potential_trajectory = self.potential_trajectory_list[self.constant_rotation_camera_sequence[self.visited_ind_index]]
                     potential_state = potential_trajectory.states[self.FUTURE_WINDOW_SIZE-1]
-            pose_in_image = potential_state.get_potential_projection(self.immediate_future_pose,  self.projection_client)
+            pose_in_image = potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
             self.visited_ind_index = (self.visited_ind_index+1) % len(self.constant_rotation_camera_sequence)
 
         potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE)
@@ -482,14 +481,13 @@ class PotentialStatesFetcher(object):
             viewpoint_ind = 0
             for theta, phi in self.POSITION_GRID:
                 new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind)
-                pose_in_image = new_potential_state.get_potential_projection(self.immediate_future_pose, self.projection_client)
-                assert pose_in_image
+                pose_in_image = new_potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(), self.projection_client)
                 self.toy_example_states.append(new_potential_state)
                 viewpoint_ind += 1
         elif self.animation == "mpi_inf_3dhp" or self.animation == "drone_flight":
             self.thrown_view_list = []
             for list_ind, external_dataset_state in enumerate(self.external_dataset_states):
-                pose_in_image = external_dataset_state.get_potential_projection(self.immediate_future_pose,  self.projection_client)
+                pose_in_image = external_dataset_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
                 ##pose_in_image = external_dataset_state.get_potential_projection(self.future_human_poses_gt[0], self.projection_client)
                 if pose_in_image:
                     self.toy_example_states.append(external_dataset_state)

@@ -87,8 +87,11 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
         move_drone_to_front(airsim_client, pose_client, current_state.radius)
     #airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
 
+    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
+    time.sleep(0.5)
     if not calibration_mode:
-        pose_client.read_bone_lengths_from_file(file_manager)
+        pose_client.read_bone_lengths_from_file(file_manager, current_state.bone_pos_gt)
+
     file_manager.save_initial_drone_pos(airsim_client)
 
     #if pose_client.modes["mode_2d"] == "openpose":
@@ -139,9 +142,6 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
     """
     num_of_noise_trials = parameters["NUM_OF_NOISE_TRIALS"]
     find_best_traj = parameters["FIND_BEST_TRAJ"]
-
-    airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
-    time.sleep(0.5)
 
     take_photo(airsim_client, pose_client, current_state, file_manager)
     

@@ -16,7 +16,7 @@ class MPI_Dataset_Client(External_Dataset_Client):
         self.internal_anim_time = self.default_initial_anim_time
 
         self.constant_rotation_camera_sequence = [4,3,2,6,7,10,5,8,9,0,1]
-        self.chosen_cam_view = 1
+        self.chosen_cam_view = 1 
         self.framecount = 800
         self.num_of_joints = 15
         self.mpi_dataset_states = []
@@ -88,5 +88,9 @@ class MPI_Dataset_Client(External_Dataset_Client):
         gt_3d_pose = self.read_gt_pose_at_animtime(anim_time).copy()
         return gt_3d_pose, drone_transformation_matrix, self.chosen_cam_view 
 
-    def get_external_dataset_states(self):
-        return self.mpi_dataset_states
+    def get_external_dataset_states(self, pose_2d_mode):
+        if pose_2d_mode != "openpose":
+            states = self.mpi_dataset_states
+        else:
+            states = self.mpi_dataset_states[0:11]
+        return states

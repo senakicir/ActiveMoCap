@@ -11,7 +11,7 @@ if __name__ == "__main__":
     port_num = sys.argv[1]
 
     SEED_LIST = [200, 3]#, 81]
-    ANIMATIONS = [ "13_06", "28_19"]
+    ANIMATIONS = ["06_13", "13_06", "28_19"]
     #"06_13",
 
     with open("config_file.yaml", 'r') as ymlfile:
@@ -27,9 +27,12 @@ if __name__ == "__main__":
     if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/grid_search_results/gs_" + date_time_name
         saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
     elif (parameters["run_loc"] == "server"):
         base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/grid_search_results/gs_" + date_time_name
         saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+
 
     while os.path.exists(base_folder):
         base_folder += "_b_"
@@ -40,10 +43,8 @@ if __name__ == "__main__":
         os.makedirs(base_folder)      
 
     parameters["PORT"] = int(port_num)
-    parameters["LENGTH_OF_SIMULATION"] = 100
+    parameters["LENGTH_OF_SIMULATION"] = 90
     energy_parameters["QUIET"] = True
-    energy_parameters["ESTIMATION_WINDOW_SIZE"] = 5
-    energy_parameters["FUTURE_WINDOW_SIZE"] = 3
     active_parameters["TRAJECTORY"] = "active"
 
     theta_list = [270]#list(range(270, 190, -35))#list(range(270, 235, -20))
@@ -60,7 +61,7 @@ if __name__ == "__main__":
             for weight_bone  in np.logspace(-2,0,3):
                 for weight_lift  in [0.1]:#np.logspace(-2,0,3):
 
-                    file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc)
+                    file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
                     
                     parameters["FILE_NAMES"] = file_names
                     parameters["FOLDER_NAMES"] = folder_names

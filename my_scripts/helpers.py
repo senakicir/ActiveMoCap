@@ -1289,7 +1289,7 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, custom_
         name = '/'+custom_name
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
-    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.immediate_future_pose[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
     potential_states = potential_states_fetcher.potential_states_try
@@ -1395,7 +1395,7 @@ def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, 
         name = '/'+custom_name
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
-    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.immediate_future_pose[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
     potential_states = potential_states_fetcher.potential_states_try
@@ -1493,7 +1493,7 @@ def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, 
 def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=True, top_down=True, plot_errors=False):
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
-    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.immediate_future_pose[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
 
     if top_down:
@@ -1592,7 +1592,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
 def plot_potential_uncertainties(potential_states_fetcher, plot_loc, linecount):
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
-    future_human_pos =  potential_states_fetcher.future_human_pos[:, hip_index]
+    future_human_pos =  potential_states_fetcher.immediate_future_pose[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
 
     fig = plt.figure(figsize=(8,4))

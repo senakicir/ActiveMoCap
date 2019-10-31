@@ -147,6 +147,7 @@ class pose3d_online_parallel_wrapper():
         data_list = pose_client.requiredEstimationData
         
         self.projection_client.reset_future(data_list, potential_trajectory)
+        future_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
         
         if pose_client.USE_LIFT_TERM:
             if pose_client.LIFT_METHOD == "complex":

@@ -40,7 +40,10 @@ def determine_2d_positions(pose_client, current_state, my_rng, file_manager, lin
         bbox, yolo_confidence = find_single_person_bbox(predictions)
         file_manager.record_yolo_results(linecount, yolo_confidence, bbox)
         if bbox is None:
-            bbox = pose_client.cropping_tool.base_bbox(pose_client.SIZE_X, pose_client.SIZE_Y)
+            pose_client.cropping_tool.disable_cropping()
+        else:
+            pose_client.cropping_tool.enable_cropping()
+
     pose_client.cropping_tool.update_bbox(bbox)
     image = cv.imread(photo_loc)
     cropped_image = pose_client.cropping_tool.crop_image(image)
@@ -56,7 +59,7 @@ def determine_2d_positions(pose_client, current_state, my_rng, file_manager, lin
             heatmaps = create_heatmap(pose_2d.numpy().copy(), pose_client.SIZE_X,  pose_client.SIZE_Y)
 
     elif (pose_client.modes["mode_2d"] == "openpose"):  
-        pose_2d, heatmaps, _, _ =  openpose_module.run_only_model(cropped_image, [0.75, 1, 1.25, 1.5])
+        pose_2d, heatmaps, _, _ =  openpose_module.run_only_model(cropped_image, [0.5, 0.75, 1, 1.25, 1.5, 2])
 
         pose_client.openpose_error = torch.mean(torch.norm(pose_2d_gt_cropped-pose_2d, dim=0))
         if not pose_client.USE_SINGLE_JOINT:
