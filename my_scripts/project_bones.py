@@ -23,6 +23,7 @@ class Projection_Client(object):
             focal_length = intrinsics["f"]
             px = intrinsics["px"]
             py = intrinsics["py"]
+            self.size_x, self.size_y = intrinsics["size_x"], intrinsics["size_y"]
 
             self.K_torch = (torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])).to(self.device)
             self.K_inv_torch = torch.inverse(self.K_torch)
@@ -35,6 +36,7 @@ class Projection_Client(object):
                 focal_length = cam_intrinsics["f"]
                 px = cam_intrinsics["px"]
                 py = cam_intrinsics["py"]
+                self.size_x, self.size_y = cam_intrinsics["size_x"], cam_intrinsics["size_y"]
                 self.K_torch[cam_index, :, :] = torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])
                 self.K_inv_torch[cam_index, :, :] = torch.inverse(self.K_torch[cam_index, :, :])
         
@@ -85,15 +87,8 @@ class Projection_Client(object):
         ##find future projections
         self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.inv_transformation_matrix.clone()
         cam_list = potential_trajectory.cam_list.copy()
-        if self.test_set != "mpi_inf_3dhp":
-            self.camera_intrinsics = self.K_torch.repeat(self.FUTURE_WINDOW_SIZE , 1,1)
-        else:
-            self.camera_intrinsics = self.K_torch[cam_list, :, :]
-        flip_x_y = self.flip_x_y_pre.repeat(self.FUTURE_WINDOW_SIZE , 1, 1)
-        future_projection = self.take_batch_projection(future_poses, self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :], self.ones_tensor_future, self.camera_intrinsics, flip_x_y) 
-        #add some noise to future projection so that the error is not zero
-        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = future_projection#add_noise_to_pose(future_projection, self.noise_2d_std, my_rng, noise_type="future_proj")
-       
+        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.potential_2d_poses
+
         queue_index = self.FUTURE_WINDOW_SIZE
         for cam_index, bone_2d, _, inverse_transformation_matrix in data_list:
             cam_list.append(cam_index)

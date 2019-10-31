@@ -183,6 +183,7 @@ class PoseEstimationClient(object):
         
         elif self.modes["bone_len"] == "gt":
             use_bones = torch.from_numpy(self.poses_3d_gt[0,:,:].copy())
+            bone_connections = np.array(self.bone_connections)
             if self.BONE_LEN_METHOD == "no_sqrt":
                 current_bone_lengths = calculate_bone_lengths(bones=use_bones, bone_connections=bone_connections, batch=False)
             elif self.BONE_LEN_METHOD == "sqrt":
@@ -223,7 +224,6 @@ class PoseEstimationClient(object):
             
             self.overall_error = sum_all_errors/self.ONLINE_WINDOW_SIZE
             self.ave_overall_error = sum(self.average_errors.values())/self.ONLINE_WINDOW_SIZE
-            #print(self.average_errors)
         return self.errors
 
     def addNewFrame(self, linecount, pose_2d, pose_2d_gt, inv_transformation_matrix, pose3d_lift, current_pose_3d_gt, futuremost_pose_3d_gt, camera_id):
@@ -249,8 +249,6 @@ class PoseEstimationClient(object):
             fail_msg = "The distance between two consequtive gt values are: " + str(np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index]))
             assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<2, fail_msg
 
-            print(self.poses_3d_gt[:,:,0])
-            print("*****")
 
             temp = self.lift_pose_tensor[:-1,:,:].clone() 
             self.lift_pose_tensor[0,:,: ] = pose3d_lift.clone()

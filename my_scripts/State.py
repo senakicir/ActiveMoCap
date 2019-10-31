@@ -32,7 +32,7 @@ def find_pose_at_time (anim_time, search_array, num_of_joints):
     flat_pose = search_array[abs(search_array[:,0]-anim_time)<1e-4, 1:]
     assert flat_pose.size != 0
     pose = flat_pose.reshape([3,num_of_joints], order="F")
-    return pose
+    return pose, None
 
 def find_pose_and_frame_at_time (anim_time, search_array, num_of_joints):
     flat_pose = search_array[abs(search_array[:,1]-anim_time)<1e-4, 2:]
@@ -90,13 +90,19 @@ class State(object):
 
         self.anim_time = 1
         self.futuremost_pose_3d_gt = None
+        self.function_find_pose = None
 
-    def init_anim_time(self, anim_time):
+    def init_anim_time(self, anim_time, animation):
         self.anim_time = anim_time
 
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
+        if animation == "mpi_inf_3dhp":
+            self.function_find_pose = find_pose_and_frame_at_time
+        else:
+            self.function_find_pose = find_pose_at_time
+
         if self.anim_gt_array is not None:
-            self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
+            self.futuremost_pose_3d_gt, _ = self.function_find_pose(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def deepcopy_state(self):
         new_state = State(self.use_single_joint, self.active_parameters, self.model_settings, self.anim_gt_array, self.future_window_size)
@@ -129,7 +135,7 @@ class State(object):
 
     def change_human_gt_info(self, bone_pos_gt_updated):
         if self.anim_gt_array is not None:
-            saved_pose_gt = find_pose_at_time(self.anim_time, self.anim_gt_array, self.num_of_joints)
+            saved_pose_gt, _ = self.function_find_pose(self.anim_time, self.anim_gt_array, self.num_of_joints)
             assert np.allclose(bone_pos_gt_updated,saved_pose_gt)
 
         self.bone_pos_gt =  bone_pos_gt_updated.copy()
@@ -179,13 +185,13 @@ class State(object):
         self.anim_time = anim_time
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
         if self.anim_gt_array is not None:
-            self.futuremost_pose_3d_gt = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
+            self.futuremost_pose_3d_gt, _ = self.function_find_pose(future_anim_time, self.anim_gt_array, self.num_of_joints)
 
     def get_first_future_poses(self):
         future_poses_3d_gt = np.zeros([self.future_window_size, 3, self.num_of_joints])
         for future_ind in range(self.future_window_size):
             future_anim_time = self.anim_time + self.DELTA_T*(future_ind+1)
-            future_pose = find_pose_at_time(future_anim_time, self.anim_gt_array, self.num_of_joints)
+            future_pose, _ = self.function_find_pose(future_anim_time, self.anim_gt_array, self.num_of_joints)
             future_poses_3d_gt[self.future_window_size-future_ind-1,:,:] = future_pose.copy()
         return future_poses_3d_gt
 

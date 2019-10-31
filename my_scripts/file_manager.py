@@ -88,6 +88,7 @@ class FileManager(object):
         self.f_liftnet_results = open(self.filenames_anim["f_liftnet_results"], 'w')
         self.f_projection_est = open(self.filenames_anim["f_projection_est"], 'w')
         self.f_trajectory_list = open(self.filenames_anim["f_trajectory_list"], 'w')
+        self.f_yolo_res = open(self.filenames_anim["f_yolo_res"], 'w')
 
         if self.loop_mode ==  "openpose":
             self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
@@ -151,6 +152,13 @@ class FileManager(object):
 
     def get_photo_loc(self):
         return self.photo_loc
+
+    def get_photo_locs_for_all_viewpoints(self, linecount, viewpoint_list):
+        assert self.test_set_name == "mpi_inf_3dhp"
+        photo_loc_list = []
+        for viewpoint, _ in viewpoint_list:
+            photo_loc_list.append(self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.jpg')
+        return photo_loc_list
 
     def get_photo_locs(self):
         if self.loop_mode == "normal_simulation":
@@ -247,6 +255,13 @@ class FileManager(object):
         for i in range(gt_3d_pose.shape[1]):
             f_groundtruth_str += str(gt_3d_pose[0, i].item()) + '\t' + str(gt_3d_pose[1, i].item()) + '\t' +  str(gt_3d_pose[2, i].item()) + '\t'
         self.f_groundtruth.write(str(linecount)+ '\t' + f_groundtruth_str + '\n')
+
+    def record_yolo_results(self, linecount, yolo_confidence, bbox):
+        f_yolo_str = str(linecount)+ '\t' + str(yolo_confidence) + '\t'
+        if bbox is not None:
+            for ele in bbox:
+                f_yolo_str += str(ele) + '\t'
+        self.f_yolo_res.write(f_yolo_str + '\n')
 
     def record_drone_info(self, drone_pos, drone_orient, linecount):
         f_drone_pos_str = ""

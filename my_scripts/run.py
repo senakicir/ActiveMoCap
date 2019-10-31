@@ -4,7 +4,7 @@ from pose3d_optimizer import *
 from project_bones import *
 from determine_positions import *
 from PotentialStatesFetcher import PotentialStatesFetcher, PotentialState
-from State import State
+from State import State, find_pose_and_frame_at_time
 from file_manager import FileManager, get_bone_len_file_name
 from drone_flight_client import DroneFlightClient
 from mpi_dataset_client import MPI_Dataset_Client
@@ -81,8 +81,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     potential_states_fetcher = PotentialStatesFetcher(airsim_client=airsim_client, pose_client=pose_client, 
                                 active_parameters=active_parameters, loop_mode=loop_mode)
 
+    current_state.init_anim_time(airsim_client.default_initial_anim_time, file_manager.anim_num)
     set_animation_to_frame(airsim_client, pose_client, current_state, airsim_client.default_initial_anim_time)
-    current_state.init_anim_time(airsim_client.default_initial_anim_time)
     if airsim_client.is_using_airsim:
         move_drone_to_front(airsim_client, pose_client, current_state.radius)
     #airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(CAMERA_PITCH_OFFSET, 0, 0))
@@ -219,6 +219,14 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
 
         potential_states_fetcher.reset(pose_client, airsim_client, current_state)
         potential_states_fetcher.get_potential_positions(pose_client.is_calibrating_energy)
+
+        ### Debugging
+        #import pdb
+        #pdb.set_trace()
+        if not pose_client.quiet and pose_client.animation == "mpi_inf_3dhp":
+            _, frame = find_pose_and_frame_at_time (current_state.anim_time+current_state.DELTA_T, current_state.anim_gt_array, current_state.num_of_joints)
+            photo_locs = file_manager.get_photo_locs_for_all_viewpoints(frame, potential_states_fetcher.thrown_view_list)
+            plot_thrown_views(potential_states_fetcher.thrown_view_list, file_manager.plot_loc, photo_locs, airsim_client.linecount, pose_client.bone_connections)
 
 def openpose_loop(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, my_rng):
     #animations_to_test = ["64_06", "02_01", "05_08", "38_03"]

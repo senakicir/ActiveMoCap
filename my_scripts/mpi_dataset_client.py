@@ -15,7 +15,8 @@ class MPI_Dataset_Client(External_Dataset_Client):
         self.default_initial_anim_time = 16.02
         self.internal_anim_time = self.default_initial_anim_time
 
-        self.constant_rotation_camera_sequence = [0,1,4,3,2,6,7,10,5,8,9]
+        self.constant_rotation_camera_sequence = [4,3,2,6,7,10,5,8,9,0,1]
+        self.chosen_cam_view = 1
         self.framecount = 800
         self.num_of_joints = 15
         self.mpi_dataset_states = []

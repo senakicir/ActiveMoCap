@@ -249,7 +249,9 @@ def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc, 
                 "f_liftnet_results": experiment_folder_name +  '/liftnet_results.txt',
                 "f_openpose_results": experiment_folder_name +  '/openpose_results.txt',
                 "f_projection_est": experiment_folder_name +  '/future_pose_2d_estimate.txt',
-                "f_trajectory_list": experiment_folder_name +  '/trajectory_list.txt'}
+                "f_trajectory_list": experiment_folder_name +  '/trajectory_list.txt',
+                "f_yolo_res": experiment_folder_name +  '/yolo_res.txt'}
+
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
@@ -422,6 +424,30 @@ def plot_covariances(pose_client, plot_loc, custom_name):
         matrix_plot_loc = plot_loc +'/'+ custom_name + str(ind+1) + '.png'
         plt.savefig(matrix_plot_loc, bbox_inches='tight', pad_inches=0)
         plt.close(fig)
+
+def plot_thrown_views(throw_away_views, plot_loc, photo_locs, linecount, bone_connections):
+    fig = plt.figure(figsize=(20,20))
+
+    for photo_loc_ind, photo_loc in enumerate(photo_locs):
+        view_ind, projection = throw_away_views[photo_loc_ind]
+        projection = projection.numpy()
+        if photo_loc_ind < 9:
+            ax = fig.add_subplot(3,3,(photo_loc_ind+1))
+            im = plt.imread(photo_loc)
+            for i, bone in enumerate(bone_connections):
+                p0, = ax.plot( projection[0, bone], projection[1,bone], color = "w", linewidth=3, label="Reprojection")
+            plt.title(str(view_ind))
+            ax.imshow(im)
+
+    plt.savefig(plot_loc+"/thrown_away_views_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    
+def display_image(cropped_image, plot_loc, linecount):
+    fig = plt.figure()
+    plt.imshow(cropped_image)
+    plt.savefig(plot_loc+"/cropped_image_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+
 
 def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_location, custom_name=None, scale=-1, projection = np.zeros([1,1])):
     if custom_name == None:
@@ -602,9 +628,9 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
     for plot_ind in range(num_of_plots):
         ax = fig.add_subplot(num_rows, num_cols, plot_ind+1, projection='3d')
 
-        X = optimized_poses[plot_ind,0,:]
-        Y = optimized_poses[plot_ind,1,:]
-        Z = multip*optimized_poses[plot_ind,2,:]
+        X = poses_3d_gt[plot_ind,0,:]
+        Y = poses_3d_gt[plot_ind,1,:]
+        Z = multip*poses_3d_gt[plot_ind,2,:]
             
         max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.8
         mid_x = (X.max()+X.min()) * 0.5
