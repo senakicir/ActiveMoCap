@@ -79,7 +79,7 @@ class Projection_Client(object):
         else:
             self.camera_intrinsics =  self.K_torch[cam_list, :, :]
 
-    def reset_future(self, data_list, future_poses, potential_trajectory):
+    def reset_future(self, data_list, potential_trajectory):
         self.online_window_size = len(data_list)+self.FUTURE_WINDOW_SIZE
         self.pose_2d_tensor = torch.zeros(self.online_window_size, 2, self.num_of_joints).to(self.device)
         self.inverse_transformation_matrix = torch.zeros(self.online_window_size , 4, 4).to(self.device)
