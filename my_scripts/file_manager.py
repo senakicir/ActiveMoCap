@@ -263,6 +263,24 @@ class FileManager(object):
                 f_yolo_str += str(ele) + '\t'
         self.f_yolo_res.write(f_yolo_str + '\n')
 
+    def save_flight_curves(self, x_curr, v_curr, v_final_arr, directions, delta_ts, x_actual):
+        flight_curves_loc = self.saved_vals_loc + "/flight_curves"
+
+        np.save(flight_curves_loc+"/x_curr", x_curr)
+        np.save(flight_curves_loc+"/v_curr", v_curr)
+        np.save(flight_curves_loc+"/v_final_arr", v_final_arr)
+        np.save(flight_curves_loc+"/directions", directions)
+        np.save(flight_curves_loc+"/delta_ts", delta_ts)
+        np.save(flight_curves_loc+"/x_actual", x_actual)
+
+    def read_flight_curves(self):
+        flight_curves_dict = {}
+        flight_curves_loc = self.saved_vals_loc + "/flight_curves"
+        keys = ["x_curr", "v_curr", "v_final_arr", "directions", "delta_ts", "x_actual"]
+        for key in keys:
+            flight_curves_dict[key] = np.load(flight_curves_loc+ "/"+ key + ".npy") 
+        return flight_curves_dict
+
     def record_drone_info(self, drone_pos, drone_orient, linecount):
         f_drone_pos_str = ""
         for i in range(3):

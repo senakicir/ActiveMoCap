@@ -29,7 +29,7 @@ if __name__ == "__main__":
         saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
         test_sets_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
     elif (parameters["run_loc"] == "server"):
-        base_folder = "/cvlabdata2/home/kicirogl/ActiveDrone/grid_search_results/gs_" + date_time_name
+        base_folder = "/cvlabsrc1/home/kicirogl/ActiveDrone/grid_search_results/gs_" + date_time_name
         saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
         test_sets_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
 

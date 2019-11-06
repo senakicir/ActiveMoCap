@@ -49,12 +49,10 @@ def get_client_gt_values(airsim_client, pose_client, simulated_value_dict):
 
     return bone_pos_gt, drone_orientation_gt, drone_pos_gt
 
-def get_simulator_responses(airsim_client):
-    airsim_client.simPause(False) #unpause drone to take picture
-    if airsim_client.is_using_airsim:
-        time.sleep(0.01)
+def get_simulator_responses(airsim_client, loop_mode):
+    airsim_client.simPause(False, loop_mode) #unpause drone to take picture
     response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
-    airsim_client.simPause(True) #pause everything to start processing
+    airsim_client.simPause(True, loop_mode) #pause everything to start processing
     
     response = response[0]
     if airsim_client.is_using_airsim:
@@ -66,7 +64,7 @@ def get_simulator_responses(airsim_client):
 
 def airsim_retrieve_poses_gt(airsim_client, pose_client):
     if airsim_client.is_using_airsim:
-        response_image, response_poses = get_simulator_responses(airsim_client)
+        response_image, response_poses = get_simulator_responses(airsim_client, pose_client.loop_mode)
         poses_3d_gt, _, _ = get_client_gt_values(airsim_client, pose_client, response_poses)
     else:
         poses_3d_gt, _, _ = airsim_client.read_frame_gt_values(airsim_client.internal_anim_time)
@@ -86,17 +84,24 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
         image: photo taken at simulation step
     """
 
-    response_image, response_poses = get_simulator_responses(airsim_client)
+    response_image, response_poses = get_simulator_responses(airsim_client, pose_client.loop_mode)
     if airsim_client.is_using_airsim:
         bone_pos_gt, drone_orientation_gt, drone_pos_gt = get_client_gt_values(airsim_client, pose_client, response_poses)
         file_manager.record_gt_pose(bone_pos_gt, airsim_client.linecount)
         file_manager.record_drone_info(drone_pos_gt, drone_orientation_gt, airsim_client.linecount)
         camera_id = 0
-        #multirotor_state = airsim_client.getMultirotorState()
-        #estimated_state =  multirotor_state.kinematics_estimated
-        #drone_pos_est = estimated_state.position
+    
+        if pose_client.loop_mode == "try_controller_control" or pose_client.loop_mode =="flight_simulation":
+            #estimated_state = airsim_client.simGetGroundTruthKinematics()
+            airsim_client.simPause(False, pose_client.loop_mode)
+            multirotor_state = airsim_client.getMultirotorState()
+            airsim_client.simPause(True, pose_client.loop_mode)
+            estimated_state =  multirotor_state.kinematics_estimated
+            drone_vel = np.array([estimated_state.linear_velocity.x_val, estimated_state.linear_velocity.y_val, estimated_state.linear_velocity.z_val]) 
+        else:
+            drone_vel =  None
 
-        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, camera_id)
+        current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_vel, camera_id)
     else:
         bone_pos_gt, drone_transformation_matrix, camera_id = airsim_client.read_frame_gt_values(current_state.anim_time)
         current_state.store_frame_transformation_matrix_joint_gt(bone_pos_gt, drone_transformation_matrix, camera_id)

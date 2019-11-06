@@ -36,7 +36,7 @@ class rng_object(object):
 
     def get_random_state(self, num_of_states):
         np.random.set_state(self.rng_random_traj)
-        random_state_ind = np.random.randint(0, num_of_states-1)
+        random_state_ind = np.random.randint(0, num_of_states)
         self.rng_random_traj = np.random.get_state()
         return random_state_ind
 

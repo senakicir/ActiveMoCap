@@ -247,7 +247,7 @@ class PoseEstimationClient(object):
                 assert not np.allclose(self.poses_3d_gt[self.CURRENT_POSE_INDEX+1], self.poses_3d_gt[-1])
 
             fail_msg = "The distance between two consequtive gt values are: " + str(np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index]))
-            assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<2, fail_msg
+            #assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<2, fail_msg
 
 
             temp = self.lift_pose_tensor[:-1,:,:].clone() 

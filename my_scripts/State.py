@@ -30,13 +30,15 @@ def find_delta_yaw(current_yaw, desired_yaw):
 
 def find_pose_at_time (anim_time, search_array, num_of_joints):
     flat_pose = search_array[abs(search_array[:,0]-anim_time)<1e-4, 1:]
-    assert flat_pose.size != 0
+    fail_msg = "trying to search for anim at time {}".format(str(anim_time))
+    assert flat_pose.size != 0, anim_time
     pose = flat_pose.reshape([3,num_of_joints], order="F")
     return pose, None
 
 def find_pose_and_frame_at_time (anim_time, search_array, num_of_joints):
     flat_pose = search_array[abs(search_array[:,1]-anim_time)<1e-4, 2:]
-    assert flat_pose.size != 0
+    fail_msg = "trying to search for anim at time".format(str(anim_time))
+    assert flat_pose.size != 0, fail_msg
     pose = flat_pose.reshape([3,num_of_joints], order="F")
     frame_num = search_array[abs(search_array[:,1]-anim_time)<1e-4, 0]
     return pose, int(frame_num[0])
@@ -44,7 +46,6 @@ def find_pose_and_frame_at_time (anim_time, search_array, num_of_joints):
 def find_human_pose_orientation(pose_3d, left_arm_ind, right_arm_ind):
     shoulder_vector_gt = pose_3d[:, left_arm_ind] - pose_3d[:, right_arm_ind] 
     return np.arctan2(-shoulder_vector_gt[0], shoulder_vector_gt[1])
-
 
 class State(object):
     def __init__(self, use_single_joint, active_parameters, model_settings, anim_gt_array, future_window_size):
@@ -76,6 +77,7 @@ class State(object):
         self.drone_orientation_gt = np.zeros([3,])
         self.human_pos_gt = np.zeros([3,])
         self.bone_pos_gt = np.zeros([3, self.num_of_joints])
+        self.current_drone_vel = np.zeros([3,])
 
         self.drone_transformation_matrix = torch.zeros(4,4)
         self.inv_drone_transformation_matrix = torch.zeros(4,4)
@@ -115,6 +117,7 @@ class State(object):
         new_state.drone_orientation_gt = self.drone_orientation_gt.copy()
         new_state.human_pos_gt = self.human_pos_gt.copy()
         new_state.bone_pos_gt = self.bone_pos_gt.copy()
+        new_state.current_drone_vel = self.current_drone_vel.copy()
 
         new_state.drone_transformation_matrix = self.drone_transformation_matrix.clone()
         new_state.inv_drone_transformation_matrix = self.inv_drone_transformation_matrix.clone()
@@ -136,17 +139,19 @@ class State(object):
     def change_human_gt_info(self, bone_pos_gt_updated):
         if self.anim_gt_array is not None:
             saved_pose_gt, _ = self.function_find_pose(self.anim_time, self.anim_gt_array, self.num_of_joints)
-            assert np.allclose(bone_pos_gt_updated,saved_pose_gt)
+            #assert np.allclose(bone_pos_gt_updated,saved_pose_gt, atol=1e-05)
+           #print("DIFF IS", np.mean(np.linalg.norm(bone_pos_gt_updated-saved_pose_gt)))
 
         self.bone_pos_gt =  bone_pos_gt_updated.copy()
         self.human_pos_gt = self.bone_pos_gt[:, self.hip_index]
         self.human_orientation_gt = find_human_pose_orientation(self.bone_pos_gt, self.left_arm_ind, self.right_arm_ind)
 
-    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, camera_id):
+    def store_frame_parameters(self, bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_vel, camera_id):
         self.camera_id = camera_id
         self.change_human_gt_info(bone_pos_gt)
         
         self.drone_orientation_gt = drone_orientation_gt
+        self.current_drone_vel = drone_vel
 
         self.R_drone_gt = euler_to_rotation_matrix(self.drone_orientation_gt[0], self.drone_orientation_gt[1], self.drone_orientation_gt[2])
         self.C_drone_gt = torch.from_numpy(drone_pos_gt).float()

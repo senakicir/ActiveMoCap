@@ -10,13 +10,14 @@ from pandas import read_csv
 
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-#import matplotlib
-#matplotlib.use('Agg')
+import matplotlib
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 from matplotlib import cm, colors
 import time, os
 import cv2
 from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos, ceil
+import pdb
 
 torch.set_num_threads(8)
 
@@ -435,17 +436,17 @@ def plot_thrown_views(throw_away_views, plot_loc, photo_locs, linecount, bone_co
             ax = fig.add_subplot(3,3,(photo_loc_ind+1))
             im = plt.imread(photo_loc)
             for i, bone in enumerate(bone_connections):
-                p0, = ax.plot( projection[0, bone], projection[1,bone], color = "w", linewidth=3, label="Reprojection")
+                p0, = ax.plot( projection[0, bone], projection[1,bone], color = "r", linewidth=3, label="Reprojection")
             plt.title(str(view_ind))
             ax.imshow(im)
 
-    plt.savefig(plot_loc+"/thrown_away_views_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.savefig(plot_loc+"/thrown_away_views_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0, dpi=100)
     plt.close(fig)
     
 def display_image(cropped_image, plot_loc, linecount):
     fig = plt.figure()
     plt.imshow(cropped_image)
-    plt.savefig(plot_loc+"/cropped_image_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.savefig(plot_loc+"/cropped_image_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0, dpi=100)
     plt.close(fig)
 
 
@@ -486,7 +487,7 @@ def superimpose_on_image(openpose, plot_loc, ind, bone_connections, photo_locati
         plot_handles = [p1,p2]
 
     plt.legend(handles=plot_handles)
-    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0, dpi=100)
     plt.close(fig)
 
 def save_heatmaps(heatmaps, ind, plot_loc, custom_name=None, scales=None, poses=None, bone_connections=None):
@@ -904,7 +905,7 @@ def plot_optimization_losses(pltpts, location, ind, loss_dict):
         plt.xlabel("iter")
         plt.title(loss_key)
     plot_3d_pos_loc = location + '/loss_' + str(ind) + '.png'
-    plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
+    plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0, dpi=100)
     plt.close()
 
 def plot_2d_projection(pose, plot_loc, ind, bone_connections, custom_name="proj_2d"):
@@ -1246,7 +1247,7 @@ def plot_potential_projections(pose2d_list, linecount, plot_loc, photo_locs, bon
         ax.get_xaxis().set_visible(False)
         ax.get_yaxis().set_visible(False) 
 
-    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0, dpi=1000)
+    plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0, dpi=100)
     plt.close()
 
 def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_connections, SIZE_X, SIZE_Y):
@@ -1280,6 +1281,124 @@ def plot_potential_projections_noimage(pose2d_list, linecount, plot_loc, bone_co
 
 
     plt.savefig(superimposed_plot_loc, bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_flight_positions_and_error(plot_loc, prev_pos, current_pos, goal_pos, potential_pos, actual_pos, linecount, errors, chosen_dir):
+    fig = plt.figure(figsize=(8,8))
+    ax = fig.add_subplot(221, projection='3d')
+    if len(prev_pos)!=0:
+        p1x, p1y, p1z = np.concatenate([prev_pos, current_pos[np.newaxis]], axis=0).T
+        p0, = ax.plot(p1x, p1y, p1z, marker ="^" , color="b", label="past")   
+
+    p2x, p2y, p2z = np.concatenate([current_pos[np.newaxis], potential_pos[::-1]], axis=0).T
+    p1, = ax.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
+
+    p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], actual_pos[::-1]], axis=0,).T
+    p2, = ax.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6)   
+    if len(prev_pos)!=0:
+        X = np.concatenate((p1x, p2x, p3x), axis=0)
+        Y = np.concatenate((p1y, p2y, p3y), axis=0)
+        Z = np.concatenate((p1z, p2z, p3z), axis=0)
+        ax.legend(handles=[p0, p1, p2])
+    else:
+        ax.legend(handles=[p1, p2])
+        X = np.concatenate((p2x, p3x), axis=0)
+        Y = np.concatenate((p2y, p3y), axis=0)
+        Z = np.concatenate((p2z, p3z), axis=0)
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    plt.title("trajectory")
+
+    ax2 = fig.add_subplot(222, projection='3d')
+    # plot4_x = np.concatenate([p2x, goal_pos[0:1]])
+    # plot4_y = np.concatenate([p2y, goal_pos[1:2]])
+    # plot4_z = np.concatenate([p2z, goal_pos[2:]])
+    p3, =ax2.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted")   
+    # plot5_x = np.concatenate([p3x, goal_pos[0:1]])
+    # plot5_y = np.concatenate([p3y, goal_pos[1:2]])
+    # plot5_z = np.concatenate([p3z, goal_pos[2:]])
+    p4, =ax2.plot(p3x, p3y, p3z,  color="g", marker ="^", label="actual",  alpha=0.8)  
+    ax2.legend(handles=[p3, p4])
+    X = np.concatenate((p2x, p3x), axis=0)
+    Y = np.concatenate((p2y, p3y), axis=0)
+    Z = np.concatenate((p2z, p3z), axis=0)
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax2.set_xlim(mid_x - 1.5, mid_x + 1.5)
+    ax2.set_ylim(mid_y - 1.5, mid_y + 1.5)
+    ax2.set_zlim(mid_z - 1.5, mid_z + 1.5)
+    plt.title(chosen_dir) 
+
+    ax3 = fig.add_subplot(223)
+    ax3.plot(np.arange(0, len(errors))*0.2, errors, marker="*")
+    plt.title("errors")
+
+
+    plt.savefig(plot_loc + "/flight_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+    pp = potential_pos[::-1]
+    ap = actual_pos[::-1]
+    gp = goal_pos[::-1]
+
+
+    fig = plt.figure(figsize=(20,4))
+    ax = fig.add_subplot(131, projection='3d')
+
+    p2x, p2y, p2z = np.concatenate([current_pos[np.newaxis], pp[0:1,:]], axis=0).T
+    p1, = ax.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
+    p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], ap[0:1,:]], axis=0).T
+    p2, = ax.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6) 
+    p3, = ax.plot(gp[0:1,0], gp[0:1,1], gp[0:1,2], color="b", marker ="^", label="goal", alpha=0.4) 
+    ax.legend(handles=[p1, p2, p3])
+
+    X = np.concatenate((p2x, p3x), axis=0)
+    Y = np.concatenate((p2y, p3y), axis=0)
+    Z = np.concatenate((p2z, p3z), axis=0)
+
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - 2, mid_x + 2)
+    ax.set_ylim(mid_y - 2, mid_y + 2)
+    ax.set_zlim(mid_z - 2, mid_z + 2)
+
+
+    ax2 = fig.add_subplot(132, projection='3d')
+
+    p2x, p2y, p2z = np.concatenate([current_pos[np.newaxis], pp[0:2,:]], axis=0).T
+    p1, = ax2.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
+    p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], ap[0:2,:]], axis=0).T
+    p2, = ax2.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6) 
+    p3, = ax2.plot(gp[0:2,0], gp[0:2,1], gp[0:2,2], color="b", marker ="^", label="goal", alpha=0.4) 
+    ax2.legend(handles=[p1, p2, p3])
+    ax2.set_xlim(mid_x - 2, mid_x + 2)
+    ax2.set_ylim(mid_y - 2, mid_y + 2)
+    ax2.set_zlim(mid_z - 2, mid_z + 2)
+
+
+
+    ax3 = fig.add_subplot(133, projection='3d')
+
+    p2x, p2y, p2z = np.concatenate([current_pos[np.newaxis], pp], axis=0).T
+    p1, = ax3.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
+    p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], ap], axis=0).T
+    p2, = ax3.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6) 
+    p3, = ax3.plot(gp[:,0], gp[:,1], gp[:,2], color="b", marker ="^", label="goal", alpha=0.4) 
+    ax3.legend(handles=[p1, p2, p3])
+    ax3.set_xlim(mid_x - 2, mid_x + 2)
+    ax3.set_ylim(mid_y - 2, mid_y + 2)
+    ax3.set_zlim(mid_z - 2, mid_z + 2)
+    
+    plt.savefig(plot_loc + "/desired_pos_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, custom_name=None):
@@ -1586,7 +1705,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     #ax.legend(handles=[plot1, plot2, plot3])
 
     file_name = plot_loc + "/potential_ellipses_" + str(ellipses)+ "_" + str(ind) + ".png"
-    plt.savefig(file_name)
+    plt.savefig(file_name, dpi=100)
     plt.close(fig)
 
 def plot_potential_uncertainties(potential_states_fetcher, plot_loc, linecount):
@@ -1629,10 +1748,10 @@ def plot_potential_uncertainties(potential_states_fetcher, plot_loc, linecount):
 
     for traj_ind, potential_trajectory in enumerate(potential_trajectory_list):
         state_ind = potential_trajectory.trajectory_index
-        center = potential_trajectory.drone_positions[-1, :,0].numpy()
+        center = potential_trajectory.drone_positions[0, :,0].numpy()
         markersize=3
         if (state_ind == potential_states_fetcher.goal_state_ind):
-            markersize=10
+            markersize=15
         
         ax.scatter([center[0]], [center[1]], [center[2]], marker='^', c=[uncertainty_dict[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
         ax_top_down.scatter([center[0]], [center[2]], marker='^', c=[uncertainty_dict[state_ind]], cmap=cmap, norm=norm, s=markersize, alpha=1)
@@ -1663,7 +1782,7 @@ def plot_potential_uncertainties(potential_states_fetcher, plot_loc, linecount):
     ax_top_down.set_ylabel('Z')
 
     file_name = plot_loc + "/potential_uncertainties_" + str(linecount) + ".png"
-    plt.savefig(file_name)
+    plt.savefig(file_name, dpi=100)
     plt.close(fig)
 
 def plot_correlations(pose_client, linecount, plot_loc):
@@ -1742,7 +1861,7 @@ def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_in
     plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
 
     file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
-    plt.savefig(file_name)
+    plt.savefig(file_name, dpi=100)
     plt.close(fig)
 
 def plot_potential_errors_and_uncertainties_matrix(linecount, potential_trajectory_list, goal_trajectory, find_best_traj, plot_loc):
