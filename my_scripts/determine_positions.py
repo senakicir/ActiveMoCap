@@ -143,7 +143,11 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager,
 
     if pose_client.INIT_POSE_MODE == "initial_optimization":
         pose_client.pose_3d_preoptimization = optimized_poses.copy()
-        optimized_poses, _, _, _ = perform_optimization(pose_client, linecount)
+        if pose_client.modes["mode_3d"] == "scipy":
+            optimized_poses, _, _, _ = perform_optimization(pose_client, linecount)
+        elif pose_client.modes["mode_3d"] == "gt":
+            optimized_poses, _, _, _ = load_gt_poses(pose_client)
+
 
     pose_client.update3dPos(optimized_poses, optimized_poses)
     pose_client.set_initial_pose()
@@ -238,6 +242,10 @@ def perform_optimization(pose_client, linecount):
     return optimized_poses, adjusted_optimized_poses, optimization_losses_weighted, func_eval_time
 
 
+def load_gt_poses(pose_client):
+    return pose_client.poses_3d_gt, pose_client.poses_3d_gt, None, None
+
+
 def determine_positions(linecount, pose_client, current_state, file_manager, my_rng):
     plot_loc, photo_loc = file_manager.plot_loc, file_manager.get_photo_loc()
     bone_connections, joint_names, num_of_joints, hip_index = pose_client.model_settings()
@@ -250,7 +258,11 @@ def determine_positions(linecount, pose_client, current_state, file_manager, my_
     #add current pose as initial pose
     pose_client.set_initial_pose()
 
-    optimized_poses, adjusted_optimized_poses, optimization_losses, func_eval_time = perform_optimization(pose_client, linecount)
+    if pose_client.modes["mode_3d"] == "scipy":
+        optimized_poses, adjusted_optimized_poses, optimization_losses, func_eval_time = perform_optimization(pose_client, linecount)
+    elif pose_client.modes["mode_3d"] == "gt":
+        optimized_poses, adjusted_optimized_poses, optimization_losses, func_eval_time = load_gt_poses(pose_client)
+
     pose_client.update3dPos(optimized_poses, adjusted_optimized_poses)
     if (pose_client.is_calibrating_energy):
         pose_client.update_bone_lengths(torch.from_numpy(optimized_poses).float())
@@ -270,7 +282,8 @@ def determine_positions(linecount, pose_client, current_state, file_manager, my_
         #plot_human(current_pose_3d_gt, noisy_init_pose, plot_loc, linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
         #save_heatmaps(heatmap_2d, linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
-        plot_optimization_losses(optimization_losses, plot_loc, linecount, pose_client.loss_dict)
+        if pose_client.modes["mode_3d"] == "scipy":
+            plot_optimization_losses(optimization_losses, plot_loc, linecount, pose_client.loss_dict)
 
         if (not pose_client.is_calibrating_energy and not pose_client.simulate_error_mode):
             plot_future_poses(adjusted_optimized_poses, pose_client.FUTURE_WINDOW_SIZE, plot_loc, linecount, bone_connections, pose_client.animation)

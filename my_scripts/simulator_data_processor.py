@@ -50,9 +50,9 @@ def get_client_gt_values(airsim_client, pose_client, simulated_value_dict):
     return bone_pos_gt, drone_orientation_gt, drone_pos_gt
 
 def get_simulator_responses(airsim_client, loop_mode):
-    airsim_client.simPause(False, loop_mode) #unpause drone to take picture
+    #airsim_client.simPause(False, loop_mode) #unpause drone to take picture
     response = airsim_client.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
-    airsim_client.simPause(True, loop_mode) #pause everything to start processing
+    #airsim_client.simPause(True, loop_mode) #pause everything to start processing
     
     response = response[0]
     if airsim_client.is_using_airsim:

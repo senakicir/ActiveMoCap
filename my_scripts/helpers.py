@@ -839,7 +839,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     Z = np.concatenate([multip*bones_GT[2,:], multip*predicted_bones[2,:]])
 
     ind_offset = ind
-    alphas = np.linspace(0.01,1,ind_offset)
+    alphas = np.linspace(0.5,1,ind_offset)
 
     #plot drone
     drone_x, drone_y, drone_z = [],[],[]
@@ -1356,7 +1356,7 @@ def plot_flight_positions_and_error(plot_loc, prev_pos, current_pos, goal_pos, p
     p1, = ax.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
     p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], ap[0:1,:]], axis=0).T
     p2, = ax.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6) 
-    p3, = ax.plot(gp[0:1,0], gp[0:1,1], gp[0:1,2], color="b", marker ="^", label="goal", alpha=0.4) 
+    p3, = ax.plot(current_pos[0]+gp[0:1], current_pos[1]+gp[1:2], current_pos[2]+gp[2:], color="b", marker ="^", label="goal", alpha=0.4) 
     ax.legend(handles=[p1, p2, p3])
 
     X = np.concatenate((p2x, p3x), axis=0)
@@ -1378,7 +1378,7 @@ def plot_flight_positions_and_error(plot_loc, prev_pos, current_pos, goal_pos, p
     p1, = ax2.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
     p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], ap[0:2,:]], axis=0).T
     p2, = ax2.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6) 
-    p3, = ax2.plot(gp[0:2,0], gp[0:2,1], gp[0:2,2], color="b", marker ="^", label="goal", alpha=0.4) 
+    p3, = ax2.plot(current_pos[0]+gp[0:1], current_pos[1]+gp[1:2], current_pos[2]+gp[2:], color="b", marker ="^", label="goal", alpha=0.4) 
     ax2.legend(handles=[p1, p2, p3])
     ax2.set_xlim(mid_x - 2, mid_x + 2)
     ax2.set_ylim(mid_y - 2, mid_y + 2)
@@ -1392,7 +1392,7 @@ def plot_flight_positions_and_error(plot_loc, prev_pos, current_pos, goal_pos, p
     p1, = ax3.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   
     p3x, p3y, p3z = np.concatenate([current_pos[np.newaxis], ap], axis=0).T
     p2, = ax3.plot(p3x, p3y, p3z, color="g", marker ="^", label="actual", alpha=0.6) 
-    p3, = ax3.plot(gp[:,0], gp[:,1], gp[:,2], color="b", marker ="^", label="goal", alpha=0.4) 
+    p3, = ax3.plot(current_pos[0]+gp[0:1], current_pos[1]+gp[1:2], current_pos[2]+gp[2:], color="b", marker ="^", label="goal", alpha=0.4) 
     ax3.legend(handles=[p1, p2, p3])
     ax3.set_xlim(mid_x - 2, mid_x + 2)
     ax3.set_ylim(mid_y - 2, mid_y + 2)

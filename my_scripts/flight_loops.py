@@ -6,7 +6,7 @@ def generate_new_goal_pos_random(curr_pos, current_direction, distance, choose_s
             random_int = 1
 
         if random_int == 0:
-            random_goal_pos = np.random.uniform([-1,-1,-0.2], [1, 1, 0.2])
+            random_goal_pos = np.random.uniform([-1,-1,-1], [1, 1, 1])
             chosen_dir = "random with up-down motion"
         elif  random_int == 1:
             new_rand_int =  np.random.randint(2)
@@ -29,7 +29,8 @@ def generate_new_goal_pos_random(curr_pos, current_direction, distance, choose_s
             random_goal_pos_unit = distance*random_goal_pos/np.linalg.norm(random_goal_pos)
         else:
             random_goal_pos_unit = np.zeros((3))
-        goal_pos = curr_pos + random_goal_pos_unit
+        #goal_pos = curr_pos + random_goal_pos_unit
+        goal_pos = random_goal_pos_unit
         return goal_pos, chosen_dir
 
 def generate_new_goal_pos_same_dir(curr_pos, direction, distance):
@@ -37,5 +38,6 @@ def generate_new_goal_pos_same_dir(curr_pos, direction, distance):
         goal_pos_unit = distance*direction/np.linalg.norm(direction)
     else:
         goal_pos_unit = np.zeros((3,))
-    goal_pos = curr_pos + goal_pos_unit
+    # goal_pos = curr_pos + goal_pos_unit
+    goal_pos = goal_pos_unit
     return goal_pos
