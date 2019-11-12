@@ -60,6 +60,7 @@ class Basic_Crop(object):
         self.margin = margin #sth like 0.5 would do
         self.image_bounds = None
         self.can_crop = True
+        self.scales = [0.5, 0.75, 1]
 
     def copy_cropping_tool(self):
         new_basic_crop = Basic_Crop(self.margin)
@@ -125,9 +126,11 @@ class Basic_Crop(object):
 
     def disable_cropping(self):
         self.can_crop = False
+        self.scales = [1, 1.25, 2, 2.5]
     
     def enable_cropping(self):
         self.can_crop = True
+        self.scales = [0.5, 0.75, 1]
 
     def crop_pose(self, pose_2d_input):
         pose_2d = pose_2d_input.clone()

@@ -33,7 +33,7 @@ energy_parameters:
     #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
     SMOOTHNESS_MODE: "velocity"
     #projection_method: "scaled, normal, normalized"
-    PROJECTION_METHOD: "normal"
+    PROJECTION_METHOD: "normalized"
 
     ESTIMATION_WINDOW_SIZE: 6
     FUTURE_WINDOW_SIZE: 1
@@ -69,16 +69,16 @@ energy_parameters:
         sym: 0.2
 
     WEIGHTS: 
-        proj: 0.00033
-        smooth: 0.33
-        bone: 0.33
-        lift: 0.33
+        proj: 0.0001
+        smooth: 0.1
+        bone: 0.1
+        lift: 0.1
 
     WEIGHTS_FUTURE:
-        proj: 0.00033
-        smooth: 0.33
-        bone: 0.33
-        lift: 0.33
+        proj: 0.0001
+        smooth: 0.1
+        bone: 0
+        lift: 0.1
 
     #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
     INIT_POSE_MODE: "initial_optimization"

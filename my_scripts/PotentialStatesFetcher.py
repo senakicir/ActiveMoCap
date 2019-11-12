@@ -497,7 +497,8 @@ class PotentialStatesFetcher(object):
 
     def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager, my_rng):
         if linecount < self.PREDEFINED_MOTION_MODE_LENGTH:
-            self.choose_go_up_down()
+            #self.choose_go_up_down()
+            self.choose_constant_rotation()
         else:
             if pose_client.is_calibrating_energy:
                 if self.loop_mode == "flight_simulation" or self.loop_mode == "teleport_simulation":

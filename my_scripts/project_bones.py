@@ -90,7 +90,10 @@ class Projection_Client(object):
         ##find future projections
         self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.inv_transformation_matrix.clone()
         cam_list = potential_trajectory.cam_list.copy()
+
+        #REINTRODUCE BUG
         self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.potential_2d_poses.clone()
+        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, 1, :] = self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, 0, :]
 
         queue_index = self.FUTURE_WINDOW_SIZE
         for cam_index, bone_2d, _, inverse_transformation_matrix in data_list:
