@@ -30,6 +30,7 @@ def calculate_bone_directions(bones, lift_bone_directions, batch):
         norm_bone_vector = (torch.norm(current_bone_vector, dim=0, keepdim=True)).repeat(3,1) #try without repeat
     return (current_bone_vector/(norm_bone_vector+EPSILON)).float()
 
+
 def calculate_bone_directions_simple(lift_bones, bone_lengths, bone_length_method, bone_connections, hip_index, batch):
     lift_bone_rescaled = scale_with_bone_lengths(lift_bones, bone_lengths, bone_length_method, bone_connections, batch)
     if batch:
