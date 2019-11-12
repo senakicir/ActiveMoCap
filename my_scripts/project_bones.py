@@ -1,20 +1,19 @@
 import torch as torch
 from math import pi, cos, sin, degrees
 import numpy as np
-from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_X, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, EPSILON
+from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, EPSILON
 from pose_helper_functions import add_noise_to_pose
-import pdb
+
 
 neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
 DEFAULT_TORSO_SIZE = 0.3
 
-C_cam_torch = torch.FloatTensor([[CAMERA_OFFSET_X], [CAMERA_OFFSET_Y], [CAMERA_OFFSET_Z]])
-
 class Projection_Client(object):
-    def __init__(self, test_set, future_window_size, num_of_joints, intrinsics, noise_2d_std, device):
+    def __init__(self, test_set, future_window_size, estimation_window_size, num_of_joints, intrinsics, noise_2d_std, device):
         self.device = device
         self.test_set = test_set
         self.FUTURE_WINDOW_SIZE = future_window_size
+        self.ESTIMATION_WINDOW_SIZE = estimation_window_size
         self.intrinsics = intrinsics
         self.num_of_joints = num_of_joints
         self.noise_2d_std = noise_2d_std
@@ -79,15 +78,19 @@ class Projection_Client(object):
         else:
             self.camera_intrinsics =  self.K_torch[cam_list, :, :]
 
-    def reset_future(self, data_list, potential_trajectory):
-        self.online_window_size = len(data_list)+self.FUTURE_WINDOW_SIZE
-        self.pose_2d_tensor = torch.zeros(self.online_window_size, 2, self.num_of_joints).to(self.device)
-        self.inverse_transformation_matrix = torch.zeros(self.online_window_size , 4, 4).to(self.device)
+    def reset_future(self, data_list, potential_trajectory, use_hessian_mode):
+        if use_hessian_mode == "whole":
+            self.hessian_size = self.ESTIMATION_WINDOW_SIZE + self.FUTURE_WINDOW_SIZE
+        elif use_hessian_mode == "partial":
+            self.hessian_size = self.ESTIMATION_WINDOW_SIZE 
+
+        self.pose_2d_tensor = torch.zeros(self.hessian_size, 2, self.num_of_joints).to(self.device)
+        self.inverse_transformation_matrix = torch.zeros(self.hessian_size , 4, 4).to(self.device)
 
         ##find future projections
         self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.inv_transformation_matrix.clone()
         cam_list = potential_trajectory.cam_list.copy()
-        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.potential_2d_poses
+        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.potential_2d_poses.clone()
 
         queue_index = self.FUTURE_WINDOW_SIZE
         for cam_index, bone_2d, _, inverse_transformation_matrix in data_list:
@@ -95,17 +98,18 @@ class Projection_Client(object):
             self.pose_2d_tensor[queue_index, :, :] = bone_2d.clone()
             self.inverse_transformation_matrix[queue_index, :, :]= inverse_transformation_matrix.clone()
             queue_index += 1
-
-        self.ones_tensor = torch.ones(self.online_window_size, 1, self.num_of_joints).to(self.device)*1.0
-        self.flip_x_y_batch = self.flip_x_y_pre.repeat(self.online_window_size , 1, 1)
+            if queue_index == self.hessian_size:
+                break
+        self.ones_tensor = torch.ones(self.hessian_size, 1, self.num_of_joints).to(self.device)*1.0
+        self.flip_x_y_batch = self.flip_x_y_pre.repeat(self.hessian_size , 1, 1)
 
         if self.test_set != "mpi_inf_3dhp":
-            self.camera_intrinsics = self.K_torch.repeat(self.online_window_size , 1,1)
+            self.camera_intrinsics = self.K_torch.repeat(self.hessian_size , 1,1)
         else:
             self.camera_intrinsics = self.K_torch[cam_list, :, :]
 
     def deepcopy_projection_client(self):
-        return Projection_Client(self.test_set, self.FUTURE_WINDOW_SIZE, self.num_of_joints, self.intrinsics, self.noise_2d_std, self.device) 
+        return Projection_Client(self.test_set, self.FUTURE_WINDOW_SIZE, self.ESTIMATION_WINDOW_SIZE, self.num_of_joints, self.intrinsics, self.noise_2d_std, self.device) 
 
     def take_projection(self, pose_3d):
         return self.take_batch_projection(pose_3d, self.inverse_transformation_matrix, self.ones_tensor, self.camera_intrinsics, self.flip_x_y_batch)

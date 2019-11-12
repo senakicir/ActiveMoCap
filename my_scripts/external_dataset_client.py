@@ -19,15 +19,10 @@ class External_Dataset_Client(object):
         self.end = False
         self.test_set_name = test_set_name
 
-        self.DRONE_INITIAL_POS = np.zeros([3,1])     
+        self.DRONE_INITIAL_POS = np.zeros([3])     
 
-    def simPauseHuman(self, arg1):
-        pass
 
-    def simPauseDrone(self, arg1):
-        pass
-
-    def simPause(self, arg1):
+    def simPause(self, arg1, arg2):
         pass
 
     def simSetCameraOrientation(self, arg1, arg2): 
@@ -42,8 +37,6 @@ class External_Dataset_Client(object):
     def getAnimationTime(self):
         return self.internal_anim_time
 
-    def updateAnimation(self, increment_time):
-        self.internal_anim_time += increment_time
 
     def increment_linecount(self, is_calibrating_energy):
         self.linecount += 1

@@ -64,10 +64,10 @@ class PoseEstimationClient(object):
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
 
-        self.weights_calib = param["WEIGHTS_CALIB"]
-        self.weights_online = param["WEIGHTS"]
+        self.weights_calib =  {key: torch.tensor(value).float() for key, value in param["WEIGHTS_CALIB"].items()}
+        self.weights_online = {key: torch.tensor(value).float() for key, value in param["WEIGHTS"].items()}
         self.weights_smooth = self.weights_online["smooth"]
-        self.weights_future = param["WEIGHTS_FUTURE"]
+        self.weights_future = {key: torch.tensor(value).float() for key, value in param["WEIGHTS_FUTURE"].items()}
 
         self.loss_dict_calib = ["proj"]
         if self.USE_SYMMETRY_TERM:  
@@ -120,6 +120,9 @@ class PoseEstimationClient(object):
         self.multiple_bone_lengths = torch.zeros([self.ONLINE_WINDOW_SIZE, self.num_of_joints-1])
 
         self.lift_pose_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints]).to(self.device)
+        self.pose_2d_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 2, self.num_of_joints]).to(self.device)
+        self.pose_2d_gt_tensor = torch.zeros([self.ESTIMATION_WINDOW_SIZE, 2, self.num_of_joints]).to(self.device)
+        self.cam_list = []
         self.potential_projected_est = torch.zeros([2, self.num_of_joints]).to(self.device)
 
         self.requiredEstimationData = []
@@ -148,8 +151,11 @@ class PoseEstimationClient(object):
         else:
             self.M = np.eye(self.num_of_joints)
                 
-        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, intrinsics=intrinsics, noise_2d_std=self.NOISE_2D_STD, device=self.device)
-        self.lift_client = Lift_Client(self.NOISE_LIFT_STD)
+        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, 
+                                                    estimation_window_size=self.ESTIMATION_WINDOW_SIZE, 
+                                                    num_of_joints=self.num_of_joints, intrinsics=intrinsics, 
+                                                    noise_2d_std=self.NOISE_2D_STD, device=self.device)
+        self.lift_client = Lift_Client(self.NOISE_LIFT_STD, self.ESTIMATION_WINDOW_SIZE, self.FUTURE_WINDOW_SIZE)
 
         if self.animation == "mpi_inf_3dhp":
             self.SIZE_X, self.SIZE_Y = intrinsics[0]["size_x"],  intrinsics[0]["size_y"]
@@ -190,6 +196,7 @@ class PoseEstimationClient(object):
                 current_bone_lengths = calculate_bone_lengths_sqrt(bones=use_bones, bone_connections=bone_connections, batch=False)
             self.boneLengths = current_bone_lengths.clone()
             self.batch_bone_lengths = (self.boneLengths).repeat(self.ONLINE_WINDOW_SIZE,1)
+
 
     def update_bone_lengths(self, bones):
         assert self.is_calibrating_energy
@@ -248,11 +255,18 @@ class PoseEstimationClient(object):
 
             fail_msg = "The distance between two consequtive gt values are: " + str(np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index]))
             #assert np.linalg.norm(current_pose_3d_gt[:,self.hip_index]-self.poses_3d_gt[self.CURRENT_POSE_INDEX-1,:,self.hip_index])<2, fail_msg
-
-
+            # print(pose3d_lift.unsqueeze(0).shape)
+            # print( self.lift_pose_tensor[:-1].shape)
+            # self.lift_pose_tensor[1:] = torch.cat((pose3d_lift.unsqueeze(0), self.lift_pose_tensor[:-1]), dim=0)
             temp = self.lift_pose_tensor[:-1,:,:].clone() 
             self.lift_pose_tensor[0,:,: ] = pose3d_lift.clone()
             self.lift_pose_tensor[1:,:,:] = temp.clone()
+            # self.pose_2d_tensor[1:] =  torch.cat([pose_2d.unsqueeze(0), self.pose_2d_tensor[:-1], dim=0)
+            # self.pose_2d_gt_tensor[1:] =  torch.cat([pose_2d_gt.unsqueeze(0), self.pose_2d_gt_tensor[:-1], dim=0)
+            # self.cam_list.insert(0, camera_id)
+
+            # self.inv_transformation_tensor[1:] = torch.cat([inv_transformation_matrix.unsqueeze(0), self.inv_transformation_tensor[:-1], dim=0)
+
         
         if self.is_calibrating_energy:
             if linecount >= self.PREDEFINED_MOTION_MODE_LENGTH:
@@ -271,7 +285,8 @@ class PoseEstimationClient(object):
         else:
             for _ in range(self.ESTIMATION_WINDOW_SIZE):
                 self.requiredEstimationData.insert(0, [camera_id, pose_2d.clone(), pose_2d_gt.clone(), inv_transformation_matrix.clone()])
-            self.lift_pose_tensor[:, :, :] = pose3d_lift.clone()
+            if self.USE_LIFT_TERM:
+                self.lift_pose_tensor[:, :, :] = pose3d_lift.clone()
 
     def set_initial_pose(self):
         current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose

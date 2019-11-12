@@ -12,14 +12,12 @@ from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 from matplotlib import cm, colors
 import time, os
 import cv2
 from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos, ceil
-import pdb
 
-torch.set_num_threads(8)
 
 TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
 ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "05_11":6, "05_15":7, "06_09":8,"07_10": 9, 
@@ -46,7 +44,7 @@ EPSILON = 0.00000001
 
 CAMERA_OFFSET_X = 45/100
 CAMERA_OFFSET_Y = 0
-CAMERA_OFFSET_Z = 0#-4.92
+CAMERA_OFFSET_Z = 0
 CAMERA_ROLL_OFFSET = 0
 CAMERA_PITCH_OFFSET = 0
 CAMERA_YAW_OFFSET = 0
@@ -1646,7 +1644,7 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     state_inds = []
     for potential_trajectory in potential_trajectory_list:
         state_inds.append(potential_trajectory.trajectory_index)
-        state_pos =  potential_trajectory.drone_positions[-1, :,0].numpy()
+        state_pos =  potential_trajectory.drone_positions[0, :,0].numpy()
         center = np.copy(state_pos)
         center[2] = -center[2]
         centers.append(center)
@@ -1733,22 +1731,12 @@ def plot_potential_uncertainties(potential_states_fetcher, plot_loc, linecount):
     #for ax limits
     X = np.array([current_human_pos[0], future_human_pos[0], gt_human_pos[0]])
     Y = np.array([current_human_pos[1], future_human_pos[1], gt_human_pos[1]])
-    Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
-
-    #plot ellipses
-    centers = []
-    state_inds = []
-    for potential_trajectory in potential_trajectory_list:
-        state_inds.append(potential_trajectory.trajectory_index)
-        state_pos =  potential_trajectory.drone_positions[-1, :,0].numpy()
-        center = np.copy(state_pos)
-        center[2] = -center[2]
-        centers.append(center)
-    
+    Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])   
 
     for traj_ind, potential_trajectory in enumerate(potential_trajectory_list):
         state_ind = potential_trajectory.trajectory_index
-        center = potential_trajectory.drone_positions[0, :,0].numpy()
+        center = potential_trajectory.drone_positions[0, :, 0].numpy()
+        center[2] = -center[2]
         markersize=3
         if (state_ind == potential_states_fetcher.goal_state_ind):
             markersize=15

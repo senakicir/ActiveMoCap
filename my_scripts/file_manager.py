@@ -103,6 +103,7 @@ class FileManager(object):
         self.openpose_err_str = ""
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
+        self.saved_anim_time = []
 
         saved_vals_loc_anim = self.saved_vals_loc + "/" + str(self.anim_num)
         if not os.path.exists(saved_vals_loc_anim):
@@ -112,7 +113,6 @@ class FileManager(object):
             self.f_anim_gt = open(saved_vals_loc_anim + "/gt_poses.txt", "w")
             self.f_anim_gt_array = None
             self.f_anim_gt.write("time\tgt_poses\n")
-            self.saved_anim_time = []
             self.bone_lengths_dict = None
         else:
             #read into matrix
@@ -141,13 +141,16 @@ class FileManager(object):
             if viewpoint == "":
                 self.photo_loc = self.take_photo_loc + '/img_' + str(linecount) + '.png'
             else:
-                self.photo_loc = self.take_photo_loc + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
+                self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.png'
         elif (self.simulation_mode == "saved_simulation"):
             if self.test_set_name == "drone_flight":
                 #linecount = 0 not necessary anymore?
                 self.photo_loc = self.take_photo_loc + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
             elif self.test_set_name == "mpi_inf_3dhp":
                 self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.jpg'
+            else:
+                self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.png'
+
         return self.photo_loc
 
     def get_photo_loc(self):
@@ -242,13 +245,13 @@ class FileManager(object):
             liftnet_str += str(liftnet_res[0, i].item()) + '\t' + str(liftnet_res[1, i].item()) + '\t' + str(liftnet_res[2, i].item())
         self.f_liftnet_results.write(str(linecount)+ '\t'+ str(state_ind) + '\t' + liftnet_str + '\n')
 
-    def prepare_test_set_gt(self, current_state, linecount, state_ind):
+    def prepare_test_set_gt(self, current_state, linecount, state_ind, drone_pos_file):
         f_drone_pos_str = ""
         flattened_transformation_matrix = np.reshape(current_state.drone_transformation_matrix.numpy(), (16, ))
         for i in range (16):
             f_drone_pos_str += str(float(flattened_transformation_matrix[i])) + '\t'
-
-        self.f_drone_pos.write(str(linecount)+ '\t' + str(state_ind) + '\t' + f_drone_pos_str + '\n')
+        drone_pos_file.write(str(linecount)+ '\t' + str(state_ind) + '\t' + f_drone_pos_str + '\n')
+        print(flattened_transformation_matrix)
 
     def record_gt_pose(self, gt_3d_pose, linecount):
         f_groundtruth_str = ""
@@ -263,12 +266,11 @@ class FileManager(object):
                 f_yolo_str += str(ele) + '\t'
         self.f_yolo_res.write(f_yolo_str + '\n')
 
-    def save_flight_curves(self, x_curr, v_curr, v_final_arr, directions, delta_ts, x_actual):
+    def save_flight_curves(self, x_curr, v_curr, directions, delta_ts, x_actual):
         flight_curves_loc = self.saved_vals_loc + "/flight_curves"
 
         np.save(flight_curves_loc+"/x_curr", x_curr)
         np.save(flight_curves_loc+"/v_curr", v_curr)
-        np.save(flight_curves_loc+"/v_final_arr", v_final_arr)
         np.save(flight_curves_loc+"/directions", directions)
         np.save(flight_curves_loc+"/delta_ts", delta_ts)
         np.save(flight_curves_loc+"/x_actual", x_actual)
@@ -276,10 +278,35 @@ class FileManager(object):
     def read_flight_curves(self):
         flight_curves_dict = {}
         flight_curves_loc = self.saved_vals_loc + "/flight_curves"
-        keys = ["x_curr", "v_curr", "v_final_arr", "directions", "delta_ts", "x_actual"]
+        keys = ["x_curr", "v_curr", "directions", "delta_ts", "x_actual"]
         for key in keys:
             flight_curves_dict[key] = np.load(flight_curves_loc+ "/"+ key + ".npy") 
         return flight_curves_dict
+
+    def save_intrinsics(self, intrinsics_dict, f_intrinsics_loc):
+        f_intrinsics = open(f_intrinsics_loc, "w")
+        f_intrinsics.write("focal_length\tpx\tpy\tsize_x\tsize_y\n")
+        f_intrinsics.write( str(intrinsics_dict["f"] )
+                            +"\t"+str(intrinsics_dict["px"])
+                            +"\t"+str(intrinsics_dict["py"])
+                            +"\t"+str(intrinsics_dict["size_x"])
+                            +"\t"+str(intrinsics_dict["size_y"]))
+        f_intrinsics.close()
+
+    def save_gt_values_dataset(self, linecount, anim_time, pos_3d_gt, f_poses_gt):
+        f_groundtruth_str = ""
+        for i in range(pos_3d_gt.shape[1]):
+            f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
+        f_poses_gt.write(str(linecount) + '\t'+ str(anim_time)+ '\t' + f_groundtruth_str + '\n')
+
+
+    def write_gt_pose_values(self, anim_time, pos_3d_gt):
+        if anim_time not in self.saved_anim_time:
+            self.saved_anim_time.append(anim_time)
+            f_groundtruth_str = ""
+            for i in range(pos_3d_gt.shape[1]):
+                f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
+            self.f_anim_gt.write(str(linecount) + '\t' + str(anim_time)+ '\t' + f_groundtruth_str + '\n')
 
     def record_drone_info(self, drone_pos, drone_orient, linecount):
         f_drone_pos_str = ""
@@ -326,6 +353,8 @@ class FileManager(object):
             for i in range(pos_3d_gt.shape[1]):
                 f_groundtruth_str += str(pos_3d_gt[0, i]) + '\t' + str(pos_3d_gt[1, i]) + '\t' +  str(pos_3d_gt[2, i]) + '\t'
             self.f_anim_gt.write(str(anim_time)+ '\t' + f_groundtruth_str + '\n')
+
+
 
     def save_bone_lengths(self, bone_lengths_dict):
         for key, bone_lengths in bone_lengths_dict.items():

@@ -93,14 +93,14 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     
         if pose_client.loop_mode == "try_controller_control" or pose_client.loop_mode =="flight_simulation":
             #estimated_state = airsim_client.simGetGroundTruthKinematics()
-            airsim_client.simPause(False, pose_client.loop_mode)
+            #airsim_client.simPause(False, pose_client.loop_mode)
             multirotor_state = airsim_client.getMultirotorState()
-            airsim_client.simPause(True, pose_client.loop_mode)
+            #airsim_client.simPause(True, pose_client.loop_mode)
             estimated_state =  multirotor_state.kinematics_estimated
             drone_vel = np.array([estimated_state.linear_velocity.x_val, estimated_state.linear_velocity.y_val, estimated_state.linear_velocity.z_val]) 
         else:
             drone_vel =  None
-
+        current_state.compare_arrays(bone_pos_gt)
         current_state.store_frame_parameters(bone_pos_gt, drone_orientation_gt, drone_pos_gt, drone_vel, camera_id)
     else:
         bone_pos_gt, drone_transformation_matrix, camera_id = airsim_client.read_frame_gt_values(current_state.anim_time)
@@ -114,7 +114,7 @@ def airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager):
     #image_buffer.show()
     return image
 
-def take_photo(airsim_client, pose_client, current_state, file_manager):
+def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoint=""):
     """
     Description: 
         Calls simulator to take picture and return GT values simultaneously.
@@ -129,9 +129,8 @@ def take_photo(airsim_client, pose_client, current_state, file_manager):
     Returns:
         photo: photo taken at simulation step
     """
-    viewpoint = ""
-    if pose_client.animation == "mpi_inf_3dhp":
-        viewpoint = airsim_client.chosen_cam_view
+    if not airsim_client.is_using_airsim:
+        viewpoint = airsim_client.chosen_cam_view   
 
     photo = airsim_retrieve_gt(airsim_client, pose_client, current_state, file_manager)
     if airsim_client.is_using_airsim:
@@ -142,5 +141,5 @@ def take_photo(airsim_client, pose_client, current_state, file_manager):
             if os.path.isfile(loc_rem):
                 os.remove(loc_rem)
     else:
-        file_manager.update_photo_loc(linecount=airsim_client.framecount, viewpoint=viewpoint)
+        file_manager.update_photo_loc(linecount=airsim_client.get_photo_index(), viewpoint=viewpoint)
     return photo

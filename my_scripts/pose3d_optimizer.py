@@ -101,7 +101,7 @@ class pose3d_online_parallel(torch.nn.Module):
         super(pose3d_online_parallel, self).__init__()
 
         self.optimization_mode = optimization_mode
-        assert self.optimization_mode == "estimate_whole" or self.optimization_mode == "estimate_future" or self.optimization_mode == "estimate_past"
+        assert self.optimization_mode == "estimate_whole" or self.optimization_mode == "estimate_future" or self.optimization_mode == "estimate_past" or self.optimization_mode == "estimate_partial_hessian"
         self.animation = pose_client.animation
         self.projection_client = projection_client
 
@@ -126,7 +126,7 @@ class pose3d_online_parallel(torch.nn.Module):
 
         self.loss_dict = pose_client.loss_dict_online
         
-        if self.optimization_mode == "estimate_whole":
+        if self.optimization_mode == "estimate_whole" or self.optimization_mode == "estimate_partial_hessian":
             self.energy_weights = pose_client.weights_future
         elif self.optimization_mode == "estimate_past" or self.optimization_mode == "estimate_future":
             self.energy_weights = pose_client.weights_online
@@ -174,10 +174,17 @@ class pose3d_online_parallel(torch.nn.Module):
             if self.optimization_mode == "estimate_past":
                 projected_2d = self.projection_client.take_projection(self.pose3d[self.FUTURE_WINDOW_SIZE:])
                 proj_N = self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS  
+                proj_compare = self.projection_client.pose_2d_tensor
             elif self.optimization_mode == "estimate_whole":
                 projected_2d = self.projection_client.take_projection(self.pose3d)
                 proj_N = self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS  
-            output["proj"] = weighted_mse_loss(projected_2d, self.projection_client.pose_2d_tensor, self.projection_scales, proj_N)
+                proj_compare = self.projection_client.pose_2d_tensor
+            elif self.optimization_mode == "estimate_partial_hessian":
+                projected_2d = self.projection_client.take_projection(self.pose3d[:self.ESTIMATION_WINDOW_SIZE])
+                proj_N = self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS  
+                proj_compare = self.projection_client.pose_2d_tensor
+                assert  proj_compare.shape[0] == self.ESTIMATION_WINDOW_SIZE
+            output["proj"] = weighted_mse_loss(projected_2d, proj_compare, self.projection_scales, proj_N)
 
         #bone length consistency 
         if self.use_bone_term and not self.use_single_joint:
@@ -198,6 +205,10 @@ class pose3d_online_parallel(torch.nn.Module):
                 length_of_bone = bone_len_func(bones=self.pose3d, bone_connections=self.bone_connections, batch=True)
                 compare_bone_len = self.batch_bone_lengths
                 bone_N = self.ONLINE_WINDOW_SIZE*(length_of_bone.shape[0])
+            elif self.optimization_mode == "estimate_partial_hessian":
+                length_of_bone = bone_len_func(bones=self.pose3d[:self.ESTIMATION_WINDOW_SIZE], bone_connections=self.bone_connections, batch=True)
+                compare_bone_len = self.batch_bone_lengths[:self.ESTIMATION_WINDOW_SIZE]
+                bone_N = self.ESTIMATION_WINDOW_SIZE*(length_of_bone.shape[0])
             output["bone"] = mse_loss(length_of_bone, compare_bone_len, bone_N)
         
         #smoothness term
@@ -208,11 +219,26 @@ class pose3d_online_parallel(torch.nn.Module):
             elif self.optimization_mode == "estimate_whole" or self.optimization_mode == "estimate_future":
                 vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
                 smooth_N = (self.ONLINE_WINDOW_SIZE)*self.NUM_OF_JOINTS
+            elif self.optimization_mode == "estimate_partial_hessian":
+                vel_tensor = self.pose3d[1:self.ESTIMATION_WINDOW_SIZE, :, :] - self.pose3d[:self.ESTIMATION_WINDOW_SIZE-1, :, :]
+                smooth_N = (self.ESTIMATION_WINDOW_SIZE)*self.NUM_OF_JOINTS
             output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], smooth_N)
 
         elif self.smoothness_mode == "position":
-            raise NotImplementedError
-            output["smooth"] = mse_loss(self.pose3d[1:, :, :], self.pose3d[:-1, :, :], (self.ONLINE_WINDOW_SIZE-1)*self.NUM_OF_JOINTS)
+            if self.optimization_mode == "estimate_past":
+                smooth_N = (self.ESTIMATION_WINDOW_SIZE)*self.NUM_OF_JOINTS
+                output["smooth"] = mse_loss(self.pose3d[self.FUTURE_WINDOW_SIZE+1:, :, :], self.pose3d[self.FUTURE_WINDOW_SIZE:-1, :, :], smooth_N)
+            elif self.optimization_mode == "estimate_whole":
+                smooth_N = (self.ONLINE_WINDOW_SIZE)*self.NUM_OF_JOINTS
+                output["smooth"] = mse_loss(self.pose3d[1:, :, :], self.pose3d[:-1, :, :], smooth_N)
+            elif self.optimization_mode == "estimate_partial_hessian":
+                smooth_N = (self.ESTIMATION_WINDOW_SIZE)*self.NUM_OF_JOINTS
+                output["smooth"] = mse_loss(self.pose3d[1:self.ESTIMATION_WINDOW_SIZE, :, :], self.pose3d[:self.ESTIMATION_WINDOW_SIZE-1, :, :], smooth_N)
+            elif self.optimization_mode == "estimate_future":
+                vel_tensor = self.pose3d[1:, :, :] - self.pose3d[:-1, :, :]
+                smooth_N = (self.ONLINE_WINDOW_SIZE)*self.NUM_OF_JOINTS
+                output["smooth"] = mse_loss(vel_tensor[1:,:,:], vel_tensor[:-1,:,:], smooth_N)
+                
         elif self.smoothness_mode == "all_connected":
             raise NotImplementedError
             vel_tensor = self.pose3d[:, :, :] - self.pose3d[self.n, :, :]
@@ -232,7 +258,7 @@ class pose3d_online_parallel(torch.nn.Module):
                     if self.lift_method == "complex":
                         pose_est_directions = calculate_bone_directions(self.pose3d[self.FUTURE_WINDOW_SIZE:,:,:], self.lift_bone_directions, batch=True)
                     elif self.lift_method == "simple":
-                        pose_est_direction = self.pose3d[self.FUTURE_WINDOW_SIZE:, :, :]-self.pose3d[self.FUTURE_WINDOW_SIZE:, :, self.hip_index].unsqueeze(2)
+                        pose_est_direction = self.pose3d[self.FUTURE_WINDOW_SIZE:]-self.pose3d[self.FUTURE_WINDOW_SIZE:, :, self.hip_index].unsqueeze(2)
 
                 elif self.optimization_mode == "estimate_whole":
                     lift_N = self.ONLINE_WINDOW_SIZE*self.NUM_OF_JOINTS
@@ -240,9 +266,16 @@ class pose3d_online_parallel(torch.nn.Module):
                         pose_est_directions = calculate_bone_directions(self.pose3d, self.lift_bone_directions, batch=True)
                     elif self.lift_method == "simple":                    
                         pose_est_direction = self.pose3d-self.pose3d[:, :, self.hip_index].unsqueeze(2)
+
+                elif self.optimization_mode == "estimate_partial_hessian":
+                    lift_N = self.ESTIMATION_WINDOW_SIZE*self.NUM_OF_JOINTS
+                    if self.lift_method == "complex":   
+                        pose_est_directions = calculate_bone_directions(self.pose3d[:self.ESTIMATION_WINDOW_SIZE], self.lift_bone_directions, batch=True)
+                    elif self.lift_method == "simple":                    
+                        pose_est_direction = self.pose3d[:self.ESTIMATION_WINDOW_SIZE]-self.pose3d[:self.ESTIMATION_WINDOW_SIZE, :, self.hip_index].unsqueeze(2)
                 output["lift"]=mse_loss(self.pose3d_lift_directions, pose_est_direction, lift_N)
 
-        overall_output = 0
+        overall_output = 0 
         for loss_key in self.loss_dict:
             overall_output += self.energy_weights[loss_key]*output[loss_key]
             self.pltpts[loss_key].append(output[loss_key])

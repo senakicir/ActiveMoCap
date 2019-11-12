@@ -2,7 +2,6 @@ from helpers import *
 import pandas as pd
 import torch
 import numpy as np
-import pdb
 from PotentialStatesFetcher import PotentialState_External_Dataset
 from Lift_Client import calculate_bone_directions
 from external_dataset_client import External_Dataset_Client

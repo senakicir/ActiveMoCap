@@ -2,7 +2,6 @@ import numpy as np
 import torch
 from math import ceil
 from helpers import numpy_to_tuples
-import pdb
 
 def find_bbox_bounds(bbox):
     bounds =   {"min_x" : int(bbox[0] - bbox[2]/2),
@@ -63,10 +62,11 @@ class Basic_Crop(object):
         self.can_crop = True
 
     def copy_cropping_tool(self):
-        new_basic_crop = Basic_Crop()
+        new_basic_crop = Basic_Crop(self.margin)
         new_basic_crop.bbox_with_margin = self.bbox_with_margin
         new_basic_crop.image_bounds = self.image_bounds
         new_basic_crop.can_crop = self.can_crop
+        return new_basic_crop
 
     def update_bbox(self, bbox):
         if self.can_crop:

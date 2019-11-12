@@ -32,6 +32,15 @@ class rng_object(object):
         torch.set_rng_state(noise_state)
         noise = torch.normal(torch.zeros(noise_shape), torch.ones(noise_shape)*noise_std).float()
         noise_state = torch.get_rng_state()
+
+        if noise_type=="initial":
+            self.rng_initialization_noise = noise_state
+        elif noise_type=="lift":
+            self.rng_lift_noise = noise_state
+        elif noise_type=="proj":
+            self.rng_projection_noise = noise_state
+        elif noise_type=="future_proj":
+            self.rng_future_projection_noise = noise_state
         return noise
 
     def get_random_state(self, num_of_states):

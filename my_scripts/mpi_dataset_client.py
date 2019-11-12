@@ -5,10 +5,9 @@ from PotentialStatesFetcher import PotentialState_External_Dataset
 from Lift_Client import calculate_bone_directions
 from external_dataset_client import External_Dataset_Client
 from State import find_pose_and_frame_at_time
-import pdb
 
 class MPI_Dataset_Client(External_Dataset_Client):
-    def __init__(self, length_of_simulation, test_sets_loc):
+    def __init__(self, length_of_simulation, test_sets_loc, experiment_ind):
         test_set_name = "mpi_inf_3dhp"
         super(MPI_Dataset_Client, self).__init__(length_of_simulation, test_set_name)
         self.num_of_camera_views = 14
@@ -16,7 +15,9 @@ class MPI_Dataset_Client(External_Dataset_Client):
         self.internal_anim_time = self.default_initial_anim_time
 
         self.constant_rotation_camera_sequence = [4,3,2,6,7,10,5,8,9,0,1]
-        self.chosen_cam_view = 1 
+        initial_cam_view_list = [1,4,5,7,8]
+        self.chosen_cam_view = initial_cam_view_list[experiment_ind]
+        self.initial_cam_view =  self.chosen_cam_view 
         self.framecount = 800
         self.num_of_joints = 15
         self.mpi_dataset_states = []
@@ -80,6 +81,9 @@ class MPI_Dataset_Client(External_Dataset_Client):
         pose, framecount = find_pose_and_frame_at_time(anim_time, self.groundtruth_matrix, num_of_joints=15)
         self.framecount = framecount
         return pose
+
+    def get_photo_index(self):
+        return self.framecount
 
 
     def read_frame_gt_values(self, anim_time):

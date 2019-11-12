@@ -1,6 +1,4 @@
 import numpy as np
-import pdb
-
 
 class Motion_Predictor(object):
 
@@ -15,11 +13,17 @@ class Motion_Predictor(object):
         self.future_window_size = future_window_size
         self.direction_alpha = 0.5
         self.future_ind = self.future_window_size-1
+        self.movement_mode = active_parameters["MOVEMENT_MODE"]
+
+        if self.movement_mode == "position":
+            self.predict_potential_positions_func = self.__predict_potential_positions_xgoal__
 
 
-    def predict_potential_positions(self, x_goal, x_current, v_current):
-        #direction = self.find_directions(x_goal, x_current)
-        direction = x_goal
+        elif self.movement_mode == "velocity":
+            self.predict_potential_positions_func = self.__predict_potential_positions_vel__
+            
+
+    def __find_acc_potential_pos__(self, direction, x_current, v_current):
         a = self.alpha*self.acc_max*direction + (1-self.alpha)*self.prev_acc
 
         potential_positions = np.zeros((self.future_window_size, 3))            
@@ -29,7 +33,16 @@ class Motion_Predictor(object):
         self.prev_acc = a
         return potential_positions
 
-    def find_directions(self, x_goal, x_current):
+    def __predict_potential_positions_xgoal__(self, x_goal, x_current, v_current):
+        direction = self.__find_directions__(x_goal, x_current)
+        potential_positions = self.__find_acc_potential_pos__(direction, x_current, v_current)
+        return potential_positions
+
+    def __predict_potential_positions_vel__(self, direction, x_current, v_current):
+        potential_positions = self.__find_acc_potential_pos__(direction, x_current, v_current)
+        return potential_positions
+
+    def __find_directions__(self, x_goal, x_current):
         direction = x_goal - x_current
         if np.any(direction):
             direction_unit_vector = direction / np.linalg.norm(direction)
@@ -79,9 +92,6 @@ class Motion_Predictor(object):
         #     prev_direction = new_direction[i] 
         new_direction = desired_direction[np.newaxis].repeat(3, axis=0)
         return new_direction
-
-    def determine_x_goal(self, desired_direction):
-        return desired_direction
 
     def update_last_direction(self, direction):
         self.prev_direction = direction

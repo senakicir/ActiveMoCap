@@ -9,7 +9,6 @@ import openpose as openpose_module
 import liftnet as liftnet_module
 
 import time as time
-import pdb
 from crop import Crop, Basic_Crop
 from helpers import bones_mpi
 

@@ -10,7 +10,7 @@ import yaml
 if __name__ == "__main__":
     port_num = sys.argv[1]
 
-    SEED_LIST = [200, 3]#, 81]
+    SEED_LIST = [200, 3, 81]#, 24]
     ANIMATIONS = ["06_13", "13_06", "28_19"]
     #"06_13",
 
@@ -27,11 +27,11 @@ if __name__ == "__main__":
     if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/grid_search_results/gs_" + date_time_name
         saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-        test_sets_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+        test_sets_loc = "/Users/kicirogl/workspace/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
     elif (parameters["run_loc"] == "server"):
         base_folder = "/cvlabsrc1/home/kicirogl/ActiveDrone/grid_search_results/gs_" + date_time_name
         saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-        test_sets_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+        test_sets_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
 
 
     while os.path.exists(base_folder):
@@ -85,6 +85,7 @@ if __name__ == "__main__":
                             parameters["ANIMATION_NUM"]=  animation
                             parameters["SEED"] = seed
                             parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
+                            parameters["EXPERIMENT_NUMBER"] = ind
                             ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error  = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
                             many_runs_current.append(ave_current_error)
                             many_runs_middle.append(ave_middle_error)

@@ -3,7 +3,7 @@ import numpy as np
 from State import find_current_polar_info, find_delta_yaw
 from determine_positions import objective_calib, objective_online
 from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
-from project_bones import Projection_Client, C_cam_torch, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
+from project_bones import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
 from crop import is_pose_in_image
 from motion_predictor import Motion_Predictor
 import time as time
@@ -16,8 +16,8 @@ key_weights= {"c":np.array([0,0]), "l":np.array([-1,0]), "r":np.array([1,0]), "u
               "ru":np.array([0.707,-0.707]), "rd":np.array([0.707,0.707])} 
 
 
-def sample_states_spherical(psf, new_radius, new_theta, new_phi, viewpoint_ind):
-    new_yaw = new_phi  + psf.human_orientation_GT
+def sample_states_spherical(psf, new_radius, new_theta, new_phi, viewpoint_ind, C_cam_torch):
+    new_yaw = new_phi  + 0#psf.human_orientation_GT
     x = new_radius*cos(new_yaw)*sin(new_theta) + psf.human_GT[0, psf.hip_index]
     y = new_radius*sin(new_yaw)*sin(new_theta) + psf.human_GT[1, psf.hip_index]
     z = new_radius*cos(new_theta)+ psf.human_GT[2, psf.hip_index]
@@ -25,16 +25,17 @@ def sample_states_spherical(psf, new_radius, new_theta, new_phi, viewpoint_ind):
 
     _, new_phi_go = find_current_polar_info(drone_pos, psf.human_GT[:, psf.hip_index]) #used to be norm_pos_go
 
-    a_potential_state = PotentialState(position=drone_pos.copy(), orientation=new_phi_go+pi, pitch=new_theta+pi/2, index=viewpoint_ind)
+    a_potential_state = PotentialState(position=drone_pos.copy(), orientation=new_phi_go+pi, pitch=new_theta+pi/2, index=viewpoint_ind,  C_cam_torch=C_cam_torch)
     return a_potential_state
 
 class PotentialState(object):
-    def __init__(self, position, orientation, pitch, index):
+    def __init__(self, position, orientation, pitch, index, C_cam_torch):
         self.position = position
         self.orientation = orientation
         self.pitch = pitch
         self.index = index
         self.camera_id = 0
+        self.C_cam_torch = C_cam_torch
 
         self.potential_C_drone = torch.from_numpy(self.position[:, np.newaxis]).float()
         self.potential_R_drone = euler_to_rotation_matrix(0,0,self.orientation, returnTensor=True)
@@ -42,7 +43,7 @@ class PotentialState(object):
         self.potential_projection = None
 
         drone_transformation = torch.cat((torch.cat((self.potential_R_drone, self.potential_C_drone), dim=1), neat_tensor), dim=0)
-        camera_transformation = torch.cat((torch.cat((self.potential_R_cam, C_cam_torch), dim=1), neat_tensor), dim=0) 
+        camera_transformation = torch.cat((torch.cat((self.potential_R_cam, self.C_cam_torch), dim=1), neat_tensor), dim=0) 
         self.inv_transformation_matrix = torch.inverse(drone_transformation@camera_transformation)
 
     def get_goal_yaw_pitch(self, curr_drone_orientation):
@@ -50,7 +51,7 @@ class PotentialState(object):
         return desired_yaw_deg*1, self.pitch   
     
     def deep_copy_state(self):
-        new_state = PotentialState(self.position, self.orientation, self.pitch, self.index)
+        new_state = PotentialState(self.position, self.orientation, self.pitch, self.index, self.C_cam_torch)
         new_state.potential_projection = self.potential_projection.clone()
         return new_state
 
@@ -164,16 +165,16 @@ class Potential_Trajectory(object):
 
     def record_error_for_trial(self, future_ind, middle_error, overall_error):
         self.errors_middle_dict[future_ind].append(middle_error)
-        self.errors_overall_dict[future_ind].append(overall_error)
+        #self.errors_overall_dict[future_ind].append(overall_error[0])
 
     def find_overall_error(self):
         error_middle = 0
-        error_overall = 0
+        #error_overall = 0
         for future_ind in range(self.future_window_size):
             error_middle += sum(self.errors_middle_dict[future_ind])/len(self.errors_middle_dict[future_ind])
-            error_overall += sum(self.errors_overall_dict[future_ind])/len(self.errors_overall_dict[future_ind])
+            #error_overall += sum(self.errors_overall_dict[future_ind])/len(self.errors_overall_dict[future_ind])
         self.error_middle = error_middle
-        self.error_overall = error_overall
+        #self.error_overall = error_overall
 
     def deep_copy_trajectory(self):
         new_trajectory = Potential_Trajectory(self.trajectory_index, self.future_window_size, self.direction)
@@ -218,6 +219,8 @@ class PotentialStatesFetcher(object):
         self.SAFE_RADIUS = active_parameters["SAFE_RADIUS"]
         self.TOP_SPEED =  active_parameters["TOP_SPEED"]
         self.loop_mode = loop_mode
+        self.movement_mode = active_parameters["MOVEMENT_MODE"]
+        self.use_hessian_mode = active_parameters["USE_HESSIAN_MODE"]
 
         self.PREDEFINED_MOTION_MODE_LENGTH = pose_client.PREDEFINED_MOTION_MODE_LENGTH
 
@@ -238,29 +241,38 @@ class PotentialStatesFetcher(object):
         self.number_of_samples = len(self.POSITION_GRID)
 
         self.uncertainty_dict = {}
+        self.oracle_traj_ind = None
 
         self.goal_state_ind = 0 
         self.goal_state = None
         self.goal_trajectory = None
-        self.visited_ind_index = 0
         self.projection_client = pose_client.projection_client
         self.toy_example_states = []
         self.thrown_view_list = []
 
-        if not self.is_using_airsim:
-            self.external_dataset_states = airsim_client.get_external_dataset_states(pose_client.modes["mode_2d"])
-            self.number_of_views =  airsim_client.num_of_camera_views
-            self.constant_rotation_camera_sequence = airsim_client.constant_rotation_camera_sequence
-        else:
-            self.number_of_views = None
-            self.constant_rotation_camera_sequence = list(np.arange(8))
+        if self.loop_mode == "toy_example":
+            if not self.is_using_airsim:
+                self.number_of_views =  airsim_client.num_of_camera_views
+                self.constant_rotation_camera_sequence = airsim_client.constant_rotation_camera_sequence
+                self.external_dataset_states = airsim_client.get_external_dataset_states(pose_client.modes["mode_2d"])
+                self.constant_angle_view = self.constant_rotation_camera_sequence.index(airsim_client.initial_cam_view)
+                self.visited_ind_index =  self.constant_angle_view 
+            else:
+                self.number_of_views = 18#airsim_client.num_of_camera_views
+                self.constant_rotation_camera_sequence = list(np.arange(self.number_of_views ))
+                self.constant_angle_view = airsim_client.initial_cam_view
+                self.visited_ind_index =  self.constant_angle_view 
+
+
+
 
     def reset(self, pose_client, airsim_client, current_state):
+        self.C_cam_torch = current_state.C_cam_torch
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
         self.current_drone_vel = current_state.current_drone_vel
         
         self.current_drone_orientation = current_state.drone_orientation_gt.copy()
-        self.cam_pitch = current_state.cam_pitch
+        self.cam_pitch = current_state.get_cam_pitch()
 
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
@@ -275,6 +287,9 @@ class PotentialStatesFetcher(object):
             self.objective = objective_calib
         else:
             self.objective = objective_online
+
+        if not self.is_using_airsim and not self.animation == "mpi_inf_3dhp" and self.loop_mode == "toy_example":
+            self.external_dataset_states = airsim_client.get_external_dataset_states(None)
 
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
 
@@ -292,11 +307,68 @@ class PotentialStatesFetcher(object):
             self.get_potential_positions_sample()
         elif self.loop_mode == "flight_simulation":
             self.get_potential_positions_flight()
-        elif self.loop_mode == "toy_example":
+        elif self.loop_mode == "toy_example" or self.loop_mode == "create_dataset":
             self.trajectory_dome_experiment()
 
+    # def get_potential_positions_sample(self):
+    #     new_radius = self.SAFE_RADIUS
+    #     unit_z = np.array([0,0,-1])
+
+    #     current_drone_pos = np.copy(self.current_drone_pos)
+
+    #     drone_vec = current_drone_pos - self.immediate_future_pose[:, self.hip_index]
+    #     cur_radius = np.linalg.norm(drone_vec)
+
+    #     new_drone_vec = new_radius*(drone_vec/cur_radius)
+
+    #     horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0], 0])
+    #     unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
+
+    #     up_vec = np.cross(unit_horizontal, new_drone_vec)
+    #     side_vec = np.cross(unit_z, new_drone_vec)
+    #     up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
+    #     side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
+
+    #     use_keys =  key_indices.copy()
+    #     use_weights = key_weights.copy()
+           
+    #     if self.ACTIVE_SAMPLING_MODE == "ellipse":
+    #         prev_goal_index = self.goal_state_ind
+    #         for key, value in key_indices.items():
+    #             if prev_goal_index == value:
+    #                 prev_goal_key = key
+    #         use_weights = adjust_using_prev_pos(prev_goal_key, use_weights.copy())
+    #     use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
+    #     future_weight_list = [1, 2, 3]
+
+    #     for key, ind in use_keys.items():
+    #         [weight_side, weight_up] = use_weights[key] 
+    #         potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE, None)
+
+    #         for future_pos_ind in range(0, self.FUTURE_WINDOW_SIZE):
+    #             #future_weight = future_pos_ind + 1
+    #             future_weight = future_weight_list[future_pos_ind]
+    #             #future_human_loc = self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, self.hip_index]
+    #             #future_human_pose = self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :]
+    #             pos_go = new_drone_vec + self.immediate_future_pose[:, self.hip_index] +  (up_vec_norm*weight_up*future_weight + side_vec_norm*future_weight*weight_side)
+
+    #             potential_drone_vec_go = pos_go-self.immediate_future_pose[:, self.hip_index]
+    #             norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
+    #             go_pos = norm_potential_drone_vec_go + self.immediate_future_pose[:, self.hip_index]
+
+    #             new_theta_go = acos((go_pos[2] - self.immediate_future_pose[2, self.hip_index])/new_radius)
+    #             new_pitch_go = pi/2 -new_theta_go
+    #             _, new_phi_go = find_current_polar_info(current_drone_pos, self.immediate_future_pose[:, self.hip_index])
+    #             potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
+    #             pose_in_image = potential_state.get_potential_projection(self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :], self.projection_client)
+    #             assert pose_in_image
+    #             potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
+                
+    #         self.potential_trajectory_list.append(potential_trajectory)
+
+
     def get_potential_positions_sample(self):
-        new_radius = self.SAFE_RADIUS
+        #new_radius = self.SAFE_RADIUS
         unit_z = np.array([0,0,-1])
 
         current_drone_pos = np.copy(self.current_drone_pos)
@@ -304,13 +376,13 @@ class PotentialStatesFetcher(object):
         drone_vec = current_drone_pos - self.immediate_future_pose[:, self.hip_index]
         cur_radius = np.linalg.norm(drone_vec)
 
-        new_drone_vec = new_radius*(drone_vec/cur_radius)
+        # new_drone_vec = new_radius*(drone_vec/cur_radius)
 
-        horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0], 0])
-        unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
+        horizontal_comp = np.array([drone_vec[1], -drone_vec[0], 0])
+        unit_horizontal = horizontal_comp/ np.linalg.norm(drone_vec)
 
-        up_vec = np.cross(unit_horizontal, new_drone_vec)
-        side_vec = np.cross(unit_z, new_drone_vec)
+        up_vec = np.cross(unit_horizontal, drone_vec)
+        side_vec = np.cross(unit_z, drone_vec)
         up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
         side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
 
@@ -329,22 +401,27 @@ class PotentialStatesFetcher(object):
         for key, ind in use_keys.items():
             [weight_side, weight_up] = use_weights[key] 
             potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE, None)
-
             for future_pos_ind in range(0, self.FUTURE_WINDOW_SIZE):
                 #future_weight = future_pos_ind + 1
                 future_weight = future_weight_list[future_pos_ind]
                 #future_human_loc = self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, self.hip_index]
                 #future_human_pose = self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :]
-                pos_go = new_drone_vec + self.immediate_future_pose[:, self.hip_index] +  (up_vec_norm*weight_up*future_weight + side_vec_norm*future_weight*weight_side)
-
+                pos_go = drone_vec + self.immediate_future_pose[:, self.hip_index] +  (up_vec_norm*weight_up*future_weight + side_vec_norm*future_weight*weight_side)
+  
                 potential_drone_vec_go = pos_go-self.immediate_future_pose[:, self.hip_index]
-                norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-                go_pos = norm_potential_drone_vec_go + self.immediate_future_pose[:, self.hip_index]
+                norm_potential_drone_vec_go = potential_drone_vec_go * self.SAFE_RADIUS /np.linalg.norm(potential_drone_vec_go)
+                go_pos_good_rad = norm_potential_drone_vec_go + self.immediate_future_pose[:, self.hip_index]
 
+                dir_vec = go_pos_good_rad-current_drone_pos
+                norm_dir_vec = self.lookahead*dir_vec/np.linalg.norm(dir_vec)
+                go_pos = current_drone_pos+norm_dir_vec
+
+
+                new_radius=np.linalg.norm(go_pos - self.immediate_future_pose[:, self.hip_index])
                 new_theta_go = acos((go_pos[2] - self.immediate_future_pose[2, self.hip_index])/new_radius)
                 new_pitch_go = pi/2 -new_theta_go
                 _, new_phi_go = find_current_polar_info(current_drone_pos, self.immediate_future_pose[:, self.hip_index])
-                potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
+                potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind, C_cam_torch=self.C_cam_torch)
                 pose_in_image = potential_state.get_potential_projection(self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :], self.projection_client)
                 assert pose_in_image
                 potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
@@ -361,6 +438,7 @@ class PotentialStatesFetcher(object):
         radius_deviation = np.abs(cur_radius - self.SAFE_RADIUS)
         dev_tuner = 2# 9*np.exp(-4.40*radius_deviation) +1
         print("Radius deviation", radius_deviation, "dev tuner", dev_tuner)
+        new_drone_vec = self.SAFE_RADIUS*(drone_vec/cur_radius)
 
         horizontal_comp = np.array([drone_vec[1], -drone_vec[0], 0])
         unit_horizontal = horizontal_comp/ np.linalg.norm(drone_vec)
@@ -378,17 +456,26 @@ class PotentialStatesFetcher(object):
         for key, ind in use_keys.items():
             [weight_side, weight_up] = use_weights[key] 
 
-            dir_vec = (up_vec_norm*weight_up + side_vec_norm*weight_side)
+            if self.movement_mode == "velocity":
+                dir_vec = (up_vec_norm*weight_up + side_vec_norm*weight_side)
+                norm_dir_vec = (dev_tuner*dir_vec+drone_vec) * self.SAFE_RADIUS /np.linalg.norm(dev_tuner*dir_vec+drone_vec) -drone_vec
+                if np.any(norm_dir_vec):
+                    if key == "c":
+                        speed = 0.1
+                    else:
+                        speed = self.TOP_SPEED
+                    desired_direction = speed * norm_dir_vec/np.linalg.norm(norm_dir_vec)
+                else:
+                    desired_direction = norm_dir_vec
+            if self.movement_mode == "position":
+                pos_go = new_drone_vec + self.immediate_future_pose[:, self.hip_index] +  self.direction_distance*(up_vec_norm*weight_up + side_vec_norm*weight_side)
+                potential_drone_vec_go = pos_go-self.immediate_future_pose[:, self.hip_index]
+                norm_potential_drone_vec_go = potential_drone_vec_go * self.SAFE_RADIUS /np.linalg.norm(potential_drone_vec_go)
+                desired_direction = norm_potential_drone_vec_go + self.immediate_future_pose[:, self.hip_index]
 
-            norm_dir_vec = (dev_tuner*dir_vec+drone_vec) * self.SAFE_RADIUS /np.linalg.norm(dev_tuner*dir_vec+drone_vec) -drone_vec
-            if np.any(norm_dir_vec):
-                desired_direction = self.TOP_SPEED * norm_dir_vec/np.linalg.norm(norm_dir_vec)
-            else:
-                desired_direction = norm_dir_vec
             new_directions = self.motion_predictor.determine_new_direction(desired_direction)
             potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE, new_directions)
-
-            potential_pos = self.motion_predictor.predict_potential_positions(desired_direction, self.current_drone_pos, self.current_drone_vel)
+            potential_pos = self.motion_predictor.predict_potential_positions_func(desired_direction, self.current_drone_pos, self.current_drone_vel)
             for future_pos_ind in range(0, self.FUTURE_WINDOW_SIZE):
                 pos_go = potential_pos[self.FUTURE_WINDOW_SIZE-future_pos_ind-1]
 
@@ -401,7 +488,7 @@ class PotentialStatesFetcher(object):
                 new_pitch_go = pi/2 - new_theta_go
                 _, new_phi_go = find_current_polar_info(current_drone_pos, self.immediate_future_pose[:, self.hip_index])
 
-                potential_state = PotentialState(position=pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
+                potential_state = PotentialState(position=pos_go.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind,  C_cam_torch=self.C_cam_torch)
                 pose_in_image = potential_state.get_potential_projection(self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :], self.projection_client)
                 #assert pose_in_image
                 potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
@@ -432,14 +519,21 @@ class PotentialStatesFetcher(object):
                 if (self.trajectory == "random"): 
                     self.find_random_next_state(online_linecount, my_rng)
                 if (self.trajectory == "constant_angle"):
-                    self.constant_angle_baseline_future(online_linecount)
+                    if self.loop_mode == "flight_simulation" or self.loop_mode == "teleport_simulation":
+                        self.constant_angle_baseline_future(online_linecount)
+                    elif self.loop_mode == "toy_example":
+                        self.choose_constant_angle_toy_example()
+                if (self.trajectory == "oracle"):
+                    self.choose_trajectory_using_trajind(self.oracle_traj_ind)
+
+
 
         if self.loop_mode == "toy_example" and not pose_client.is_calibrating_energy:
             if not self.already_plotted_teleport_loc:
                 viewpoint_ind = 0
                 states_dict = {}
                 for theta, phi in self.POSITION_GRID:
-                    new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind)
+                    new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind, self.C_cam_torch)
                     states_dict[viewpoint_ind] = new_potential_state
                     viewpoint_ind += 1
                 plot_dome(states_dict, self.current_human_pos[:, self.hip_index], file_manager.plot_loc)
@@ -454,25 +548,55 @@ class PotentialStatesFetcher(object):
         return self.goal_trajectory
 
     def choose_constant_rotation(self):
+        not_found = True
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.trajectory_index == key_indices["r"]:
                 self.goal_trajectory = potential_trajectory
+                not_found=False
+
+        if not_found:
+            for potential_trajectory in self.potential_trajectory_list:
+                if potential_trajectory.trajectory_index == key_indices["ru"] or potential_trajectory.trajectory_index == key_indices["rd"]:
+                    self.goal_trajectory = potential_trajectory
+
 
     def choose_constant_rotation_toy_example(self):
         pose_in_image = False
+        assert self.FUTURE_WINDOW_SIZE == 1
+
         while(not pose_in_image):
+            self.visited_ind_index = (self.visited_ind_index+1) % len(self.constant_rotation_camera_sequence)
             if not self.is_using_airsim:
                 potential_state = self.external_dataset_states[self.constant_rotation_camera_sequence[self.visited_ind_index]]
             else:
+                potential_trajectory = self.potential_trajectory_list[self.constant_rotation_camera_sequence[self.visited_ind_index]]
+                potential_state = potential_trajectory.states[self.FUTURE_WINDOW_SIZE-1]
+            pose_in_image = potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
+
+        self.goal_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE, None)
+        self.goal_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
+
+    def choose_constant_angle_toy_example(self):
+        pose_in_image = False
+        ind = self.constant_angle_view
+        counter = 0
+        while(not pose_in_image):
+            if not self.is_using_airsim:
+                potential_state = self.external_dataset_states[self.constant_rotation_camera_sequence[ind]]
+            else:
                 if self.FUTURE_WINDOW_SIZE == 1:
-                    potential_trajectory = self.potential_trajectory_list[self.constant_rotation_camera_sequence[self.visited_ind_index]]
+                    potential_trajectory = self.potential_trajectory_list[ind]
                     potential_state = potential_trajectory.states[self.FUTURE_WINDOW_SIZE-1]
             pose_in_image = potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
-            self.visited_ind_index = (self.visited_ind_index+1) % len(self.constant_rotation_camera_sequence)
+            ind = (ind+1) % len(self.constant_rotation_camera_sequence)
+            counter += 1
+            if counter == len(self.constant_rotation_camera_sequence):
+                potential_state = self.external_dataset_states[self.constant_rotation_camera_sequence[self.constant_angle_view]]
+                break
 
-        potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE, None)
-        potential_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
-        self.goal_trajectory = potential_trajectory
+        self.goal_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE, None)
+        self.goal_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
+   
 
     def choose_go_up_down(self):
         current_drone_pos = self.current_drone_pos.copy()
@@ -492,10 +616,13 @@ class PotentialStatesFetcher(object):
         if self.goUp:
             #go_dir = current_drone_pos + np.array([0,0,-self.direction_distance])
             go_dir = np.array([0,0,-self.direction_distance], dtype=np.float)
-            go_pos = current_drone_pos + np.array([0,0,-0.2])
+            go_pos = current_drone_pos + np.array([0,0,-0.5])
         else:
             go_dir = np.array([0,0,self.direction_distance], dtype=np.float)#current_drone_pos + np.array([0,0,self.direction_distance])
-            go_pos = current_drone_pos + np.array([0,0,0.2])
+            go_pos = current_drone_pos + np.array([0,0,0.5])
+
+        if self.movement_mode == "position":
+            go_dir += current_drone_pos 
 
         potential_trajectory = Potential_Trajectory(0, self.FUTURE_WINDOW_SIZE, go_dir[np.newaxis].repeat(3, axis=0))
         temp_angle = (go_pos[2] - self.immediate_future_pose[2, self.hip_index])/np.linalg.norm(go_pos-self.immediate_future_pose[:, self.hip_index])
@@ -511,7 +638,7 @@ class PotentialStatesFetcher(object):
            else:
                new_pitch_go = self.cam_pitch + pi/9
    
-        potential_state = PotentialState(position=go_pos.copy(), orientation=drone_orientation[2], pitch=new_pitch_go, index=self.goal_state_ind)
+        potential_state = PotentialState(position=go_pos.copy(), orientation=drone_orientation[2], pitch=new_pitch_go, index=self.goal_state_ind, C_cam_torch=self.C_cam_torch)
         potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
         potential_trajectory.append_to_traj(future_ind=0, potential_state=potential_state)
         self.goal_trajectory = potential_trajectory
@@ -524,9 +651,16 @@ class PotentialStatesFetcher(object):
 
     def constant_angle_baseline_future(self, online_linecount):       
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
+        not_found = True
         for potential_trajectory in self.potential_trajectory_list:
             if potential_trajectory.trajectory_index == key_indices["c"]:
                 self.goal_trajectory = potential_trajectory
+                not_found = False
+
+        if not_found:
+            for potential_trajectory in self.potential_trajectory_list:
+                if potential_trajectory.trajectory_index == key_indices["u"] or potential_trajectory.trajectory_index == key_indices["d"]:
+                    self.goal_trajectory = potential_trajectory
 
     def find_random_next_state(self, online_linecount, my_rng):
         #if online_linecount % self.FUTURE_WINDOW_SIZE == 0:
@@ -563,34 +697,39 @@ class PotentialStatesFetcher(object):
         if self.is_using_airsim:
             viewpoint_ind = 0
             for theta, phi in self.POSITION_GRID:
-                new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind)
-                pose_in_image = new_potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(), self.projection_client)
+                new_potential_state = sample_states_spherical(self, self.SAFE_RADIUS, theta, phi, viewpoint_ind, self.C_cam_torch)
+                new_potential_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(), self.projection_client)
                 self.toy_example_states.append(new_potential_state)
                 viewpoint_ind += 1
-        elif self.animation == "mpi_inf_3dhp" or self.animation == "drone_flight":
-            self.thrown_view_list = []
-            for list_ind, external_dataset_state in enumerate(self.external_dataset_states):
-                pose_in_image = external_dataset_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
-                ##pose_in_image = external_dataset_state.get_potential_projection(self.future_human_poses_gt[0], self.projection_client)
-                if pose_in_image:
+        else:
+            if self.animation == "mpi_inf_3dhp" or self.animation == "drone_flight":
+                self.thrown_view_list = []
+                for list_ind, external_dataset_state in enumerate(self.external_dataset_states):
+                    pose_in_image = external_dataset_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
+                    ##pose_in_image = external_dataset_state.get_potential_projection(self.future_human_poses_gt[0], self.projection_client)
+                    if pose_in_image:
+                        self.toy_example_states.append(external_dataset_state)
+                    else:
+                        self.thrown_view_list.append([list_ind, external_dataset_state.potential_projection])
+                if len(self.toy_example_states) == 0:
+                    self.toy_example_states = self.external_dataset_states.copy()
+                print("number of states to choose from", len(self.toy_example_states))
+            else: #test set for synth
+                for list_ind, external_dataset_state in enumerate(self.external_dataset_states):
+                    external_dataset_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)
                     self.toy_example_states.append(external_dataset_state)
-                else:
-                    self.thrown_view_list.append([list_ind, external_dataset_state.potential_projection])
-            if len(self.toy_example_states) == 0:
-                self.toy_example_states = self.external_dataset_states.copy()
-            print("number of states to choose from", len(self.toy_example_states))
 
         self.prep_toy_example_trajectories(0, empty_trajectory)
 
     def find_hessians_for_potential_states(self, pose_client, file_manager, online_linecount):
         for potential_trajectory in self.potential_trajectory_list:
-            self.objective.reset_hessian(pose_client, potential_trajectory)
+            self.objective.reset_hessian(pose_client, potential_trajectory, self.use_hessian_mode)
             file_manager.record_projection_est_values(pose_client.potential_projected_est, online_linecount)
 
             if pose_client.USE_TRAJECTORY_BASIS:
-                hess2 = self.objective.hessian(pose_client.optimized_traj)
+                hess2 = self.objective.hessian(pose_client.optimized_traj, self.use_hessian_mode)
             else:
-                hess2 = self.objective.hessian(pose_client.optimized_poses)
+                hess2 = self.objective.hessian(pose_client.optimized_poses, self.use_hessian_mode)
 
             potential_trajectory.set_cov(hess2, pose_client.FUTURE_POSE_INDEX, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints)
             
@@ -637,7 +776,6 @@ class PotentialStatesFetcher(object):
 
 def remove_key_values(use_keys, current_drone_pos_z, lower_lim, upper_lim):
     if current_drone_pos_z  > lower_lim: #about to crash
-        use_keys.pop("c")
         use_keys.pop("l")
         use_keys.pop("r")
         use_keys.pop("d")

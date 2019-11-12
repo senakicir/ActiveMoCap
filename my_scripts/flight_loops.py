@@ -9,11 +9,13 @@ def generate_new_goal_pos_random(curr_pos, current_direction, distance, choose_s
             random_goal_pos = np.random.uniform([-1,-1,-1], [1, 1, 1])
             chosen_dir = "random with up-down motion"
         elif  random_int == 1:
-            new_rand_int =  np.random.randint(2)
+            new_rand_int =  np.random.randint(3)
             if new_rand_int == 0:
                 random_goal_pos = np.random.uniform([-1,0, 0], [1, 0, 0])
-            else:
+            elif new_rand_int == 1:
                 random_goal_pos = np.random.uniform([0,-1, 0], [0, 1, 0])
+            else:
+                random_goal_pos = np.random.uniform([0,0,-1], [0, 0, 1])
             chosen_dir = "random motion on x-y plane"
         elif  random_int == 2 or  random_int == 3 or random_int == 4 or random_int == 5 or random_int ==8:
             random_goal_pos = current_direction

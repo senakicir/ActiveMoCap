@@ -1,17 +1,24 @@
+import os
+os.environ["MKL_NUM_THREADS"] = "8" 
+os.environ["NUMEXPR_NUM_THREADS"] = "8" 
+os.environ["OMP_NUM_THREADS"] = "8" 
+
 from run import run_simulation
 from helpers import reset_all_folders, normalize_weights, fill_notes, append_error_notes
 from math import radians
 import numpy as np
 import torch as torch
+torch.set_num_threads(8)
+
 import time, os
 import yaml
 import sys 
 
 if __name__ == "__main__":
     port_num = sys.argv[1]
-    SEED_LIST = [41]#, 5, 2, 3, 10]#, 12, 1995, 100, 150, 200, 190, 0]
+    SEED_LIST = [5] #,2,41]#,41,3,10]#, 3, 10]#, 12, 1995, 100, 150, 200, 190, 0]
 
-    ANIMATIONS = ["05_08"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["05_08","02_01", "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
                   #["06_13", "13_06", "28_19"]
                   #"05_08", "02_01", "38_03", "14_32"
@@ -29,12 +36,12 @@ if __name__ == "__main__":
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/simulation_results/experiments_" + date_time_name
-        saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-        test_sets_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+        saved_vals_loc = "/Users/kicirogl/workspace/cvlabsrc1/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/Users/kicirogl/workspace/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
     elif (parameters["run_loc"] == "server"):
         base_folder = "/cvlabsrc1/home/kicirogl/ActiveDrone/simulation_results/experiments_" + date_time_name
-        saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-        test_sets_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+        saved_vals_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
 
 
     if energy_parameters["PROJECTION_METHOD"] == "scaled":
@@ -42,11 +49,11 @@ if __name__ == "__main__":
     parameters["PORT"] = int(port_num)
 
     theta_list = [270]#list(range(270, 190, -35))#list(range(270, 235, -20))
-    phi_list = list(range(0, 360, 45))
+    phi_list = list(range(0, 360, 20))
     active_parameters["POSITION_GRID"] = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
 
-    #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-go_to_best, 8-go_to_worst
-    TRAJECTORY_LIST = ["active"]#, "random", "constant_angle", "constant_rotation"]
+    #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-oracle, 8-go_to_worst
+    TRAJECTORY_LIST = ["active"]#["random", "constant_angle"]#["constant_rotation", "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
 
     ablation_study = False
     if ablation_study:
@@ -59,13 +66,13 @@ if __name__ == "__main__":
     for experiment_ind in range(num_of_experiments):
 
         active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[experiment_ind]
-        if energy_parameters["MODES"]["mode_2d"] == "openpose" and energy_parameters["MODES"]["mode_lift"] == "lift":
+        #if energy_parameters["MODES"]["mode_2d"] == "openpose" and energy_parameters["MODES"]["mode_lift"] == "lift":
             #if active_parameters["TRAJECTORY"] == "random":
             #    SEED_LIST = [41, 5, 2, 3, 10]
             #elif active_parameters["TRAJECTORY"] == "active":
             #    SEED_LIST = [41, 5, 2, 3, 10]
             #else:
-            SEED_LIST = [41, 5, 2, 3, 10]
+            #SEED_LIST = [41, 5, 2, 3, 10]
 
 
         file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
@@ -96,6 +103,7 @@ if __name__ == "__main__":
             for ind, seed in enumerate(SEED_LIST):
                 parameters["ANIMATION_NUM"]=  animation
                 parameters["SEED"] = seed
+                parameters["EXPERIMENT_NUMBER"] = ind
                 parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
                 ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
                 many_runs_current.append(ave_current_error)
