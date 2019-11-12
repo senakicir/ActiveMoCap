@@ -77,14 +77,10 @@ class VehicleClient:
     def armDisarm(self, arm, vehicle_name = ''):
         return self.client.call('armDisarm', arm, vehicle_name)
  
-    def simPause(self, is_paused):
-        self.client.call('simPause', is_paused)
-    #sena was here
-    def simPauseDrone(self, is_paused):
-        self.client.call('simPauseDrone', is_paused)
+    def simPause(self, is_paused, loop_mode):
+        if loop_mode == "flight_simulation" or "try_controller_control":
+            self.client.call('simPause', is_paused)
 
-    def updateAnimation(self, increment_time):
-        self.client.call('updateAnimation', increment_time)
     def setAnimationTime(self, time):
         self.client.call('setAnimationTime', time)
     def getAnimationTime(self):
@@ -157,9 +153,7 @@ class VehicleClient:
         go_pose = Pose(position_val=position, orientation_val = orientation)
         ignore_collison = True
         self.client.call('simSetVehiclePose', go_pose, ignore_collison, vehicle_name)
-    #sena was here
-    def simSetVehiclePose_senaver(self, pose, vehicle_name = ''):
-        self.client.call('simSetVehiclePose_senaver', pose, vehicle_name)
+
     def simGetVehiclePose(self, vehicle_name = ''):
         pose = self.client.call('simGetVehiclePose', vehicle_name)
         return Pose.from_msgpack(pose)
@@ -194,13 +188,7 @@ class VehicleClient:
     def waitOnLastTask(timeout_sec = float('nan')):
         return self.client.call('waitOnLastTask', timeout_sec)
 
-    #sena was here
-    def getBonePositions(self, vehicle_name = ''):
-        return Vector3r_arr.from_msgpack(self.client.call('getBonePositions', vehicle_name))
 
-    #sena was here
-    def changeCalibrationMode(self, calibMode, vehicle_name = ''):
-        self.client.call('changeCalibrationMode', vehicle_name, calibMode)
     #sena was here
     def initInitialDronePos(self, vehicle_name = ''):
         if (self.program_started == False):
