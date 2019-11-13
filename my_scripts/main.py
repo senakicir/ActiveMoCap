@@ -18,7 +18,7 @@ if __name__ == "__main__":
     port_num = sys.argv[1]
     SEED_LIST = [5]#, 41, 3, 10, 12]#, 12, 1995, 100, 150, 200, 190, 0]
 
-    ANIMATIONS = ["06_13"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["06_13", "13_06", "28_19", "05_08", "02_01", "38_03", "14_32"]#, "06_13", "13_06"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
                   #validation set: ["06_13", "13_06", "28_19"]
                   #test set: ["05_08", "02_01", "38_03", "14_32"]
@@ -28,11 +28,11 @@ if __name__ == "__main__":
     with open("config_file.yaml", 'r') as ymlfile:
         cfg = yaml.load(ymlfile)
 
+    #never play with this section
     kalman_arguments = cfg["kalman_arguments"]
     parameters = cfg["parameters"]
     active_parameters =  cfg["active_parameters"]
     energy_parameters = cfg["energy_parameters"]
-
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/simulation_results/experiments_" + date_time_name
@@ -42,15 +42,14 @@ if __name__ == "__main__":
         base_folder = "/cvlabsrc1/home/kicirogl/ActiveDrone/simulation_results/experiments_" + date_time_name
         saved_vals_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/saved_vals"
         test_sets_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
-
-
     if energy_parameters["PROJECTION_METHOD"] == "scaled":
         energy_parameters["WEIGHTS"] =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
     parameters["PORT"] = int(port_num)
-
     theta_list = [270, 250, 230]#list(range(270, 190, -35))#list(range(270, 235, -20))
-    phi_list = list(range(0, 360, 45))
+    phi_list = list(range(0, 360, 30))
     active_parameters["POSITION_GRID"] = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
+    #####
+
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-oracle, 8-go_to_worst
     TRAJECTORY_LIST = ["active"]#, "constant_rotation", "random", "constant_angle"]#, "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
@@ -107,7 +106,7 @@ if __name__ == "__main__":
             parameters["FOLDER_NAMES"] = folder_names
             
             if ablation_study:
-                energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"] 
+                energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"].copy() 
                 if experiment_ind == 0:
                     energy_parameters["WEIGHTS_FUTURE"]["proj"]=0
                 elif experiment_ind == 1:

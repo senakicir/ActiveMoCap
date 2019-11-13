@@ -10,8 +10,8 @@ import yaml
 if __name__ == "__main__":
     port_num = sys.argv[1]
 
-    SEED_LIST = [200, 3, 81]#, 24]
-    ANIMATIONS = ["06_13"]#, "13_06", "28_19"]
+    SEED_LIST = [200, 151]
+    ANIMATIONS = ["06_13", "13_06"]
     #"06_13",
 
     with open("config_file.yaml", 'r') as ymlfile:
@@ -26,12 +26,12 @@ if __name__ == "__main__":
     date_time_name = time.strftime("%Y-%m-%d-%H-%M")
     if (parameters["run_loc"] == "local"):
         base_folder = "/Users/kicirogl/Documents/simulation/grid_search_results/gs_" + date_time_name
-        saved_vals_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-        test_sets_loc = "/Users/kicirogl/workspace/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+        saved_vals_loc = "/Users/kicirogl/workspace/cvlabsrc1/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/Users/kicirogl/workspace/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
     elif (parameters["run_loc"] == "server"):
         base_folder = "/cvlabsrc1/home/kicirogl/ActiveDrone/grid_search_results/gs_" + date_time_name
-        saved_vals_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/saved_vals"
-        test_sets_loc = "/cvlabdata2/home/kicirogl/ActiveDrone/test_sets"
+        saved_vals_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/saved_vals"
+        test_sets_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
 
 
     while os.path.exists(base_folder):
@@ -56,18 +56,19 @@ if __name__ == "__main__":
     for animation in ANIMATIONS:
         anim_file_errors.append(open(base_folder+"/"+str(animation)+"_errors.txt", "w"))
 
-    for weight_proj in np.logspace(-3,-1,3):
-        for  weight_smooth in np.logspace(-2,0,3):
+    for weight_proj in np.logspace(-5,-3,3):
+        for  weight_smooth in [0.001, 10, 100]:#np.logspace(-2,0,3): #[0.001, 10, 100]
             for weight_bone  in np.logspace(-2,0,3):
                 for weight_lift  in [0.1]:#np.logspace(-2,0,3):
-
                     file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
                     
                     parameters["FILE_NAMES"] = file_names
                     parameters["FOLDER_NAMES"] = folder_names
             
                     energy_parameters["WEIGHTS"] = {'proj': weight_proj, 'smooth': weight_smooth, 'bone': weight_bone, 'lift': weight_lift}
-                    energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"]
+                    energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"].copy()
+                    energy_parameters["WEIGHTS_FUTURE"]["lift"] = 0
+                    
 
                     fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
 

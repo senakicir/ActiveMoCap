@@ -16,8 +16,7 @@ pose_lift_gt = openpose_liftnet_sigmas["pose_lift_gt"]
 
 pdb.set_trace()
 
-
-diff = (pose_2d_gt-openpose)
+diff = (openpose-pose_2d_gt)
 noise_mean = np.mean(diff, axis=0)
 noise_std= np.std((diff), axis=0)
 
@@ -33,7 +32,7 @@ print("std noise openpose per joint", noise_std)
 np.save(openpose_liftnet_loc + '/openpose_noise_mean', noise_mean)
 np.save(openpose_liftnet_loc + '/openpose_noise_std', noise_std)
 
-diff_lift = (pose_lift_gt-pose_lift)
+diff_lift = (pose_lift-pose_lift_gt)
 noise_mean = np.mean(diff_lift, axis=0)
 noise_std= np.std(diff_lift, axis=0)
 

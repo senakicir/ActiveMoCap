@@ -13,9 +13,9 @@ from PoseEstimationClient import PoseEstimationClient
 from Lift_Client import calculate_bone_directions, calculate_bone_directions_simple, scale_with_bone_lengths
 from yolo_helper import find_single_person_bbox
 
-import openpose as openpose_module
-import liftnet as liftnet_module
-import darknet as darknet_module
+# import openpose as openpose_module
+# import liftnet as liftnet_module
+# import darknet as darknet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
