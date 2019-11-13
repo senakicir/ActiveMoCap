@@ -114,6 +114,9 @@ class State(object):
             saved_pose_gt, _ = self.function_find_pose(future_anim_time, self.anim_gt_array, self.num_of_joints)
             self.futuremost_pose_3d_gt = convert_saved_vals(saved_pose_gt, self.initial_drone_pos)
 
+    def update_animation_gt_array(self, new_anim_gt_array):
+        self.anim_gt_array = new_anim_gt_array
+
     def set_cam_pitch(self, new_pitch):
         self.__cam_pitch__ = new_pitch
 

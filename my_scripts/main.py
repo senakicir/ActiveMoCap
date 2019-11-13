@@ -16,12 +16,12 @@ import sys
 
 if __name__ == "__main__":
     port_num = sys.argv[1]
-    SEED_LIST = [5] #,2,41]#,41,3,10]#, 3, 10]#, 12, 1995, 100, 150, 200, 190, 0]
+    SEED_LIST = [5]#, 41, 3, 10, 12]#, 12, 1995, 100, 150, 200, 190, 0]
 
-    ANIMATIONS = ["05_08","02_01", "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS = ["06_13"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
-                  #["06_13", "13_06", "28_19"]
-                  #"05_08", "02_01", "38_03", "14_32"
+                  #validation set: ["06_13", "13_06", "28_19"]
+                  #test set: ["05_08", "02_01", "38_03", "14_32"]
                   #"mpi_inf_3dhp"
     #animations = {"02_01": len(SEED_LIST)}
 
@@ -48,67 +48,97 @@ if __name__ == "__main__":
         energy_parameters["WEIGHTS"] =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
     parameters["PORT"] = int(port_num)
 
-    theta_list = [270]#list(range(270, 190, -35))#list(range(270, 235, -20))
-    phi_list = list(range(0, 360, 20))
+    theta_list = [270, 250, 230]#list(range(270, 190, -35))#list(range(270, 235, -20))
+    phi_list = list(range(0, 360, 45))
     active_parameters["POSITION_GRID"] = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-oracle, 8-go_to_worst
-    TRAJECTORY_LIST = ["active"]#["random", "constant_angle"]#["constant_rotation", "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
+    TRAJECTORY_LIST = ["active"]#, "constant_rotation", "random", "constant_angle"]#, "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
 
     ablation_study = False
+    find_weights = False
+
     if ablation_study:
-        num_of_experiments = 4
+        num_of_experiments = 6
         is_quiet = True
         TRAJECTORY_LIST = ["active"]
     else:
         num_of_experiments = len(TRAJECTORY_LIST)
 
-    for experiment_ind in range(num_of_experiments):
+    num_of_experiments_layer_2 = 1
+    if find_weights:
+        num_of_experiments_layer_2 = 4
 
-        active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[experiment_ind]
-        #if energy_parameters["MODES"]["mode_2d"] == "openpose" and energy_parameters["MODES"]["mode_lift"] == "lift":
-            #if active_parameters["TRAJECTORY"] == "random":
-            #    SEED_LIST = [41, 5, 2, 3, 10]
-            #elif active_parameters["TRAJECTORY"] == "active":
-            #    SEED_LIST = [41, 5, 2, 3, 10]
-            #else:
-            #SEED_LIST = [41, 5, 2, 3, 10]
+    for exp_ind_2 in range(num_of_experiments_layer_2):
+        if find_weights:
+            if exp_ind_2 == 0:
+                energy_parameters["SMOOTHNESS_MODE"] = "position"
+                energy_parameters["WEIGHTS"]["proj"]=0.0001
+                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.0001
+            if exp_ind_2 == 1:
+                energy_parameters["SMOOTHNESS_MODE"] = "velocity"
+                energy_parameters["WEIGHTS"]["proj"]=0.0001
+                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.0001
+            if exp_ind_2 == 2:
+                energy_parameters["SMOOTHNESS_MODE"] = "velocity"
+                energy_parameters["WEIGHTS"]["proj"]=0.00001
+                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.00001
+            if exp_ind_2 == 3:
+                energy_parameters["SMOOTHNESS_MODE"] = "position"
+                energy_parameters["WEIGHTS"]["proj"]=0.00001
+                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.00001
+                   
+
+        for experiment_ind in range(num_of_experiments):
+
+            active_parameters["TRAJECTORY"] = TRAJECTORY_LIST[experiment_ind]
+            #if energy_parameters["MODES"]["mode_2d"] == "openpose" and energy_parameters["MODES"]["mode_lift"] == "lift":
+                #if active_parameters["TRAJECTORY"] == "random":
+                #    SEED_LIST = [41, 5, 2, 3, 10]
+                #elif active_parameters["TRAJECTORY"] == "active":
+                #    SEED_LIST = [41, 5, 2, 3, 10]
+                #else:
+                #SEED_LIST = [41, 5, 2, 3, 10]
 
 
-        file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
-        
-        parameters["FILE_NAMES"] = file_names
-        parameters["FOLDER_NAMES"] = folder_names
-        
-        energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"] 
+            file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
+            
+            parameters["FILE_NAMES"] = file_names
+            parameters["FOLDER_NAMES"] = folder_names
+            
+            if ablation_study:
+                energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"] 
+                if experiment_ind == 0:
+                    energy_parameters["WEIGHTS_FUTURE"]["proj"]=0
+                elif experiment_ind == 1:
+                    energy_parameters["WEIGHTS_FUTURE"]["smooth"]=0
+                elif experiment_ind == 2:
+                    energy_parameters["WEIGHTS_FUTURE"]["bone"]=0
+                elif experiment_ind == 3:
+                    energy_parameters["WEIGHTS_FUTURE"]["lift"]=0
+                elif experiment_ind == 4:
+                    energy_parameters["WEIGHTS_FUTURE"]["bone"]=0
+                    energy_parameters["WEIGHTS_FUTURE"]["lift"]=0
+                else:
+                    pass
 
-        if ablation_study:
-            if experiment_ind == 0:
-                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0
-            elif experiment_ind == 1:
-                energy_parameters["WEIGHTS_FUTURE"]["smooth"]=0
-            elif experiment_ind == 2:
-                energy_parameters["WEIGHTS_FUTURE"]["bone"]=0
-            elif experiment_ind == 3:
-                energy_parameters["WEIGHTS_FUTURE"]["lift"]=0
+            
+            fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
 
+            for animation in ANIMATIONS:
+                many_runs_current = []
+                many_runs_middle = []
+                many_runs_pastmost = []
+                many_runs_overall = []
+                for ind, seed in enumerate(SEED_LIST):
+                    parameters["ANIMATION_NUM"]=  animation
+                    parameters["SEED"] = seed
+                    parameters["EXPERIMENT_NUMBER"] = ind
+                    parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
+                    ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
+                    many_runs_current.append(ave_current_error)
+                    many_runs_middle.append(ave_middle_error)
+                    many_runs_pastmost.append(ave_pastmost_error)
+                    many_runs_overall.append(ave_overall_error)
 
-        fill_notes(f_notes_name, parameters, energy_parameters, active_parameters)   
-
-        for animation in ANIMATIONS:
-            many_runs_current = []
-            many_runs_middle = []
-            many_runs_pastmost = []
-            many_runs_overall = []
-            for ind, seed in enumerate(SEED_LIST):
-                parameters["ANIMATION_NUM"]=  animation
-                parameters["SEED"] = seed
-                parameters["EXPERIMENT_NUMBER"] = ind
-                parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
-                ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
-                many_runs_current.append(ave_current_error)
-                many_runs_middle.append(ave_middle_error)
-                many_runs_pastmost.append(ave_pastmost_error)
-                many_runs_overall.append(ave_overall_error)
-
-            append_error_notes(f_notes_name, animation, many_runs_current, many_runs_middle, many_runs_pastmost, many_runs_overall)
+                append_error_notes(f_notes_name, animation, many_runs_current, many_runs_middle, many_runs_pastmost, many_runs_overall)

@@ -168,7 +168,6 @@ def find_M(plot_info, hip_index, num_of_joints):
         p_GT[3*frame_ind:3*(frame_ind+1),:]= bones_GT-root_GT[:, np.newaxis]
         p_est[3*frame_ind:3*(frame_ind+1),:]= predicted_bones-root_est[:, np.newaxis]
 
-
     #remove spine row from both arrays
     p_est = np.delete(p_est, hip_index, 1)
     p_GT = np.delete(p_GT, hip_index, 1)
@@ -571,22 +570,22 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
 
         #plot joints
         for i, bone in enumerate(left_bone_connections):
-            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:light blue', marker='^', label=blue_label + " left")
+            plot1, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:light blue', marker='^', markersize=1,label=blue_label + " left")
         for i, bone in enumerate(right_bone_connections):
-            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', marker='^', label=blue_label + " right")
+            plot1_r, = ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', marker='^', markersize=1,label=blue_label + " right")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', marker='^')
+            ax.plot(bones_GT[0,bone], bones_GT[1,bone], multip*bones_GT[2,bone], c='xkcd:royal blue', marker='^', markersize=1)
 
         for i, bone in enumerate(left_bone_connections):
-            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:light red', marker='^', label=red_label + " left")
+            plot2, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:light red', marker='^',  markersize=1,label=red_label + " left")
         for i, bone in enumerate(right_bone_connections):
-            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^', label=red_label + " right")
+            plot2_r, = ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^',  markersize=1,label=red_label + " right")
         for i, bone in enumerate(middle_bone_connections):
-            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^')
+            ax.plot(predicted_bones[0,bone], predicted_bones[1,bone], multip*predicted_bones[2,bone], c='xkcd:blood red', marker='^', markersize=1)
         ax.legend(handles=[plot1, plot1_r, plot2, plot2_r], loc='upper right')
     else:
         plot1, = ax.plot(bones_GT[0,:], bones_GT[1,:], multip*bones_GT[2,:], c='xkcd:royal blue', marker='^')
-        plot2, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], multip*predicted_bones[2,:], c='xkcd:blood red', marker='^')
+        plot2, = ax.plot(predicted_bones[0,:], predicted_bones[1,:], multip*predicted_bones[2,:], c='xkcd:blood red', marker='^', markersize=1)
         #ax.legend(handles=[plot1, plot2])
 
     
@@ -645,24 +644,24 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
         #plot optimized poses
         for i, bone in enumerate(left_bone_connections):
             plot2, = ax.plot(optimized_poses[plot_ind,0,bone], optimized_poses[plot_ind,1,bone], multip*optimized_poses[plot_ind,2,bone], 
-                        c='xkcd:light red', marker='^', label=red_label + " left")
+                        c='xkcd:light red', marker='^', label=red_label + " left",  markersize=1)
         for i, bone in enumerate(right_bone_connections):
             plot2_r, = ax.plot(optimized_poses[plot_ind,0,bone], optimized_poses[plot_ind,1,bone], multip*optimized_poses[plot_ind,2,bone],
-                        c='xkcd:blood red', marker='^', label=red_label + " right")
+                        c='xkcd:blood red', marker='^', label=red_label + " right",  markersize=1)
         for i, bone in enumerate(middle_bone_connections):
             ax.plot(optimized_poses[plot_ind,0,bone], optimized_poses[plot_ind,1,bone], multip*optimized_poses[plot_ind,2,bone], 
-                        c='xkcd:blood red', marker='^')
+                        c='xkcd:blood red', marker='^',  markersize=1)
 
         #plot gt if we are not plotting future
         for i, bone in enumerate(left_bone_connections):
             plot1, = ax.plot(poses_3d_gt[plot_ind,0,bone], poses_3d_gt[plot_ind,1,bone], multip*poses_3d_gt[plot_ind,2,bone],
-                    c='xkcd:light blue', marker='^', label=blue_label + " left")
+                    c='xkcd:light blue', marker='^', label=blue_label + " left",  markersize=1)
         for i, bone in enumerate(right_bone_connections):
             plot1_r, = ax.plot(poses_3d_gt[plot_ind,0,bone], poses_3d_gt[plot_ind,1,bone], multip*poses_3d_gt[plot_ind,2,bone],
-                    c='xkcd:royal blue', marker='^', label=blue_label + " right")
+                    c='xkcd:royal blue', marker='^', label=blue_label + " right",  markersize=1)
         for i, bone in enumerate(middle_bone_connections):
             ax.plot(poses_3d_gt[plot_ind,0,bone], poses_3d_gt[plot_ind,1,bone], multip*poses_3d_gt[plot_ind,2,bone], 
-                    c='xkcd:royal blue', marker='^')
+                    c='xkcd:royal blue', marker='^',  markersize=1)
 
         if (ave_errors[plot_ind] != -1):
             ax.text2D(0, 0.38, "ave error: %.4f" %ave_errors[plot_ind], transform=ax.transAxes)
@@ -714,7 +713,7 @@ def plot_future_poses(poses, future_window_size, location, linecount, bone_conne
     for ind, future_window_ind in enumerate(range(future_window_size,-1,-1)):
         for i, bone in enumerate(bone_connections):
             a_plot, = ax.plot(poses[future_window_ind,0,bone], poses[future_window_ind,1,bone],
-                      multip*poses[future_window_ind,2,bone], c=color_list[ind], label=str(ind), marker='^')
+                      multip*poses[future_window_ind,2,bone], c=color_list[ind], label=str(ind), marker='^',  markersize=1)
         plots.append(a_plot)
         ax.legend(handles=plots, loc='upper right')
 
@@ -1141,9 +1140,9 @@ def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, 
     plt.axis(v=['scaled'])
 
     #plot the people
-    plot1, = ax.plot(float(current_human_pos[0]), float(current_human_pos[1]), c='xkcd:light red', marker='^', label="current human pos")
-    plot2, = ax.plot(float(future_human_pos[0]), float(future_human_pos[1]), c='xkcd:royal blue', marker='^', label="future human pos")
-    plot5, = ax.plot(float(gt_human_pos[0]), float(gt_human_pos[1]), c='xkcd:orchid', marker='^', label="GT current human pos")
+    plot1, = ax.plot(float(current_human_pos[0]), float(current_human_pos[1]), c='xkcd:light red', marker='^', markersize=2, label="current human pos")
+    plot2, = ax.plot(float(future_human_pos[0]), float(future_human_pos[1]), c='xkcd:royal blue', marker='^',markersize=2, label="future human pos")
+    plot5, = ax.plot(float(gt_human_pos[0]), float(gt_human_pos[1]), c='xkcd:orchid', marker='^',markersize=2, label="GT current human pos")
 
     #plot potential states
     for state_ind, potential_state in enumerate(potential_states):
@@ -1286,7 +1285,7 @@ def plot_flight_positions_and_error(plot_loc, prev_pos, current_pos, goal_pos, p
     ax = fig.add_subplot(221, projection='3d')
     if len(prev_pos)!=0:
         p1x, p1y, p1z = np.concatenate([prev_pos, current_pos[np.newaxis]], axis=0).T
-        p0, = ax.plot(p1x, p1y, p1z, marker ="^" , color="b", label="past")   
+        p0, = ax.plot(p1x, p1y, p1z, marker ="^" ,markersize=2, color="b", label="past")   
 
     p2x, p2y, p2z = np.concatenate([current_pos[np.newaxis], potential_pos[::-1]], axis=0).T
     p1, = ax.plot(p2x, p2y, p2z, color="r", marker="*", label="Predicted", alpha=0.8)   

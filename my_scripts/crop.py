@@ -146,6 +146,18 @@ class Basic_Crop(object):
             pose_2d[1,:] = pose_2d[1,:] + self.image_bounds[1]
         return pose_2d
 
+    def uncrop_heatmap(self, heatmap, image_size_x, image_size_y):
+        new_heatmap = np.zeros(heatmap.shape)
+        max_crop_x = heatmap.shape[1] +  self.image_bounds[0]
+        if max_crop_x > image_size_x:
+            max_crop_x = image_size_x
+        max_crop_y = heatmap.shape[2] +  self.image_bounds[1]
+        if max_crop_y > image_size_y:
+            max_crop_y = image_size_y        
+        if self.can_crop:
+            new_heatmap[:, self.image_bounds[0]:max_crop_x, self.image_bounds[1]:max_crop_y] = heatmap
+        return new_heatmap
+
     def return_bbox_coord(self):
         bounds = find_bbox_bounds(self.bbox_with_margin)
 

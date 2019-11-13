@@ -307,7 +307,7 @@ class PotentialStatesFetcher(object):
             self.get_potential_positions_sample()
         elif self.loop_mode == "flight_simulation":
             self.get_potential_positions_flight()
-        elif self.loop_mode == "toy_example" or self.loop_mode == "create_dataset":
+        elif self.loop_mode == "toy_example" or self.loop_mode == "create_dataset" or self.loop_mode == "openpose_liftnet":
             self.trajectory_dome_experiment()
 
     # def get_potential_positions_sample(self):
@@ -413,7 +413,11 @@ class PotentialStatesFetcher(object):
                 go_pos_good_rad = norm_potential_drone_vec_go + self.immediate_future_pose[:, self.hip_index]
 
                 dir_vec = go_pos_good_rad-current_drone_pos
-                norm_dir_vec = self.lookahead*dir_vec/np.linalg.norm(dir_vec)
+                dir_vec_len = np.linalg.norm(dir_vec)
+                desired_dist = self.lookahead
+                if dir_vec_len<self.lookahead:
+                    desired_dist= dir_vec_len
+                norm_dir_vec = desired_dist*dir_vec/dir_vec_len
                 go_pos = current_drone_pos+norm_dir_vec
 
 
@@ -497,8 +501,8 @@ class PotentialStatesFetcher(object):
 
     def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager, my_rng):
         if linecount < self.PREDEFINED_MOTION_MODE_LENGTH:
-            #self.choose_go_up_down()
-            self.choose_constant_rotation()
+            self.choose_go_up_down()
+            #self.choose_constant_rotation()
         else:
             if pose_client.is_calibrating_energy:
                 if self.loop_mode == "flight_simulation" or self.loop_mode == "teleport_simulation":
@@ -732,7 +736,7 @@ class PotentialStatesFetcher(object):
             else:
                 hess2 = self.objective.hessian(pose_client.optimized_poses, self.use_hessian_mode)
 
-            potential_trajectory.set_cov(hess2, pose_client.FUTURE_POSE_INDEX, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints)
+            potential_trajectory.set_cov(hess2, pose_client.IMMEDIATE_FUTURE_POSE_INDEX, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints)
             
     def find_best_potential_state(self):
         potential_cov_lists = ["whole", "future"]

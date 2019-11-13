@@ -91,9 +91,7 @@ class Projection_Client(object):
         self.inverse_transformation_matrix[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.inv_transformation_matrix.clone()
         cam_list = potential_trajectory.cam_list.copy()
 
-        #REINTRODUCE BUG
         self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, :, :] = potential_trajectory.potential_2d_poses.clone()
-        self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, 1, :] = self.pose_2d_tensor[:self.FUTURE_WINDOW_SIZE, 0, :]
 
         queue_index = self.FUTURE_WINDOW_SIZE
         for cam_index, bone_2d, _, inverse_transformation_matrix in data_list:
@@ -185,13 +183,13 @@ class Projection_Client(object):
             ones_tensor = torch.ones(transformation_matrix.shape[0], 1, self.num_of_joints).to(self.device)*1.0
             flip_x_y_inv = self.flip_x_y_single_inv.repeat(transformation_matrix.shape[0], 1, 1)
 
-            P_camera = torch.bmm(flip_x_y_inv, P_camera)
-            P_camera = torch.cat((P_camera, ones_tensor),dim=1)
-            P_world_ = torch.bmm(transformation_matrix, P_camera)
+            P_camera_flipped = torch.bmm(flip_x_y_inv, P_camera)
+            P_camera_concat = torch.cat((P_camera_flipped, ones_tensor),dim=1)
+            P_world_ = torch.bmm(transformation_matrix, P_camera_concat)
             P_world = P_world_[:,0:3,:].clone()
         else:
-            P_camera = torch.mm(self.flip_x_y_single_inv, P_camera)
-            P_camera = torch.cat((P_camera, self.ones_tensor_single),0)
-            P_world_ = torch.mm(transformation_matrix, P_camera)
+            P_camera_flipped = torch.mm(self.flip_x_y_single_inv, P_camera)
+            P_camera_concat = torch.cat((P_camera_flipped, self.ones_tensor_single),0)
+            P_world_ = torch.mm(transformation_matrix, P_camera_concat)
             P_world = P_world_[0:3,:].clone()
         return P_world

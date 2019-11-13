@@ -129,6 +129,9 @@ class FileManager(object):
                 for i in range(2):
                     self.bone_lengths_dict[bone_len_file[i,0]] = bone_len_file[i,1:-1].astype('float')
 
+    def update_anim_info(self, animation):
+        self.anim_num = animation
+
     def save_initial_drone_pos(self, airsim_client):
         initial_drone_pos_str = 'drone init pos\t' + str(airsim_client.DRONE_INITIAL_POS[0,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[1,]) + "\t" + str(airsim_client.DRONE_INITIAL_POS[2,])
         self.f_initial_drone_pos.write(initial_drone_pos_str + '\n')
@@ -274,6 +277,16 @@ class FileManager(object):
         np.save(flight_curves_loc+"/directions", directions)
         np.save(flight_curves_loc+"/delta_ts", delta_ts)
         np.save(flight_curves_loc+"/x_actual", x_actual)
+
+    def save_openpose_and_gt2d(self, openpose, pose_2d_gt):
+        openpose_liftnet_loc =  self.saved_vals_loc + "/openpose_liftnet"
+        np.save(openpose_liftnet_loc+"/openpose", openpose)
+        np.save(openpose_liftnet_loc+"/pose_2d_gt", pose_2d_gt)
+
+    def save_lift_and_gtlift(self, pose_lift, pose_lift_gt):
+        openpose_liftnet_loc =  self.saved_vals_loc + "/openpose_liftnet"
+        np.save(openpose_liftnet_loc+"/pose_lift", pose_lift)
+        np.save(openpose_liftnet_loc+"/pose_lift_gt", pose_lift_gt)
 
     def read_flight_curves(self):
         flight_curves_dict = {}

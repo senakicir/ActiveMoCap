@@ -83,20 +83,23 @@ def find_lifted_pose(pose_2d, cropped_image, heatmap_2d):
     pose3d_lift = rearrange_bones_to_mpi(pose3d_lift, is_torch=True)
     return pose3d_lift
 
-def determine_relative_3d_pose(pose_client, current_state, my_rng, pose_2d, cropped_image, heatmap_2d):
+def determine_relative_3d_pose(pose_client, current_state, my_rng, pose_2d, cropped_image, heatmap_2d, file_manager):
     if not pose_client.USE_LIFT_TERM or pose_client.USE_SINGLE_JOINT or pose_client.is_calibrating_energy:
         return None
 
     _, current_pose_3d_GT, _, _, transformation_matrix = current_state.get_frame_parameters()
     bone_connections, _, _, hip_index = pose_client.model_settings()
 
-    if (pose_client.modes["mode_lift"] != 'lift'):
+    if (pose_client.modes["mode_lift"] == 'gt' or pose_client.modes["mode_lift"] == 'gt_with_noise'):
         pose3d_relative = torch.from_numpy(current_pose_3d_GT).clone()
         if (pose_client.modes["mode_lift"] == "gt_with_noise"):
             pose3d_relative = add_noise_to_pose(pose3d_relative, pose_client.NOISE_LIFT_STD, my_rng, noise_type="lift")
+
+
     elif (pose_client.modes["mode_lift"]   == 'lift'):
         pose3d_lift = find_lifted_pose(pose_2d, cropped_image, heatmap_2d.cpu().numpy())
         pose3d_relative = pose_client.projection_client.camera_to_world(pose3d_lift.cpu(), transformation_matrix)
+
 
     if pose_client.LIFT_METHOD == "complex":
         pose3d_lift_directions = calculate_bone_directions(pose3d_relative, np.array(return_lift_bone_connections(bone_connections)), batch=False) 
@@ -105,7 +108,12 @@ def determine_relative_3d_pose(pose_client, current_state, my_rng, pose_2d, crop
                                                                 bone_length_method=pose_client.BONE_LEN_METHOD, 
                                                                 bone_connections=np.array(bone_connections), 
                                                                 hip_index=hip_index, batch=False) 
+    # plot_human(pose3d_relative.numpy(), pose3d_relative.numpy(), file_manager.plot_loc, -10, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
+    # plot_human(pose3d_lift.cpu().numpy(), pose3d_lift.cpu().numpy(), file_manager.plot_loc, -9, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
+    # plot_human(pose3d_lift_directions.numpy(), pose3d_lift_directions.numpy(), file_manager.plot_loc, -8, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
+    # plot_human(current_pose_3d_GT-current_pose_3d_GT[:,hip_index][:, np.newaxis], pose3d_lift_directions.numpy(), file_manager.plot_loc, -7, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
 
+    #pdb.set_trace()
     return pose3d_lift_directions
 
 def initialize_empty_frames(linecount, pose_client, current_state, file_manager, my_rng):
@@ -166,7 +174,7 @@ def determine_openpose_error(linecount, pose_client, current_state, plot_loc, ph
     bone_connections, _, num_of_joints, _ =  pose_client.model_settings()
 
     pose_2d_cropped, pose_2d_gt_cropped, heatmap_2d, cropped_image = determine_2d_positions(pose_client=pose_client, current_state=current_state, my_rng=my_rng, photo_loc=photo_loc, linecount=linecount)
-    pose3d_lift = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, pose_2d=pose_2d_cropped, cropped_image=cropped_image, heatmap_2d=heatmap_2d)
+    pose3d_lift = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, pose_2d=pose_2d_cropped, cropped_image=cropped_image, heatmap_2d=heatmap_2d, file_manager=file_manager)
     pose_2d = pose_client.cropping_tool.uncrop_pose(pose_2d_cropped)
     pose_2d_gt = pose_client.cropping_tool.uncrop_pose(pose_2d_gt_cropped)
 
@@ -184,7 +192,7 @@ def prepare_frames_for_optimization(linecount, pose_client, current_state, my_rn
     pose_2d_cropped, pose_2d_gt_cropped, heatmap_2d, cropped_image = determine_2d_positions(pose_client=pose_client, current_state=current_state, my_rng=my_rng, file_manager=file_manager, linecount=linecount)
     
     #find relative 3d pose using liftnet or GT relative pose
-    pose3d_lift_directions = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, my_rng=my_rng, pose_2d=pose_2d_cropped, cropped_image=cropped_image, heatmap_2d=heatmap_2d)
+    pose3d_lift_directions = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, my_rng=my_rng, pose_2d=pose_2d_cropped, cropped_image=cropped_image, heatmap_2d=heatmap_2d, file_manager=file_manager)
         
     #uncrop 2d pose
     pose_2d = pose_client.cropping_tool.uncrop_pose(pose_2d_cropped)
@@ -282,7 +290,7 @@ def determine_positions(linecount, pose_client, current_state, file_manager, my_
         #plot_2d_projection(check.numpy(), plot_loc, linecount, bone_connections, custom_name="proj_2d")
         if pose_client.modes["mode_2d"] == "openpose":
             display_image(cropped_image, plot_loc, linecount)
-        #plot_human(current_pose_3d_gt, pose_client.adj_current_pose, plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
+        plot_human(current_pose_3d_gt, pose_client.adj_current_pose, plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
         #plot_human(current_pose_3d_gt, noisy_init_pose, plot_loc, linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
         #save_heatmaps(heatmap_2d, linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)

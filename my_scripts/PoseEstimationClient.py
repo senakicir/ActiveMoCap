@@ -41,7 +41,7 @@ class PoseEstimationClient(object):
 
         self.CURRENT_POSE_INDEX = self.FUTURE_WINDOW_SIZE
         self.MIDDLE_POSE_INDEX = self.FUTURE_WINDOW_SIZE+(self.ESTIMATION_WINDOW_SIZE)//2
-        self.FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE -1
+        self.IMMEDIATE_FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE -1
         self.PASTMOST_POSE_INDEX = self.ONLINE_WINDOW_SIZE-1
         
 

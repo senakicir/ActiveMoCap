@@ -11,16 +11,16 @@ parameters:
     run_loc: "server"
     USE_TRACKBAR: False
 
-    # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses 
+    # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet
     LOOP_MODE: "teleport_simulation"
     # CALIBRATION_MODE
-    CALIBRATION_MODE: False
+    CALIBRATION_MODE: True
 
     #about toy example mode
     FIND_BEST_TRAJ: False
     NUM_OF_NOISE_TRIALS: 5
 
-    LENGTH_OF_SIMULATION: 120
+    LENGTH_OF_SIMULATION: 80
 
     FILE_NAMES: ""
     FOLDER_NAMES: ""
@@ -31,16 +31,15 @@ energy_parameters:
     #bone_len_method: "no_sqrt", "sqrt"
     BONE_LEN_METHOD: "sqrt"
     #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
-    SMOOTHNESS_MODE: "velocity"
+    SMOOTHNESS_MODE: "position"
     #projection_method: "scaled, normal, normalized"
     PROJECTION_METHOD: "normalized"
 
-    ESTIMATION_WINDOW_SIZE: 6
+    ESTIMATION_WINDOW_SIZE: 8
     FUTURE_WINDOW_SIZE: 1
-    PREDEFINED_MOTION_MODE_LENGTH: 6
+    PREDEFINED_MOTION_MODE_LENGTH: 8
 
     CALIBRATION_WINDOW_SIZE: 100
-    PREDEFINED_MOTION_MODE_LENGTH: 6
 
 
     PARAM_FIND_M: False
@@ -61,7 +60,7 @@ energy_parameters:
 
     MODEL: "mpi"
     METHOD: "trf"
-    FTOL: 0.001
+    FTOL: 0.0001
     XTOL: 0.00000001
      
     WEIGHTS_CALIB: 
@@ -70,15 +69,15 @@ energy_parameters:
 
     WEIGHTS: 
         proj: 0.0001
-        smooth: 0.1
-        bone: 0.1
-        lift: 0.1
+        smooth: 1
+        bone: 1
+        lift: 1
 
     WEIGHTS_FUTURE:
         proj: 0.0001
-        smooth: 0.1
+        smooth: 1
         bone: 0
-        lift: 0.1
+        lift: 1
 
     #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
     INIT_POSE_MODE: "initial_optimization"
@@ -110,15 +109,15 @@ active_parameters:
     HESSIAN_PART: "whole"
     #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig 5-root_six
     UNCERTAINTY_CALC_METHOD: "sum_eig"
-    #Minnmax: True-min, False-max
-    MINMAX: True
+    #Minnmax: "use_min", "use_max"
+    MINMAX: use_min
     #USE_HESSIAN_MODE: "whole" "partial"
     USE_HESSIAN_MODE: "whole"
 
     #velocity, position
     MOVEMENT_MODE: "velocity"
     
-    LOOKAHEAD: 0.5
+    LOOKAHEAD: 0.8
 
     SAFE_RADIUS: 7
 
@@ -131,7 +130,7 @@ active_parameters:
     #active_sampling = "ellipse", "uniform"
     ACTIVE_SAMPLING_MODE: "uniform"
     TOP_SPEED: 4
-    DELTA_T: 0.1
+    DELTA_T: 0.2
     DIRECTION_DISTANCE: 3
 
     ACC_MAX: 

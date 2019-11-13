@@ -34,10 +34,13 @@ def calculate_bone_directions(bones, lift_bone_directions, batch):
 def calculate_bone_directions_simple(lift_bones, bone_lengths, bone_length_method, bone_connections, hip_index, batch):
     lift_bone_rescaled = scale_with_bone_lengths(lift_bones, bone_lengths, bone_length_method, bone_connections, batch)
     if batch:
+       # assert lift_bone_rescaled.ndim == 3
         lift_bone_rescaled = lift_bone_rescaled - lift_bone_rescaled[:, :, hip_index].unsqueeze(2)
     else:
+       # assert lift_bone_rescaled.ndim == 2
         lift_bone_rescaled = lift_bone_rescaled - lift_bone_rescaled[:, hip_index].unsqueeze(1)
     return lift_bone_rescaled
+
 
 class Lift_Client(object):
     def __init__(self, noise_lift_std, estimation_window_size, future_window_size):
