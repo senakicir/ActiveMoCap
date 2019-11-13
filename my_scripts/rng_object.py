@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 class rng_object(object):
-    def __init__(self, seed_num):
+    def __init__(self, seed_num, saved_vals_loc):
         np.random.seed(seed_num)
         torch.manual_seed(seed_num)
 
@@ -18,19 +18,32 @@ class rng_object(object):
         self.frozen_rng_initialization_noise = self.rng_initialization_noise
         self.frozen_rng_random_traj = self.rng_random_traj
 
+        self.pose_2d_mean = torch.from_numpy(np.load(saved_vals_loc + "/openpose_liftnet/openpose_noise_mean.npy")).float()
+        self.pose_2d_std = torch.from_numpy(np.load(saved_vals_loc + "/openpose_liftnet/openpose_noise_std.npy")).float()
+
+        self.pose_lift_mean = torch.from_numpy(np.load(saved_vals_loc + "/openpose_liftnet/liftnet_noise_mean.npy")).float()
+        self.pose_lift_std = torch.from_numpy(np.load(saved_vals_loc + "/openpose_liftnet/liftnet_noise_std.npy")).float()
+        
+
     def get_pose_noise(self, noise_shape, noise_std, noise_type):
         assert noise_type=="initial" or noise_type=="lift" or noise_type=="proj" or noise_type=="future_proj"
         if noise_type=="initial":
             noise_state = self.rng_initialization_noise
         elif noise_type=="lift":
             noise_state = self.rng_lift_noise 
+            noise_mean = self.pose_lift_mean
+            noise_std = self.pose_lift_std
         elif noise_type=="proj":
             noise_state = self.rng_projection_noise
+            noise_mean = self.pose_2d_mean
+            noise_std = self.pose_2d_std
         elif noise_type=="future_proj":
             noise_state = self.rng_future_projection_noise
+            noise_mean = self.pose_2d_mean
+            noise_std = self.pose_2d_std
         
         torch.set_rng_state(noise_state)
-        noise = torch.normal(torch.zeros(noise_shape), torch.ones(noise_shape)*noise_std).float()
+        noise = torch.normal(noise_mean, noise_std).float()
         noise_state = torch.get_rng_state()
 
         if noise_type=="initial":
