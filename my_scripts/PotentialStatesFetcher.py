@@ -1,4 +1,4 @@
-from helpers import choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories, plot_dome, plot_potential_uncertainties
+from helpers import range_angle, choose_frame_from_cov,plot_potential_ellipses, plot_potential_projections, plot_potential_hessians, plot_potential_projections_noimage, euler_to_rotation_matrix, shape_cov_general, plot_potential_errors, plot_potential_errors_and_uncertainties, plot_potential_trajectories, plot_dome, plot_potential_uncertainties
 import numpy as np
 from State import find_current_polar_info, find_delta_yaw
 from determine_positions import objective_calib, objective_online
@@ -218,6 +218,7 @@ class PotentialStatesFetcher(object):
         self.ACTIVE_SAMPLING_MODE = active_parameters["ACTIVE_SAMPLING_MODE"]
         self.SAFE_RADIUS = active_parameters["SAFE_RADIUS"]
         self.TOP_SPEED =  active_parameters["TOP_SPEED"]
+        self.DONT_FLY_INFRONT = active_parameters["DONT_FLY_INFRONT"]
         self.loop_mode = loop_mode
         self.movement_mode = active_parameters["MOVEMENT_MODE"]
         self.use_hessian_mode = active_parameters["USE_HESSIAN_MODE"]
@@ -228,6 +229,7 @@ class PotentialStatesFetcher(object):
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
         self.goUp = True
+        self.rotation_dir = "r"
         self.POSITION_GRID = active_parameters["POSITION_GRID"]
 
         self.UPPER_LIM = active_parameters["UPPER_LIM"]
@@ -264,8 +266,6 @@ class PotentialStatesFetcher(object):
                 self.visited_ind_index =  self.constant_angle_view 
 
 
-
-
     def reset(self, pose_client, airsim_client, current_state):
         self.C_cam_torch = current_state.C_cam_torch
         self.current_drone_pos = np.squeeze(current_state.C_drone_gt.numpy())
@@ -276,6 +276,7 @@ class PotentialStatesFetcher(object):
 
         self.human_GT = current_state.bone_pos_gt
         self.human_orientation_GT = current_state.human_orientation_gt
+        self.human_orientation_est = current_state.human_orientation_est
 
         self.immediate_future_pose = pose_client.immediate_future_pose
         self.future_human_poses = torch.from_numpy(pose_client.future_poses.copy()).float()
@@ -294,6 +295,8 @@ class PotentialStatesFetcher(object):
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
 
         self.potential_trajectory_list = []
+        self.thrown_trajectory_list =[]
+        self.reasons_list = []
         self.toy_example_states = []
         self.potential_pose2d_list = []   
         
@@ -302,69 +305,15 @@ class PotentialStatesFetcher(object):
     def restart_trajectory(self):
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
 
-    def get_potential_positions(self, is_calibrating_energy):
+    def get_potential_positions(self, linecount):
         if self.loop_mode == "teleport_simulation":
             self.get_potential_positions_sample()
         elif self.loop_mode == "flight_simulation":
-            self.get_potential_positions_flight()
+            if linecount >= self.PREDEFINED_MOTION_MODE_LENGTH-1:
+                self.get_potential_positions_flight()
         elif self.loop_mode == "toy_example" or self.loop_mode == "create_dataset" or self.loop_mode == "openpose_liftnet":
             self.trajectory_dome_experiment()
 
-    # def get_potential_positions_sample(self):
-    #     new_radius = self.SAFE_RADIUS
-    #     unit_z = np.array([0,0,-1])
-
-    #     current_drone_pos = np.copy(self.current_drone_pos)
-
-    #     drone_vec = current_drone_pos - self.immediate_future_pose[:, self.hip_index]
-    #     cur_radius = np.linalg.norm(drone_vec)
-
-    #     new_drone_vec = new_radius*(drone_vec/cur_radius)
-
-    #     horizontal_comp = np.array([new_drone_vec[1], -new_drone_vec[0], 0])
-    #     unit_horizontal = horizontal_comp/ np.linalg.norm(new_drone_vec)
-
-    #     up_vec = np.cross(unit_horizontal, new_drone_vec)
-    #     side_vec = np.cross(unit_z, new_drone_vec)
-    #     up_vec_norm = up_vec*self.lookahead/np.linalg.norm(up_vec)
-    #     side_vec_norm = side_vec*self.lookahead/np.linalg.norm(side_vec)
-
-    #     use_keys =  key_indices.copy()
-    #     use_weights = key_weights.copy()
-           
-    #     if self.ACTIVE_SAMPLING_MODE == "ellipse":
-    #         prev_goal_index = self.goal_state_ind
-    #         for key, value in key_indices.items():
-    #             if prev_goal_index == value:
-    #                 prev_goal_key = key
-    #         use_weights = adjust_using_prev_pos(prev_goal_key, use_weights.copy())
-    #     use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
-    #     future_weight_list = [1, 2, 3]
-
-    #     for key, ind in use_keys.items():
-    #         [weight_side, weight_up] = use_weights[key] 
-    #         potential_trajectory = Potential_Trajectory(ind, self.FUTURE_WINDOW_SIZE, None)
-
-    #         for future_pos_ind in range(0, self.FUTURE_WINDOW_SIZE):
-    #             #future_weight = future_pos_ind + 1
-    #             future_weight = future_weight_list[future_pos_ind]
-    #             #future_human_loc = self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, self.hip_index]
-    #             #future_human_pose = self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :]
-    #             pos_go = new_drone_vec + self.immediate_future_pose[:, self.hip_index] +  (up_vec_norm*weight_up*future_weight + side_vec_norm*future_weight*weight_side)
-
-    #             potential_drone_vec_go = pos_go-self.immediate_future_pose[:, self.hip_index]
-    #             norm_potential_drone_vec_go = potential_drone_vec_go * new_radius /np.linalg.norm(potential_drone_vec_go)
-    #             go_pos = norm_potential_drone_vec_go + self.immediate_future_pose[:, self.hip_index]
-
-    #             new_theta_go = acos((go_pos[2] - self.immediate_future_pose[2, self.hip_index])/new_radius)
-    #             new_pitch_go = pi/2 -new_theta_go
-    #             _, new_phi_go = find_current_polar_info(current_drone_pos, self.immediate_future_pose[:, self.hip_index])
-    #             potential_state = PotentialState(position=go_pos.copy(), orientation=new_phi_go+pi, pitch=new_pitch_go, index=ind)
-    #             pose_in_image = potential_state.get_potential_projection(self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :], self.projection_client)
-    #             assert pose_in_image
-    #             potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
-                
-    #         self.potential_trajectory_list.append(potential_trajectory)
 
 
     def get_potential_positions_sample(self):
@@ -455,11 +404,10 @@ class PotentialStatesFetcher(object):
  
         use_keys =  key_indices.copy()
         use_weights = key_weights.copy()
-        use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
+        # use_keys = remove_key_values(use_keys.copy(), current_drone_pos[2], self.LOWER_LIM, self.UPPER_LIM)
 
         for key, ind in use_keys.items():
             [weight_side, weight_up] = use_weights[key] 
-
             if self.movement_mode == "velocity":
                 dir_vec = (up_vec_norm*weight_up + side_vec_norm*weight_side)
                 norm_dir_vec = (dev_tuner*dir_vec+drone_vec) * self.SAFE_RADIUS /np.linalg.norm(dev_tuner*dir_vec+drone_vec) -drone_vec
@@ -496,8 +444,118 @@ class PotentialStatesFetcher(object):
                 pose_in_image = potential_state.get_potential_projection(self.future_human_poses[self.FUTURE_WINDOW_SIZE-future_pos_ind-1, :, :], self.projection_client)
                 #assert pose_in_image
                 potential_trajectory.append_to_traj(future_ind=future_pos_ind, potential_state=potential_state)
-                
-            self.potential_trajectory_list.append(potential_trajectory)
+
+            no_rules_broken = self.check_if_rules_broken(potential_trajectory)    
+            if not no_rules_broken[0]:   
+                self.potential_trajectory_list.append(potential_trajectory)
+            else:
+                self.thrown_trajectory_list.append(potential_trajectory)
+                self.reasons_list.append(no_rules_broken)
+
+        self.check_if_any_paths_available()
+            
+
+    # def check_if_rules_broken(self, potential_trajectory):
+    #     check_future_ind = self.future_window_size-1
+
+    #     goal_state = potential_trajectory.states[check_future_ind]
+    #     drone_pos = goal_state.position
+        
+    #     if drone_pos[2]  > lower_lim: #about to crash
+    #         reason = "hit_down"
+    #         return (True, reason)
+
+    #     if drone_pos[2]  < upper_lim:
+    #         reason = "hit_up"
+    #         return (True, reason)
+
+    #     hip_pose = self.immediate_future_pose[:, self.hip_index]
+    #     m1 = -np.tan(self.human_orientation_est+pi/4)
+    #     m2 = -np.tan(self.human_orientation_est-pi/4)
+    #     if self.DONT_FLY_INFRONT:
+    #         if (drone_pos[1]-hip_pose[1]) - m1*(drone_pos[0]-hip_pose[0])>0:
+    #             reason = "hit_m1"
+    #             dist = np.abs(-m1*drone_pos[0]+drone_pos[1]-m1*hip_pose[0]-hip_pose[1])/np.sqrt(m1**2+1)
+    #             return (True, reason, dist)
+    #         if (drone_pos[1]-hip_pose[1]) - m2*(drone_pos[0]-hip_pose[0])<0: 
+    #             reason = "hit_m2"
+    #             dist = np.abs(-m2*drone_pos[0]+drone_pos[1]-m2*hip_pose[0]-hip_pose[1])/np.sqrt(m2**2+1)
+    #             return (True, reason, dist)
+    #     return (False)
+
+    def check_if_rules_broken(self, potential_trajectory):
+        check_future_ind = 0
+        if self.FUTURE_WINDOW_SIZE == 1:
+            check_future_ind = 0
+
+        goal_state = potential_trajectory.states[check_future_ind]
+        drone_pos = goal_state.position
+        
+        if self.DONT_FLY_INFRONT:
+            drone_orientation = range_angle(np.arctan2(drone_pos[1], drone_pos[0]))
+            upper_yaw_lim = range_angle(self.human_orientation_est + pi/4)
+            lower_yaw_lim = range_angle(self.human_orientation_est - pi/4)
+            print(lower_yaw_lim, drone_orientation, upper_yaw_lim)
+            if (drone_orientation < upper_yaw_lim and drone_orientation > lower_yaw_lim):
+                dist_lower = min(np.abs(2*pi-drone_orientation-lower_yaw_lim), np.abs(drone_orientation-lower_yaw_lim))
+                dist_upper = min(np.abs(drone_orientation-upper_yaw_lim), np.abs(2*pi-drone_orientation-upper_yaw_lim))
+                if dist_lower < dist_upper:
+                    reason = "safety_human_left"
+                    self.rotation_dir = "r"
+                else:
+                    reason = "safety_human_right"
+                    self.rotation_dir = "l"
+                dist = min(dist_lower, dist_upper)
+                print(dist, reason) 
+                return (True, reason, dist)
+
+    
+        if drone_pos[2]  > self.LOWER_LIM: #about to crash
+            reason = "hit_down"
+            dist = drone_pos[2]-self.LOWER_LIM
+            return (True, reason, dist)
+
+        if drone_pos[2]  < self.UPPER_LIM:
+            reason = "hit_up"
+            dist = self.UPPER_LIM-drone_pos[2]
+            return (True, reason, dist)
+
+        return (False, "all_is_well")
+    
+    def check_if_any_paths_available(self):
+        # found_a_traj = False
+        # if self.trajectory == "constant_rotation":
+        #     for potential_trajectory in self.potential_trajectory_list:
+        #         if potential_trajectory.trajectory_index == key_indices["r"] or potential_trajectory.trajectory_index == key_indices["l"]:
+        #             found_a_traj = True
+        #             break
+        min_dist_safety = np.inf
+        min_dist_low = np.inf
+        min_dist_high = np.inf
+        for ind, traj in enumerate(self.thrown_trajectory_list):
+            reason_tuples = self.reasons_list[ind]
+            reason = reason_tuples[1]
+            distance = reason_tuples[2]
+            keep_traj = None
+
+            if traj.trajectory_index == key_indices["r"] and reason == "safety_human_left":
+                keep_traj = traj
+            elif traj.trajectory_index == key_indices["l"] and reason == "safety_human_right":
+                keep_traj = traj
+            
+            if reason == "hit_up":
+                if distance < min_dist_high:
+                    min_dist_high = distance
+                    keep_traj = traj
+
+            if reason == "hit_down":
+                if distance < min_dist_low:
+                    min_dist_low = distance
+                    keep_traj = traj
+
+            if keep_traj is not None:
+                self.potential_trajectory_list.append(keep_traj)
+            assert len(self.potential_trajectory_list) > 0 
 
     def choose_trajectory(self, pose_client, linecount, online_linecount, file_manager, my_rng):
         if linecount < self.PREDEFINED_MOTION_MODE_LENGTH:
@@ -519,6 +577,7 @@ class PotentialStatesFetcher(object):
                 if (self.trajectory == "constant_rotation"):
                     if self.loop_mode == "flight_simulation" or self.loop_mode == "teleport_simulation":
                         self.choose_constant_rotation()
+                        plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, file_manager.plot_loc, linecount)            
                     elif self.loop_mode == "toy_example":
                         self.choose_constant_rotation_toy_example()
                 if (self.trajectory == "random"): 
@@ -530,8 +589,6 @@ class PotentialStatesFetcher(object):
                         self.choose_constant_angle_toy_example()
                 if (self.trajectory == "oracle"):
                     self.choose_trajectory_using_trajind(self.oracle_traj_ind)
-
-
 
         if self.loop_mode == "toy_example" and not pose_client.is_calibrating_energy:
             if not self.already_plotted_teleport_loc:
@@ -555,14 +612,22 @@ class PotentialStatesFetcher(object):
     def choose_constant_rotation(self):
         not_found = True
         for potential_trajectory in self.potential_trajectory_list:
-            if potential_trajectory.trajectory_index == key_indices["r"]:
+            if potential_trajectory.trajectory_index == key_indices[self.rotation_dir]:
                 self.goal_trajectory = potential_trajectory
+                self.goal_state_ind = potential_trajectory.trajectory_index
                 not_found=False
-
+                print("chose", self.rotation_dir)
+        
         if not_found:
             for potential_trajectory in self.potential_trajectory_list:
-                if potential_trajectory.trajectory_index == key_indices["ru"] or potential_trajectory.trajectory_index == key_indices["rd"]:
+                if potential_trajectory.trajectory_index == key_indices["c"]:
                     self.goal_trajectory = potential_trajectory
+                    self.goal_state_ind = potential_trajectory.trajectory_index
+                    not_found=False
+                    print("chose c")
+
+        if not_found:
+            assert NotImplementedError
 
 
     def choose_constant_rotation_toy_example(self):
@@ -806,6 +871,8 @@ def remove_key_values(use_keys, current_drone_pos_z, lower_lim, upper_lim):
         use_keys.pop("ru")
 
     return use_keys.copy()
+
+
 
 def adjust_using_prev_pos(prev_goal_key, use_weights):
     second_deg = 1/2

@@ -80,7 +80,7 @@ class State(object):
         self.C_drone_gt = torch.zeros([3,1])
         self.R_cam_gt = torch.zeros([3,3])
 
-        self.human_orientation_gt = np.zeros([3,])
+        self.human_orientation_gt = 0
         self.drone_orientation_gt = np.zeros([3,])
         self.human_pos_gt = np.zeros([3,])
         self.bone_pos_gt = np.zeros([3, self.num_of_joints])
@@ -90,7 +90,7 @@ class State(object):
         self.inv_drone_transformation_matrix = torch.zeros(4,4)
 
         self.human_pos_est = np.zeros([3,])
-        self.human_orientation_est = np.zeros([3,])
+        self.human_orientation_est = 0
         self.drone_orientation_est = np.zeros([3,])
         self.drone_pos_est = np.zeros([3,1])
         self.bone_pos_est = np.zeros([3, self.num_of_joints])
@@ -130,7 +130,7 @@ class State(object):
         new_state.C_drone_gt = self.C_drone_gt.clone()
         new_state.R_cam_gt = self.R_cam_gt.clone()
 
-        new_state.human_orientation_gt = self.human_orientation_gt.copy()
+        new_state.human_orientation_gt = self.human_orientation_gt        
         new_state.drone_orientation_gt = self.drone_orientation_gt.copy()
         new_state.human_pos_gt = self.human_pos_gt.copy()
         new_state.bone_pos_gt = self.bone_pos_gt.copy()
@@ -140,7 +140,7 @@ class State(object):
         new_state.inv_drone_transformation_matrix = self.inv_drone_transformation_matrix.clone()
 
         new_state.human_pos_est = self.human_pos_est.copy()
-        new_state.human_orientation_est = self.human_orientation_est.copy()
+        new_state.human_orientation_est = self.human_orientation_est
         new_state.drone_orientation_est = self.drone_orientation_est.copy()
         new_state.drone_pos_est = self.drone_pos_est.copy()
         new_state.bone_pos_est = self.bone_pos_est.copy()

@@ -16,9 +16,9 @@ import sys
 
 if __name__ == "__main__":
     port_num = sys.argv[1]
-    SEED_LIST = [5]#, 41, 3, 10, 12]#, 12, 1995, 100, 150, 200, 190, 0]
+    SEED_LIST = [5, 41, 3, 10, 12]#, 12, 1995, 100, 150, 200, 190, 0]
 
-    ANIMATIONS = ["06_13", "13_06", "28_19", "05_08", "02_01", "38_03", "14_32"]#, "06_13", "13_06"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS =  ["05_08", "02_01", "38_03", "14_32"]#, "14_32"]#["05_08", "02_01", "38_03"] #, "06_13", "13_06"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
                   #validation set: ["06_13", "13_06", "28_19"]
                   #test set: ["05_08", "02_01", "38_03", "14_32"]
@@ -42,17 +42,25 @@ if __name__ == "__main__":
         base_folder = "/cvlabsrc1/home/kicirogl/ActiveDrone/simulation_results/experiments_" + date_time_name
         saved_vals_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/saved_vals"
         test_sets_loc = "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
+    while os.path.exists(base_folder):
+        base_folder += "_b_"
+        if not os.path.exists(base_folder):
+            os.makedirs(base_folder)  
+            break
+    if not os.path.exists(base_folder):
+        os.makedirs(base_folder)      
     if energy_parameters["PROJECTION_METHOD"] == "scaled":
         energy_parameters["WEIGHTS"] =  {'proj': 0.25, 'smooth': 0.25, 'bone': 0.25, 'lift': 0.25}
     parameters["PORT"] = int(port_num)
-    theta_list = [270, 250, 230]#list(range(270, 190, -35))#list(range(270, 235, -20))
-    phi_list = list(range(0, 360, 30))
+
+    theta_list = [270]#, 250, 230]#list(range(270, 190, -35))#list(range(270, 235, -20))
+    phi_list = list(range(0, 360, 20))
     active_parameters["POSITION_GRID"] = [[radians(theta),  radians(phi)] for theta in theta_list for phi in phi_list]
     #####
 
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-oracle, 8-go_to_worst
-    TRAJECTORY_LIST = ["active"]#, "constant_rotation", "random", "constant_angle"]#, "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
+    TRAJECTORY_LIST = ["active"]#["constant_rotation", "random", "constant_angle"]#, "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
 
     ablation_study = False
     find_weights = False
@@ -107,15 +115,15 @@ if __name__ == "__main__":
             
             if ablation_study:
                 energy_parameters["WEIGHTS_FUTURE"] = energy_parameters["WEIGHTS"].copy() 
-                if experiment_ind == 0:
+                if experiment_ind == 3:
                     energy_parameters["WEIGHTS_FUTURE"]["proj"]=0
-                elif experiment_ind == 1:
+                elif experiment_ind == 4:
                     energy_parameters["WEIGHTS_FUTURE"]["smooth"]=0
                 elif experiment_ind == 2:
                     energy_parameters["WEIGHTS_FUTURE"]["bone"]=0
-                elif experiment_ind == 3:
+                elif experiment_ind == 0:
                     energy_parameters["WEIGHTS_FUTURE"]["lift"]=0
-                elif experiment_ind == 4:
+                elif experiment_ind == 1:
                     energy_parameters["WEIGHTS_FUTURE"]["bone"]=0
                     energy_parameters["WEIGHTS_FUTURE"]["lift"]=0
                 else:

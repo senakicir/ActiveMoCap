@@ -11,8 +11,8 @@ if __name__ == "__main__":
     port_num = sys.argv[1]
 
     SEED_LIST = [200, 151]
-    ANIMATIONS = ["06_13", "13_06"]
-    #"06_13",
+    ANIMATIONS = ["06_13"]
+    #["06_13", "13_06", "28_19"]
 
     with open("config_file.yaml", 'r') as ymlfile:
         cfg = yaml.load(ymlfile)
@@ -56,9 +56,9 @@ if __name__ == "__main__":
     for animation in ANIMATIONS:
         anim_file_errors.append(open(base_folder+"/"+str(animation)+"_errors.txt", "w"))
 
-    for weight_proj in np.logspace(-5,-3,3):
-        for  weight_smooth in [0.001, 10, 100]:#np.logspace(-2,0,3): #[0.001, 10, 100]
-            for weight_bone  in np.logspace(-2,0,3):
+    for weight_proj in [0.0001, 0.00001]:#np.logspace(-4,-3,2):
+        for  weight_smooth in np.logspace(0,1,2): #[0.001, 10, 100]
+            for weight_bone  in np.logspace(-1,0,2):
                 for weight_lift  in [0.1]:#np.logspace(-2,0,3):
                     file_names, folder_names, f_notes_name, _ = reset_all_folders(ANIMATIONS, SEED_LIST, base_folder, saved_vals_loc, test_sets_loc)
                     

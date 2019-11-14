@@ -254,7 +254,6 @@ class FileManager(object):
         for i in range (16):
             f_drone_pos_str += str(float(flattened_transformation_matrix[i])) + '\t'
         drone_pos_file.write(str(linecount)+ '\t' + str(state_ind) + '\t' + f_drone_pos_str + '\n')
-        print(flattened_transformation_matrix)
 
     def record_gt_pose(self, gt_3d_pose, linecount):
         f_groundtruth_str = ""

@@ -18,7 +18,7 @@ def get_synth_dataset_filenames(test_sets_loc, test_set_name):
 class Synth_Dataset_Client(External_Dataset_Client):
     def __init__(self, length_of_simulation, test_sets_loc, test_set_name, experiment_ind):
         super(Synth_Dataset_Client, self).__init__(length_of_simulation, test_set_name)
-        if test_set_name == "06_13" or test_set_name == "13_06" or test_set_name == "28_19":
+        if test_set_name == "06_13" or test_set_name == "13_06":
             self.num_of_camera_views = 8
         else:
             self.num_of_camera_views = 18

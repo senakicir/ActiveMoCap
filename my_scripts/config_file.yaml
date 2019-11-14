@@ -5,14 +5,14 @@ kalman_arguments:
 
 parameters:
     # SIMULATION_MODE = "use_airsim", "saved_simulation"
-    SIMULATION_MODE: "saved_simulation"
+    SIMULATION_MODE: "use_airsim"
 
     # run_loc = "server", "local"
     run_loc: "server"
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet
-    LOOP_MODE: "toy_example"
+    LOOP_MODE: "teleport_simulation"
     # CALIBRATION_MODE
     CALIBRATION_MODE: False
 
@@ -20,7 +20,7 @@ parameters:
     FIND_BEST_TRAJ: False
     NUM_OF_NOISE_TRIALS: 3
 
-    LENGTH_OF_SIMULATION: 90
+    LENGTH_OF_SIMULATION: 120
 
     FILE_NAMES: ""
     FOLDER_NAMES: ""
@@ -31,16 +31,15 @@ energy_parameters:
     #bone_len_method: "no_sqrt", "sqrt"
     BONE_LEN_METHOD: "sqrt"
     #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
-    SMOOTHNESS_MODE: "velocity"
+    SMOOTHNESS_MODE: "position"
     #projection_method: "scaled, normal, normalized"
     PROJECTION_METHOD: "normalized"
 
-    ESTIMATION_WINDOW_SIZE: 3
+    ESTIMATION_WINDOW_SIZE: 6
     FUTURE_WINDOW_SIZE: 1
-    PREDEFINED_MOTION_MODE_LENGTH: 0
+    PREDEFINED_MOTION_MODE_LENGTH: 6
 
-    CALIBRATION_WINDOW_SIZE: 90
-
+    CALIBRATION_WINDOW_SIZE: 120
 
     PARAM_FIND_M: False
     PARAM_READ_M: False
@@ -60,8 +59,8 @@ energy_parameters:
 
     MODEL: "mpi"
     METHOD: "trf"
-    FTOL: 0.0001
-    XTOL: 0.00000001
+    FTOL: 0.001
+    XTOL: 0.000001
      
     WEIGHTS_CALIB: 
         proj: 0.8
@@ -71,13 +70,13 @@ energy_parameters:
         proj: 0.0001
         smooth: 1
         bone: 1
-        lift: 1
+        lift: 0.1
 
     WEIGHTS_FUTURE:
         proj: 0.0001
         smooth: 1
-        bone: 0
-        lift: 1
+        bone: 1
+        lift: 0
 
     #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
     INIT_POSE_MODE: "initial_optimization"
@@ -118,12 +117,13 @@ active_parameters:
     MOVEMENT_MODE: "velocity"
     
     LOOKAHEAD: 0.8
+    DONT_FLY_INFRONT: False
 
     SAFE_RADIUS: 7
 
-    UPPER_LIM: -3 
-    LOWER_LIM: -0.5
-    UPDOWN_LIM: [-3, -0.5]
+    UPPER_LIM: -4
+    LOWER_LIM: -0.25
+    UPDOWN_LIM: [-4, -0.25]
     WOBBLE_FREQ: 0.5
     Z_POS: -2.5
 

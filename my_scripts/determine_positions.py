@@ -159,6 +159,7 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager,
 
     pose_client.update3dPos(optimized_poses, optimized_poses)
     pose_client.set_initial_pose()
+    current_state.update_human_info(pose_client.current_pose)
 
     if pose_client.USE_TRAJECTORY_BASIS:
         raise NotImplementedError
@@ -167,6 +168,7 @@ def initialize_empty_frames(linecount, pose_client, current_state, file_manager,
         plot_human(pose_3d_gt,optimized_poses,plot_loc,-1,bone_connections,pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
     else:
         plot_all_optimization_results(optimized_poses, pose_client.poses_3d_gt, pose_client.FUTURE_WINDOW_SIZE, plot_loc, -1, bone_connections, pose_client.animation,  pose_client.errors, pose_client.average_errors)
+
 
 
 def determine_openpose_error(linecount, pose_client, current_state, plot_loc, photo_loc):
@@ -305,7 +307,7 @@ def determine_positions(linecount, pose_client, current_state, file_manager, my_
                 hip_joint_gt = current_pose_3d_gt[:,hip_index]
                 plot_human(current_pose_3d_gt-hip_joint_gt[:, np.newaxis], pose3d_lift_directions.numpy(), plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, -1, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
         end_plot_time = time.time()
-        print("Time it took to plot", end_plot_time - start_plot_time)
+        #print("Time it took to plot", end_plot_time - start_plot_time)
     plot_end = {"est": pose_client.adj_current_pose, "GT": current_pose_3d_gt, "drone": current_state.C_drone_gt, "eval_time": func_eval_time}
     pose_client.append_res(plot_end)
     #file_manager.write_reconstruction_values(adjusted_current_pose, current_pose_3d_gt, current_state.C_drone_gt, current_state.R_drone_gt, linecount, num_of_joints)
