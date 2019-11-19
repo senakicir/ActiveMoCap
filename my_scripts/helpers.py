@@ -248,7 +248,8 @@ def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc, 
                 "f_openpose_results": experiment_folder_name +  '/openpose_results.txt',
                 "f_projection_est": experiment_folder_name +  '/future_pose_2d_estimate.txt',
                 "f_trajectory_list": experiment_folder_name +  '/trajectory_list.txt',
-                "f_yolo_res": experiment_folder_name +  '/yolo_res.txt'}
+                "f_yolo_res": experiment_folder_name +  '/yolo_res.txt',
+                "f_distance": experiment_folder_name + '/distances.txt'}
 
 
     f_notes_name = main_folder_name + "/notes.txt"
@@ -319,6 +320,15 @@ def simple_plot(data, folder_name, plot_name, plot_title="", x_label="", y_label
         plt.ylabel(y_label)
     plt.legend(handles=[p1])
     plt.savefig(folder_name + '/' + plot_title + '.png', bbox_inches='tight', pad_inches=0)
+    plt.close()
+
+def plot_distance_values(distances, plot_loc):
+    _ = plt.figure()
+    p1, = plt.plot(distances)
+    plt.title("Distances")
+    plt.xlabel("Time")
+    plt.ylabel("Distances")
+    plt.savefig(plot_loc + '/distances.png', bbox_inches='tight', pad_inches=0)
     plt.close()
 
 def simple_plot2(xdata, ydata, folder_name, plot_name, plot_title="", x_label="", y_label=""):
@@ -730,7 +740,9 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
         plot_info = pose_client.online_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
     file_name_2 = plot_loc + '/drone_traj_2_'+ str(ind) + '.png'
-    
+    file_name_pdf = plot_loc + '/drone_traj_2_'+ str(ind) + '.pdf'
+
+
     bone_connections, _, _, _ = pose_client.model_settings()
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
 
@@ -851,7 +863,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
         Y = np.concatenate([Y, [drone[1]]])
         Z = np.concatenate([Z, [multip*drone[2]]])
 
-    for i in range(ind_offset-1):
+    for i in range(1, ind_offset-1):
         plotd, = ax.plot([drone_x[i], drone_x[i+1]], [drone_y[i], drone_y[i+1]], [drone_z[i], drone_z[i+1]], c='xkcd:black', marker='^', label="drone", alpha=alphas[i], markersize=2)
     plotd, = ax.plot([drone_x[-1]], [drone_y[-1]], [drone_z[-1]], c='xkcd:black', marker='^', label="drone", alpha=1, markersize=7)
 
@@ -891,7 +903,9 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     ax.set_zlabel('Z')
     #plt.title("Drone Trajectory")
     plt.savefig(file_name_2)
+    plt.savefig(file_name_pdf)
     plt.close()
+
 
 def plot_optimization_losses(pltpts, location, ind, loss_dict):
     plt.figure()
@@ -908,22 +922,76 @@ def plot_optimization_losses(pltpts, location, ind, loss_dict):
 def plot_2d_projection(pose, plot_loc, ind, bone_connections, custom_name="proj_2d"):
     fig = plt.figure()
     ax = fig.add_subplot(111)
-    ax.imshow(np.ones([576,1024]))
+
+    X = pose[0,:]
+    Y = -pose[1,:]        
+    max_range = 500
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
 
     left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
     for _, bone in enumerate(left_bone_connections):    
-        p1, = ax.plot( pose[0, bone], pose[1,bone], color = "r", linewidth=1, label="Left")   
+        p1, = ax.plot( pose[0, bone], -pose[1,bone], color = "r", linewidth=2, markersize=1,  label="Left")   
     for i, bone in enumerate(right_bone_connections):    
-        p2, = ax.plot( pose[0, bone], pose[1,bone], color = "b", linewidth=1, label="Right")   
+        p2, = ax.plot( pose[0, bone], -pose[1,bone], color = "b", linewidth=2, markersize=1, label="Right")   
     for i, bone in enumerate(middle_bone_connections):    
-        ax.plot(pose[0, bone], pose[1,bone], color = "b", linewidth=1)   
-    ax.set_title(str(ind))
+        ax.plot(pose[0, bone], -pose[1,bone], color = "b", markersize=1, linewidth=2)   
+    # ax.set_title(str(ind))
     ax.get_xaxis().set_visible(False)
     ax.get_yaxis().set_visible(False) 
 
-    plot_3d_pos_loc = plot_loc + '/' +custom_name+ "_" + str(ind) + '.png'
+    plot_3d_pos_loc = plot_loc + '/' +custom_name+ "_" + str(ind) + '.pdf'
     plt.savefig(plot_3d_pos_loc, bbox_inches='tight', pad_inches=0)
     plt.close()
+
+
+def plot_single_human(pose, location, ind,  bone_connections):   
+    fig = plt.figure(figsize=(4,4))
+    ax = fig.add_subplot(111, projection='3d')
+
+    X = pose[0,:]
+    Y = pose[1,:]
+    Z = pose[2,:]
+    multip = 1
+    # Get rid of the panes
+    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_zaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
+
+    # Get rid of the spines
+    ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+    ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
+        
+    max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.6
+    mid_x = (X.max()+X.min()) * 0.5
+    mid_y = (Y.max()+Y.min()) * 0.5
+    mid_z = (Z.max()+Z.min()) * 0.5
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+    ax.view_init(elev=30., azim=180)
+
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    #plot joints
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(pose[0,bone], pose[1,bone], multip*pose[2,bone], c='r',linewidth=2, label="Left")
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(pose[0,bone], pose[1,bone], multip*pose[2,bone], c='b',linewidth=2, label="Right")
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(pose[0,bone], pose[1,bone], multip*pose[2,bone], c='b', linewidth=2 )
+
+    # Get rid of the ticks
+    ax.set_xticks([]) 
+    ax.set_yticks([]) 
+    ax.set_zticks([])
+
+    plot_3d_pos_loc = location + '/'+ str(ind) + '.pdf'
+    plt.savefig(plot_3d_pos_loc)
+    plt.close()
+
 
 def vector3r_arr_to_dict(input):
     output = dict()
@@ -1339,6 +1407,8 @@ def plot_flight_positions_and_error(plot_loc, prev_pos, current_pos, goal_pos, p
 
 
     plt.savefig(plot_loc + "/flight_" + str(linecount) + ".jpg", bbox_inches='tight', pad_inches=0)
+    # plt.savefig(plot_loc + "/flight_" + str(linecount) + ".pdf", bbox_inches='tight', pad_inches=0)
+
     plt.close()
 
     pp = potential_pos[::-1]
@@ -1801,7 +1871,7 @@ def plot_correlations(pose_client, linecount, plot_loc):
     plt.savefig(corr_plot_loc, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_ind, potential_trajectory_list, hip_index, plot_loc, linecount):
+def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_ind, potential_trajectory_list, hip_index, bone_connections, plot_loc, linecount):
     current_human_pos = current_human_pose[:, hip_index]
     gt_human_pos = gt_human_pose[:, hip_index]
 
@@ -1843,12 +1913,25 @@ def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_in
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-    ax.set_title("Average Error")
-    plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
-    plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
 
-    file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
-    plt.savefig(file_name, dpi=100)
+
+    left_bone_connections, right_bone_connections, middle_bone_connections = split_bone_connections(bone_connections)
+    #plot joints
+    for i, bone in enumerate(left_bone_connections):
+        plot1, = ax.plot(current_human_pose[0,bone], current_human_pose[1,bone], -1*current_human_pose[2,bone], c='b',linewidth=1)
+    for i, bone in enumerate(right_bone_connections):
+        plot1_r, = ax.plot(current_human_pose[0,bone], current_human_pose[1,bone], -1*current_human_pose[2,bone], c='b',linewidth=1)
+    for i, bone in enumerate(middle_bone_connections):
+        ax.plot(current_human_pose[0,bone], current_human_pose[1,bone], -1*current_human_pose[2,bone], c='b', linewidth=1 )
+
+
+    
+    # plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
+    # plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
+
+    #file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
+    file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".pdf"
+    plt.savefig(file_name)
     plt.close(fig)
 
 def plot_potential_errors_and_uncertainties_matrix(linecount, potential_trajectory_list, goal_trajectory, find_best_traj, plot_loc):

@@ -75,6 +75,7 @@ class FileManager(object):
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_error = open(self.filenames_anim["f_error"], 'w')
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
+        self.f_distance = open(self.filenames_anim["f_distance"], 'w')
 
 
         #empty
@@ -155,6 +156,11 @@ class FileManager(object):
                 self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.png'
 
         return self.photo_loc
+
+    def write_distance_values(self, distances_travelled, total_distance_travelled, linecount):
+        if len(distances_travelled)>0:
+            f_distance_str = str(linecount)+'\t'+str(distances_travelled[-1])+'\t'+str(total_distance_travelled)+'\n'
+            self.f_distance.write(f_distance_str)
 
     def get_photo_loc(self):
         return self.photo_loc

@@ -8,11 +8,11 @@ parameters:
     SIMULATION_MODE: "use_airsim"
 
     # run_loc = "server", "local"
-    run_loc: "server"
+    run_loc: "local"
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet
-    LOOP_MODE: "teleport_simulation"
+    LOOP_MODE: "flight_simulation"
     # CALIBRATION_MODE
     CALIBRATION_MODE: False
 
@@ -36,10 +36,10 @@ energy_parameters:
     PROJECTION_METHOD: "normalized"
 
     ESTIMATION_WINDOW_SIZE: 6
-    FUTURE_WINDOW_SIZE: 1
+    FUTURE_WINDOW_SIZE: 3
     PREDEFINED_MOTION_MODE_LENGTH: 6
 
-    CALIBRATION_WINDOW_SIZE: 120
+    CALIBRATION_WINDOW_SIZE: 100
 
     PARAM_FIND_M: False
     PARAM_READ_M: False
@@ -59,8 +59,8 @@ energy_parameters:
 
     MODEL: "mpi"
     METHOD: "trf"
-    FTOL: 0.001
-    XTOL: 0.000001
+    FTOL: 0.0001
+    XTOL: 0.00000001
      
     WEIGHTS_CALIB: 
         proj: 0.8
@@ -73,10 +73,10 @@ energy_parameters:
         lift: 0.1
 
     WEIGHTS_FUTURE:
-        proj: 0.0001
+        proj: 0.001
         smooth: 1
         bone: 1
-        lift: 0
+        lift: 1
 
     #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
     INIT_POSE_MODE: "initial_optimization"
@@ -84,7 +84,6 @@ energy_parameters:
     NOISE_2D_STD: 3
     NOISE_LIFT_STD:  0.05
     NOISE_3D_INIT_STD:  0.5
-    DRONE_POS_JITTER_NOISE_STD: 0.5
 
     USE_SYMMETRY_TERM: True
     USE_SINGLE_JOINT: False
@@ -118,6 +117,7 @@ active_parameters:
     
     LOOKAHEAD: 0.8
     DONT_FLY_INFRONT: False
+    DRONE_POS_JITTER_NOISE_STD: 0.2
 
     SAFE_RADIUS: 7
 
@@ -129,6 +129,8 @@ active_parameters:
 
     #active_sampling = "ellipse", "uniform"
     ACTIVE_SAMPLING_MODE: "uniform"
+    # PRIMARY_ROTATION_DIR: "r", "l"
+    PRIMARY_ROTATION_DIR: "r"
     TOP_SPEED: 4
     DELTA_T: 0.2
     DIRECTION_DISTANCE: 3

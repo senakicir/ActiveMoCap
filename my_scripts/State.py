@@ -78,6 +78,7 @@ class State(object):
 
         self.R_drone_gt = torch.zeros([3,3])
         self.C_drone_gt = torch.zeros([3,1])
+        self.prev_C_drone_gt = torch.zeros([3,1])
         self.R_cam_gt = torch.zeros([3,3])
 
         self.human_orientation_gt = 0
@@ -100,6 +101,9 @@ class State(object):
         self.anim_time = 1
         self.futuremost_pose_3d_gt = None
         self.function_find_pose = None
+
+        self.distances_travelled = []
+        self.total_distance_travelled = 0
 
     def init_anim_time(self, anim_time, animation):
         self.anim_time = anim_time
@@ -124,10 +128,11 @@ class State(object):
         return self.__cam_pitch__
 
     def deepcopy_state(self):
-        new_state = State(self.use_single_joint, self.active_parameters, self.model_settings, self.anim_gt_array, self.future_window_size, self.initial_drone_pos, self.CAMERA_OFFSET_X)
+        new_state = State(self.use_single_joint, self.active_parameters, self.model_settings, self.anim_gt_array, self.future_window_size, self.initial_drone_pos, self.camera_offset_x)
 
         new_state.R_drone_gt = self.R_drone_gt.clone()
         new_state.C_drone_gt = self.C_drone_gt.clone()
+        new_state.prev_C_drone_gt = self.prev_C_drone_gt.clone()
         new_state.R_cam_gt = self.R_cam_gt.clone()
 
         new_state.human_orientation_gt = self.human_orientation_gt        
@@ -153,6 +158,8 @@ class State(object):
             new_state.futuremost_pose_3d_gt = self.futuremost_pose_3d_gt.copy()
 
         new_state.function_find_pose = self.function_find_pose
+        new_state.total_distance_travelled = self.total_distance_travelled
+        new_state.distances_travelled = self.distances_travelled.copy()
     
         return new_state
 
@@ -184,6 +191,12 @@ class State(object):
         camera_transformation = torch.cat((torch.cat((self.R_cam_gt, self.C_cam_torch), dim=1), neat_tensor), dim=0) 
         self.drone_transformation_matrix = drone_transformation@camera_transformation
         self.inv_drone_transformation_matrix = torch.inverse(self.drone_transformation_matrix)
+
+        if not torch.allclose(self.prev_C_drone_gt, torch.zeros(1)):
+            self.distances_travelled.append(torch.norm(self.prev_C_drone_gt[:,0] -self.C_drone_gt[:,0]))
+            self.total_distance_travelled = sum(self.distances_travelled)
+        self.prev_C_drone_gt = self.C_drone_gt.clone()
+
 
     def store_frame_transformation_matrix_joint_gt(self, bone_pos_gt, drone_transformation_matrix, camera_id):
         self.camera_id = camera_id

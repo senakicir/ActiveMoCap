@@ -222,6 +222,7 @@ class PotentialStatesFetcher(object):
         self.loop_mode = loop_mode
         self.movement_mode = active_parameters["MOVEMENT_MODE"]
         self.use_hessian_mode = active_parameters["USE_HESSIAN_MODE"]
+        self.primary_rotation_dir = active_parameters["PRIMARY_ROTATION_DIR"]
 
         self.PREDEFINED_MOTION_MODE_LENGTH = pose_client.PREDEFINED_MOTION_MODE_LENGTH
 
@@ -229,7 +230,11 @@ class PotentialStatesFetcher(object):
         self.is_quiet = pose_client.quiet
         self.model = pose_client.model
         self.goUp = True
-        self.rotation_dir = "r"
+
+        if self.primary_rotation_dir == "r":
+            self.secondary_rotation_dir = ["ru", "rd"]
+        elif self.primary_rotation_dir == "l":
+            self.secondary_rotation_dir = ["lu", "ld"]
         self.POSITION_GRID = active_parameters["POSITION_GRID"]
 
         self.UPPER_LIM = active_parameters["UPPER_LIM"]
@@ -500,11 +505,14 @@ class PotentialStatesFetcher(object):
                 dist_lower = min(np.abs(2*pi-drone_orientation-lower_yaw_lim), np.abs(drone_orientation-lower_yaw_lim))
                 dist_upper = min(np.abs(drone_orientation-upper_yaw_lim), np.abs(2*pi-drone_orientation-upper_yaw_lim))
                 if dist_lower < dist_upper:
-                    reason = "safety_human_left"
-                    self.rotation_dir = "r"
-                else:
                     reason = "safety_human_right"
-                    self.rotation_dir = "l"
+                    self.primary_rotation_dir = "r"
+                    self.secondary_rotation_dir =["ru", "rd"]
+                else:
+                    reason = "safety_human_left"
+                    self.primary_rotation_dir = "l"
+                    self.secondary_rotation_dir =["lu", "ld"]
+
                 dist = min(dist_lower, dist_upper)
                 print(dist, reason) 
                 return (True, reason, dist)
@@ -538,9 +546,9 @@ class PotentialStatesFetcher(object):
             distance = reason_tuples[2]
             keep_traj = None
 
-            if traj.trajectory_index == key_indices["r"] and reason == "safety_human_left":
+            if (traj.trajectory_index == key_indices["r"] or traj.trajectory_index == key_indices["ru"] or traj.trajectory_index == key_indices["rd"]) and reason == "safety_human_right":
                 keep_traj = traj
-            elif traj.trajectory_index == key_indices["l"] and reason == "safety_human_right":
+            elif (traj.trajectory_index == key_indices["l"] or traj.trajectory_index == key_indices["lu"] or traj.trajectory_index == key_indices["ld"]) and reason == "safety_human_left":
                 keep_traj = traj
             
             if reason == "hit_up":
@@ -577,7 +585,7 @@ class PotentialStatesFetcher(object):
                 if (self.trajectory == "constant_rotation"):
                     if self.loop_mode == "flight_simulation" or self.loop_mode == "teleport_simulation":
                         self.choose_constant_rotation()
-                        plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, file_manager.plot_loc, linecount)            
+                        # plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, file_manager.plot_loc, linecount)            
                     elif self.loop_mode == "toy_example":
                         self.choose_constant_rotation_toy_example()
                 if (self.trajectory == "random"): 
@@ -612,12 +620,20 @@ class PotentialStatesFetcher(object):
     def choose_constant_rotation(self):
         not_found = True
         for potential_trajectory in self.potential_trajectory_list:
-            if potential_trajectory.trajectory_index == key_indices[self.rotation_dir]:
+            if potential_trajectory.trajectory_index == key_indices[self.primary_rotation_dir]:
                 self.goal_trajectory = potential_trajectory
                 self.goal_state_ind = potential_trajectory.trajectory_index
                 not_found=False
-                print("chose", self.rotation_dir)
-        
+                print("chose", self.primary_rotation_dir)
+       
+        if not_found:
+            for potential_trajectory in self.potential_trajectory_list:
+                if potential_trajectory.trajectory_index == key_indices[self.secondary_rotation_dir[0]] or potential_trajectory.trajectory_index ==key_indices[self.secondary_rotation_dir[1]]:
+                    self.goal_trajectory = potential_trajectory
+                    self.goal_state_ind = potential_trajectory.trajectory_index
+                    not_found=False
+                    print("chose", self.secondary_rotation_dir)        
+
         if not_found:
             for potential_trajectory in self.potential_trajectory_list:
                 if potential_trajectory.trajectory_index == key_indices["c"]:
@@ -829,8 +845,8 @@ class PotentialStatesFetcher(object):
             #plot_potential_hessians(self.potential_hessians_normal, linecount, plot_loc, custom_name = "potential_hess_normal_")
             #plot_potential_projections(self.potential_pose2d_list, linecount, plot_loc, photo_locs, self.bone_connections)
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=False, plot_errors=True)
-            plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, plot_loc, linecount)            
-            plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
+            plot_potential_trajectories(self.current_human_pos, self.human_GT, self.goal_state_ind, self.potential_trajectory_list, self.hip_index, self.bone_connections, plot_loc, linecount)            
+            #plot_potential_ellipses(self, plot_loc, linecount, ellipses=True, top_down=True, plot_errors=False)
             plot_potential_uncertainties(self, plot_loc, linecount)
 
             #plot_potential_ellipses(self, plot_loc, linecount, ellipses=False, top_down=True, plot_errors=False)

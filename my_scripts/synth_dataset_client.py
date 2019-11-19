@@ -60,6 +60,7 @@ class Synth_Dataset_Client(External_Dataset_Client):
                 assert linecount == whole_file[linecount*self.num_of_camera_views+cam_index, 0]
                 assert cam_index == whole_file[linecount*self.num_of_camera_views+cam_index, 1]
                 transformation_matrix_tensor[linecount,cam_index, :, :] = torch.from_numpy(np.reshape(transformation_matrix[linecount*self.num_of_camera_views+cam_index, :], (4,4))).float()
+                #transformation_matrix_tensor[linecount,cam_index, :, :] = rng_object.add_jitter(transformation_matrix_tensor[linecount,cam_index, :, :])
                 inv_transformation_matrix_tensor[linecount,cam_index, :, :] = torch.inverse(transformation_matrix_tensor[linecount, cam_index, :,:] )
         return transformation_matrix_tensor, inv_transformation_matrix_tensor
 

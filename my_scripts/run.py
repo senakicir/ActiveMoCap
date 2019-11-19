@@ -34,6 +34,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     Returns:
         errors: dict of errors
     """
+    # energy_parameters["MODES"]["mode_2d"] = "gt_with_noise"
     bone_len_file_name = get_bone_len_file_name(energy_parameters["MODES"])
     file_manager = FileManager(parameters, bone_len_file_name)   
 
@@ -48,7 +49,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     experiment_ind = parameters["EXPERIMENT_NUMBER"]
 
     #set random seeds once and for all
-    my_rng = rng_object(parameters["SEED"], file_manager.saved_vals_loc)
+    my_rng = rng_object(parameters["SEED"], file_manager.saved_vals_loc, active_parameters["DRONE_POS_JITTER_NOISE_STD"])
 
     #connect to the AirSim simulator
     if simulation_mode == "use_airsim":
@@ -118,13 +119,14 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     elif loop_mode == "try_controller_control":
         try_controller_control_loop(current_state, pose_client, airsim_client, file_manager, potential_states_fetcher, loop_mode)
     elif loop_mode == "openpose_liftnet":
-        openpose_liftnet(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters)
+        openpose_liftnet(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters, my_rng)
     ################
 
     #calculate errors
     airsim_client.simPause(False, loop_mode)
     average_errors = pose_client.average_errors
     ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error = pose_client.average_errors[pose_client.CURRENT_POSE_INDEX],  pose_client.average_errors[pose_client.MIDDLE_POSE_INDEX], pose_client.average_errors[pose_client.PASTMOST_POSE_INDEX], pose_client.ave_overall_error
+    plot_distance_values(current_state.distances_travelled, file_manager.plot_loc)
 
     if calibration_mode:
         file_manager.save_bone_lengths(pose_client.boneLengths)
@@ -231,6 +233,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         if not pose_client.quiet and airsim_client.linecount > 0:
             plot_drone_traj(pose_client, file_manager.plot_loc, airsim_client.linecount,  pose_client.animation)
         file_manager.write_error_values(pose_client.average_errors, airsim_client.linecount)
+        file_manager.write_distance_values(current_state.distances_travelled, current_state.total_distance_travelled, airsim_client.linecount)
         end4=time.time()
         #print("plotting and recording error took ", end4-start4, "seconds")
 
@@ -267,7 +270,50 @@ def save_gt_poses_loop(current_state, pose_client, airsim_client, file_manager):
 
         airsim_client.increment_linecount(pose_client.is_calibrating_energy)
 
-def openpose_liftnet(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters):
+def openpose_liftnet(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters, rng_object):
+    # airsim_client.framecount = 940
+    # airsim_client.internal_anim_time = 
+    # airsim_client.chosen_cam_view = 8
+    image_dir = "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets/mpi_inf_3dhp/camera_"+str(airsim_client.chosen_cam_view) +"/img_" +str(airsim_client.framecount) +".jpg"
+    print(file_manager.photo_loc)
+    take_photo(airsim_client, pose_client, current_state, file_manager)
+    
+    pose_client.modes["mode_2d"] = "gt_with_noise" #set this back
+    noisy_gt, pose_2d_gt_cropped, heatmap_2d, cropped_image = determine_2d_positions(pose_client=pose_client, 
+                                                        current_state=current_state, my_rng=rng_object, 
+                                                        file_manager=file_manager, linecount=airsim_client.linecount)
+    
+    
+    pose_client.modes["mode_2d"] = "openpose" #set this back
+    openpose_res, pose_2d_gt_cropped, heatmap_2d, cropped_image = determine_2d_positions(pose_client=pose_client, 
+                                                        current_state=current_state, my_rng=rng_object, 
+                                                        file_manager=file_manager, linecount=airsim_client.linecount)
+    
+    #find relative 3d pose using liftnet
+    pose_client.modes["mode_lift"] = "lift" #set this back
+    pose3d_lift_directions = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, 
+                                                        my_rng=rng_object, pose_2d=openpose_res, cropped_image=cropped_image, 
+                                                        heatmap_2d=heatmap_2d, file_manager=file_manager)
+    pose_client.modes["mode_lift"] = "gt"
+    #find relative 3d pose using gt
+    pose3d_lift_directions_gt = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, 
+                                                        my_rng=rng_object, pose_2d=noisy_gt, cropped_image=cropped_image, 
+                                                        heatmap_2d=heatmap_2d, file_manager=file_manager)
+    pose_client.modes["mode_lift"] = "gt_with_noise"
+    pose3d_lift_directions_gt_with_noise = determine_relative_3d_pose(pose_client=pose_client, current_state=current_state, 
+                                                        my_rng=rng_object, pose_2d=noisy_gt, cropped_image=cropped_image, 
+                                                        heatmap_2d=heatmap_2d, file_manager=file_manager)
+
+    plot_single_human(pose3d_lift_directions_gt.numpy(), file_manager.plot_loc, "lift_gt",  pose_client.bone_connections)
+    plot_single_human(pose3d_lift_directions_gt_with_noise.numpy(), file_manager.plot_loc, "lift_gt_with_noise",  pose_client.bone_connections)
+    plot_single_human(pose3d_lift_directions.numpy(), file_manager.plot_loc, "liftnet",  pose_client.bone_connections)
+
+    plot_2d_projection(noisy_gt, file_manager.plot_loc, 0, pose_client.bone_connections, custom_name="2d_noisy_gt")
+    plot_2d_projection(pose_2d_gt_cropped, file_manager.plot_loc, 0, pose_client.bone_connections, custom_name="2d_gt")
+    plot_2d_projection(openpose_res, file_manager.plot_loc, 0, pose_client.bone_connections, custom_name="openpose")
+    
+
+def openpose_liftnet_other(current_state, pose_client, airsim_client, potential_states_fetcher, file_manager, parameters):
     
     potential_states_fetcher.reset(pose_client, airsim_client, current_state)
     potential_states_fetcher.get_potential_positions(airsim_client.linecount)
@@ -423,6 +469,7 @@ def set_animation_to_frame(airsim_client, pose_client, current_state, anim_frame
     if not pose_client.is_calibrating_energy and anim_frame != current_anim_time:
         prev_gt_pose = current_state.bone_pos_gt.copy()
         airsim_client.simPause(False, pose_client.loop_mode)
+        # airsim_client.simContinueForTime(0.0001)
         airsim_client.setAnimationTime(anim_frame)
         airsim_client.simPause(True, pose_client.loop_mode)
         new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
@@ -466,7 +513,7 @@ def set_position(goal_trajectory, airsim_client, current_state, pose_client, pot
         # drone_speed = go_dist
         # if drone_speed > current_state.TOP_SPEED:
         #     drone_speed = current_state.TOP_SPEED
-        airsim_client.simPause(False, loop_mode)
+        airsim_client.simContinueForTime(current_state.DELTA_T)
         # airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], 
         #                                   drone_speed, current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
         #                                   airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
@@ -479,23 +526,25 @@ def set_position(goal_trajectory, airsim_client, current_state, pose_client, pot
             airsim_client.moveToPositionAsync(desired_dir[0], desired_dir[1], desired_dir[2], 
                                             drone_speed, current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
                                             airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), 
-                                            lookahead=-1, adaptive_lookahead=0).join()
+                                            lookahead=-1, adaptive_lookahead=0)
             end_move = time.time()
     
         if potential_states_fetcher.movement_mode == "velocity":
-            total_time_passed = 0
-            while(total_time_passed < current_state.DELTA_T-0.05):
-                time_remaining = current_state.DELTA_T - total_time_passed
-                start_move = time.time()
-                airsim_client.moveByVelocityAsync(desired_dir[0], desired_dir[1], desired_dir[2],  
-                                                time_remaining, airsim.DrivetrainType.MaxDegreeOfFreedom, 
-                                                airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg)).join()
-                end_move = time.time()
-                time_passed = end_move-start_move
-                total_time_passed += time_passed
+            # total_time_passed = 0
+            # while(total_time_passed < current_state.DELTA_T-0.05):
+                # time_remaining = current_state.DELTA_T - total_time_passed
+            start_move = time.time()
+            airsim_client.moveByVelocityAsync(desired_dir[0], desired_dir[1], desired_dir[2],  
+                                            current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
+                                            airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg))
+            end_move = time.time()
+                # time_passed = end_move-start_move
+                # total_time_passed += time_passed
 
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
-        airsim_client.simPause(True, loop_mode)
+        while(not airsim_client.simIsPause()):
+            time.sleep(0.01)
+        # airsim_client.simPause(True, loop_mode)
         time_passed = end_move - start_move
         print("time passed for motion", time_passed)
        # if (current_state.DELTA_T > time_passed):
