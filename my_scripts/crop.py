@@ -11,6 +11,10 @@ def find_bbox_bounds(bbox):
     }
     return bounds
 
+def find_ave_person_size(pose_2d):
+    bounds = find_rectangular_bounds_from_pose(pose_2d, 0)
+    return abs(bounds["max_y"]-bounds["min_y"])
+
 def find_bbox_from_pose(pose_2d, margin):
     bounds = {}
     bounds["min_x"] = torch.min(pose_2d[0,:])

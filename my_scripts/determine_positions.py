@@ -12,10 +12,11 @@ import util as demo_util
 from PoseEstimationClient import PoseEstimationClient
 from Lift_Client import calculate_bone_directions, calculate_bone_directions_simple, scale_with_bone_lengths
 from yolo_helper import find_single_person_bbox
+from crop import find_ave_person_size
 
-import openpose as openpose_module
-import liftnet as liftnet_module
-import darknet as darknet_module
+# import openpose as openpose_module
+# import liftnet as liftnet_module
+# import darknet as darknet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -61,7 +62,8 @@ def determine_2d_positions(pose_client, current_state, my_rng, file_manager, lin
     elif (pose_client.modes["mode_2d"] == "openpose"):  
         pose_2d, heatmaps, _, _ =  openpose_module.run_only_model(cropped_image, pose_client.cropping_tool.scales)
 
-        pose_client.openpose_error = torch.mean(torch.norm(pose_2d_gt_cropped-pose_2d, dim=0))
+        ave_person_size = find_ave_person_size(pose_2d)
+        pose_client.openpose_error = torch.mean(torch.norm(pose_2d_gt_cropped-pose_2d, dim=0))/ave_person_size
         if not pose_client.USE_SINGLE_JOINT:
             arm_joints, _, _ = return_arm_joints()
             leg_joints, _, _ = return_leg_joints()

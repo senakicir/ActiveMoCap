@@ -1582,15 +1582,17 @@ def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, 
         name = '/potential_errors_'
     else: 
         name = '/'+custom_name
+
     hip_index, num_of_joints = potential_states_fetcher.hip_index, potential_states_fetcher.number_of_joints
     current_human_pos = potential_states_fetcher.current_human_pos[:, hip_index]
     future_human_pos =  potential_states_fetcher.immediate_future_pose[:, hip_index]
     gt_human_pos = potential_states_fetcher.human_GT[:, hip_index]
     
-    potential_states = potential_states_fetcher.potential_states_try
-    uncertainty_list_whole =  list(potential_states_fetcher.uncertainty_list_whole.values())
-    overall_error_list = potential_states_fetcher.overall_error_mean_list
-    overall_std_list = potential_states_fetcher.overall_error_std_list 
+    potential_trajectory_list = potential_states_fetcher.potential_trajectory_list
+
+    uncertainty_list_whole = [potential_trajectory.uncertainty for potential_trajectory in potential_trajectory_list]
+    overall_error_list =  [potential_trajectory.error_middle for potential_trajectory in potential_trajectory_list]
+
     if plot_future:
         future_error_list = potential_states_fetcher.future_error_mean_list
         future_std_list = potential_states_fetcher.future_error_std_list
@@ -1635,8 +1637,9 @@ def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, 
     Z = np.array([-current_human_pos[2], -future_human_pos[2], -gt_human_pos[2]])
 
     #plot ellipses
-    for state_ind, potential_state in enumerate(potential_states):
-        state_pos =  potential_state.position
+    for potential_trajectory in potential_trajectory_list:
+        state_ind = potential_trajectory.trajectory_index
+        state_pos =  potential_trajectory.drone_positions[0, :,0].numpy()
         center = np.copy(state_pos)
         center[2] = -center[2]
 
@@ -1647,11 +1650,14 @@ def plot_potential_errors_and_uncertainties(potential_states_fetcher, plot_loc, 
         markersize=30
         text_color="b"
         if (state_ind == potential_states_fetcher.goal_state_ind):
-            markersize=100
+            markersize=150
             text_color="r"
         for list_ind, a_list in enumerate(lists):
             if plot_log:
                 a_list = np.log(a_list)
+
+            # import pdb
+            # pdb.set_trace()
             plot5=axes[list_ind].scatter([center[0]], [center[1]], [center[2]], marker='^', c=[a_list[state_ind]], cmap=cmap, norm=norms[list_ind], s=markersize, alpha=1)
             point_text = '{0:d}:{1:.3f}'.format(state_ind, a_list[state_ind])
 
@@ -1696,8 +1702,8 @@ def plot_potential_ellipses(potential_states_fetcher, plot_loc, ind, ellipses=Tr
     potential_trajectory_list = potential_states_fetcher.potential_trajectory_list
 
     covs = [potential_trajectory.potential_cov_dict["whole"] for potential_trajectory in potential_trajectory_list]
+    error_list =  [potential_trajectory.error_middle for potential_trajectory in potential_trajectory_list]
     if plot_errors:
-        error_list = potential_states_fetcher.error_list
         cmap = cm.cool
         norm = colors.Normalize(vmin=(np.min(error_list)), vmax=(np.max(error_list)))
 
