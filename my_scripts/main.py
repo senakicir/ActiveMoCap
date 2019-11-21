@@ -18,7 +18,7 @@ if __name__ == "__main__":
     port_num = sys.argv[1]
     SEED_LIST = [5,41,3,10,12]#[5, 41, 3, 10, 12]#, 12, 1995, 100, 150, 200, 190, 0]
 
-    ANIMATIONS =["02_01","38_03","05_08"]#, "38_03", "05_08"]#,"38_03", "05_08"]#["05_08", "02_01", "38_03"]#["02_01", "05_08", "38_03"]#["02_01", "05_08", "38_03"]#,"02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#["05_08", "02_01", "14_32"]#["05_08", "02_01", "14_32"]#, "38_03", ]#, "14_32"]#, "14_32"]#["05_08", "02_01", "38_03"] #, "06_13", "13_06"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
+    ANIMATIONS =  ["38_03"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#["02_01","38_03","05_08"]#, "38_03", "05_08"]#,"38_03", "05_08"]#["05_08", "02_01", "38_03"]#["02_01", "05_08", "38_03"]#["02_01", "05_08", "38_03"]#,"02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#["05_08", "02_01", "14_32"]#["05_08", "02_01", "14_32"]#, "38_03", ]#, "14_32"]#, "14_32"]#["05_08", "02_01", "38_03"] #, "06_13", "13_06"]#, "13_06", "28_19"]#["06_13"]#,"13_06"]#,"28_19"] #, "05_08", "28_19"]#,"02_01"]#, "38_03"]#, "14_32"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03", "14_32"]#, "02_01", "38_03"]#["05_08", "02_01", "38_03"]#, "02_01", "38_03"]#, "14_32"]#, "05_08", "38_03"]#, "14_32", "06_13", "13_06", "28_19"]#, "13_06", "28_19"]#, "06_13", "13_06", "28_19"]#,"05_08", "38_03"]#, "64_06", "06_03", "05_11", "05_15", "06_09", "07_10",
                   #"07_05", "64_11", "64_22", "64_26", "13_06", "14_32", "06_13", "14_01", "28_19"]
                   #validation set: ["06_13", "13_06", "28_19"]
                   #test set: ["05_08", "02_01", "38_03", "14_32"]
@@ -61,10 +61,10 @@ if __name__ == "__main__":
 
 
     #trajectory = 0-active, 1-constant_rotation, 2-random, 3-constant_angle, 4-wobbly_rotation, 5-updown, 6-leftright, 7-oracle, 8-go_to_worst
-    TRAJECTORY_LIST = ["random", "constant_angle"]#["constant_rotation", "active", "random", "constant_angle"]#["oracle"]#["active", "constant_rotation", "random", "constant_angle"]#, "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
+    TRAJECTORY_LIST = ["active"]#["random", "constant_angle"]#["constant_rotation", "active", "random", "constant_angle"]#["oracle"]#["active", "constant_rotation", "random", "constant_angle"]#, "random", "constant_angle"]#["active"]#["active"]#["constant_rotation", "random", "constant_angle"]
 
     ablation_study = False
-    find_weights = False
+    find_weights = True
 
     if ablation_study:
         num_of_experiments = 5
@@ -76,19 +76,22 @@ if __name__ == "__main__":
 
     num_of_experiments_layer_2 = 1
     if find_weights:
-        num_of_experiments_layer_2 = 4
+        num_of_experiments_layer_2 = 2
 
     for exp_ind_2 in range(num_of_experiments_layer_2):
-        if find_weights:
-            if exp_ind_2 == 0:
-                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.0001
-            if exp_ind_2 == 1:
-                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.0001
-            if exp_ind_2 == 2:
-                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.00001
-            if exp_ind_2 == 3:
-                energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.00001
-                   
+        # if find_weights:
+        #     if exp_ind_2 == 0:
+        #         energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.0001
+        #     if exp_ind_2 == 1:
+        #         energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.0001
+        #     if exp_ind_2 == 2:
+        #         energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.00001
+        #     if exp_ind_2 == 3:
+        #         energy_parameters["WEIGHTS_FUTURE"]["proj"]=0.00001
+        if exp_ind_2 == 0:
+            active_parameters["PRIMARY_ROTATION_DIR"] = "r"
+        elif exp_ind_2 == 1:
+            active_parameters["PRIMARY_ROTATION_DIR"] = "l"
 
         for experiment_ind in range(num_of_experiments):
 

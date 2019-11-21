@@ -733,6 +733,9 @@ def plot_future_poses(poses, future_window_size, location, linecount, bone_conne
 
 
 def plot_drone_traj(pose_client, plot_loc, ind, test_set):
+    if ind %10 != 0:
+        return None
+
     if (pose_client.is_calibrating_energy):
         plot_info = pose_client.calib_res_list
         file_name = plot_loc + '/drone_traj_'+ str(ind) + '.png'
@@ -903,7 +906,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     ax.set_zlabel('Z')
     #plt.title("Drone Trajectory")
     plt.savefig(file_name_2)
-    plt.savefig(file_name_pdf)
+   # plt.savefig(file_name_pdf)
     plt.close()
 
 
@@ -1872,6 +1875,8 @@ def plot_correlations(pose_client, linecount, plot_loc):
     plt.close(fig)
 
 def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_ind, potential_trajectory_list, hip_index, bone_connections, plot_loc, linecount):
+    if linecount%5 !=0:
+        return None
     current_human_pos = current_human_pose[:, hip_index]
     gt_human_pos = gt_human_pose[:, hip_index]
 
@@ -1929,8 +1934,8 @@ def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_in
     # plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
     # plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
 
-    #file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
-    file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".pdf"
+    file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
+    #file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".pdf"
     plt.savefig(file_name)
     plt.close(fig)
 

@@ -468,24 +468,25 @@ def set_animation_to_frame(airsim_client, pose_client, current_state, anim_frame
     current_anim_time = airsim_client.getAnimationTime()
     if not pose_client.is_calibrating_energy and anim_frame != current_anim_time:
         prev_gt_pose = current_state.bone_pos_gt.copy()
-        airsim_client.simPause(False, pose_client.loop_mode)
-        # airsim_client.simContinueForTime(0.0001)
+        #airsim_client.simPause(False, pose_client.loop_mode)
         airsim_client.setAnimationTime(anim_frame)
-        airsim_client.simPause(True, pose_client.loop_mode)
+        #time.sleep(5)
+        #airsim_client.simContinueForTime(0.01)
+        #airsim_client.simPause(True, pose_client.loop_mode)
         new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
         i = 0
         if airsim_client.is_using_airsim:
-            while (np.allclose(prev_gt_pose, new_gt_pose) and i < 200):
+            while (np.allclose(prev_gt_pose, new_gt_pose) and i < 40):
                 time.sleep(0.05)
                 new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
                 i += 1
                 #try again
                 if i%10 == 0:
-                    airsim_client.simPause(False, pose_client.loop_mode)
+                    # airsim_client.simPause(False, pose_client.loop_mode)
                     airsim_client.setAnimationTime(anim_frame)
-                    airsim_client.simPause(True, pose_client.loop_mode)
+                    # airsim_client.simPause(True, pose_client.loop_mode)
                 fail_msg = "waited until too long, i =200"
-                assert i != 200, fail_msg
+                assert i != 40, fail_msg
 
         anim_time = airsim_client.getAnimationTime()
         assert anim_time != 0
@@ -513,7 +514,6 @@ def set_position(goal_trajectory, airsim_client, current_state, pose_client, pot
         # drone_speed = go_dist
         # if drone_speed > current_state.TOP_SPEED:
         #     drone_speed = current_state.TOP_SPEED
-        airsim_client.simContinueForTime(current_state.DELTA_T)
         # airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], 
         #                                   drone_speed, current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
         #                                   airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
@@ -522,34 +522,27 @@ def set_position(goal_trajectory, airsim_client, current_state, pose_client, pot
         #                                   airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), lookahead=-1, adaptive_lookahead=0).join()
         if potential_states_fetcher.movement_mode == "position":
             drone_speed = current_state.TOP_SPEED
-            start_move = time.time()
             airsim_client.moveToPositionAsync(desired_dir[0], desired_dir[1], desired_dir[2], 
-                                            drone_speed, current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
+                                            drone_speed, 1, airsim.DrivetrainType.MaxDegreeOfFreedom, 
                                             airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg), 
                                             lookahead=-1, adaptive_lookahead=0)
-            end_move = time.time()
     
         if potential_states_fetcher.movement_mode == "velocity":
             # total_time_passed = 0
             # while(total_time_passed < current_state.DELTA_T-0.05):
                 # time_remaining = current_state.DELTA_T - total_time_passed
-            start_move = time.time()
             airsim_client.moveByVelocityAsync(desired_dir[0], desired_dir[1], desired_dir[2],  
-                                            current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
+                                            1, airsim.DrivetrainType.MaxDegreeOfFreedom, 
                                             airsim.YawMode(is_rate=False, yaw_or_rate=desired_yaw_deg))
-            end_move = time.time()
                 # time_passed = end_move-start_move
                 # total_time_passed += time_passed
 
-        airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
+        time.sleep(0.01)
+        airsim_client.simContinueForTime(current_state.DELTA_T)
         while(not airsim_client.simIsPause()):
             time.sleep(0.01)
         # airsim_client.simPause(True, loop_mode)
-        time_passed = end_move - start_move
-        print("time passed for motion", time_passed)
-       # if (current_state.DELTA_T > time_passed):
-            #airsim_client.rotateToYawAsync(desired_yaw_deg, current_state.DELTA_T , margin = 5).join()
-
+        airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
         current_state.set_cam_pitch(cam_pitch)
 
     elif loop_mode == "try_controller_control":
@@ -568,22 +561,23 @@ def set_position(goal_trajectory, airsim_client, current_state, pose_client, pot
         # print("desired pos is", go_dist)
 
         start_move = time.time()
-        airsim_client.simPause(False,  loop_mode)
         if potential_states_fetcher.movement_mode == "position":
             drone_speed = current_state.TOP_SPEED
             airsim_client.moveToPositionAsync(desired_pos[0], desired_pos[1], desired_pos[2], 
-                                            drone_speed, current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
+                                            drone_speed, 1, airsim.DrivetrainType.MaxDegreeOfFreedom, 
                                             airsim.YawMode(is_rate=False, yaw_or_rate=0), 
-                                            lookahead=-1, adaptive_lookahead=0).join()
+                                            lookahead=-1, adaptive_lookahead=0)
     
         if potential_states_fetcher.movement_mode == "velocity":
             airsim_client.moveByVelocityAsync(desired_dir[0], desired_dir[1], desired_dir[2],  
-                                            current_state.DELTA_T, airsim.DrivetrainType.MaxDegreeOfFreedom, 
-                                            airsim.YawMode(is_rate=False, yaw_or_rate=0)).join()
+                                            1, airsim.DrivetrainType.MaxDegreeOfFreedom, 
+                                            airsim.YawMode(is_rate=False, yaw_or_rate=0))
 
+        time.sleep(0.01)
+        airsim_client.simContinueForTime(current_state.DELTA_T)
+        while(not airsim_client.simIsPause()):
+            time.sleep(0.01)
         airsim_client.simSetCameraOrientation(str(0), airsim.to_quaternion(cam_pitch, 0, 0))
-        airsim_client.simPause(True, loop_mode)
-
         current_state.set_cam_pitch(cam_pitch)
 
 def try_controller_control_loop(current_state, pose_client, airsim_client, file_manager, potential_states_fetcher, loop_mode):

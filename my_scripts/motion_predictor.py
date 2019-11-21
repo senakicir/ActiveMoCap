@@ -8,6 +8,8 @@ class Motion_Predictor(object):
         self.alpha = active_parameters["ACC_ALPHA"]
         self.delta_t = active_parameters["DELTA_T"]
         self.speed = active_parameters["TOP_SPEED"]
+        self.lookahead = active_parameters["LOOKAHEAD"]
+        self.predict_accurate = active_parameters["PREDICT_ACCURATE"]
         self.prev_acc = np.zeros((3))
         self.prev_direction = np.zeros((3))
         self.future_window_size = future_window_size
@@ -20,8 +22,11 @@ class Motion_Predictor(object):
 
 
         elif self.movement_mode == "velocity":
-            self.predict_potential_positions_func = self.__predict_potential_positions_vel__
-            
+            if self.predict_accurate:
+                self.predict_potential_positions_func = self.__predict_potential_positions_vel__
+            else:
+                self.predict_potential_positions_func = self.__predict_potential_positions_uniform__
+
 
     def __find_acc_potential_pos__(self, direction, x_current, v_current):
         a = self.alpha*self.acc_max*direction + (1-self.alpha)*self.prev_acc
@@ -40,6 +45,13 @@ class Motion_Predictor(object):
 
     def __predict_potential_positions_vel__(self, direction, x_current, v_current):
         potential_positions = self.__find_acc_potential_pos__(direction, x_current, v_current)
+        return potential_positions
+
+    def __predict_potential_positions_uniform__(self, direction, x_current, v_current):
+        potential_positions = np.zeros((self.future_window_size, 3))            
+        for future_ind in range(0, self.future_window_size):
+            time_step = self.delta_t* (self.future_window_size-future_ind)
+            potential_positions[future_ind, :] = x_current + direction*time_step*self.lookahead
         return potential_positions
 
     def __find_directions__(self, x_goal, x_current):

@@ -13,9 +13,9 @@ from PoseEstimationClient import PoseEstimationClient
 from Lift_Client import calculate_bone_directions, calculate_bone_directions_simple, scale_with_bone_lengths
 from yolo_helper import find_single_person_bbox
 
-# import openpose as openpose_module
-# import liftnet as liftnet_module
-# import darknet as darknet_module
+import openpose as openpose_module
+import liftnet as liftnet_module
+import darknet as darknet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
@@ -67,7 +67,7 @@ def determine_2d_positions(pose_client, current_state, my_rng, file_manager, lin
             leg_joints, _, _ = return_leg_joints()
             pose_client.openpose_arm_error = torch.mean(torch.norm(pose_2d_gt_cropped[:, arm_joints]-pose_2d[:, arm_joints], dim=0))
             pose_client.openpose_leg_error = torch.mean(torch.norm(pose_2d_gt_cropped[:, leg_joints]-pose_2d[:, leg_joints], dim=0))
-    
+        file_manager.write_openpose_error2(pose_client.openpose_error)
     return pose_2d.clone(), pose_2d_gt_cropped.clone(), heatmaps, cropped_image
 
 def find_2d_pose_gt(projection_client, current_state):
@@ -286,26 +286,26 @@ def determine_positions(linecount, pose_client, current_state, file_manager, my_
 
     if (plot_loc != 0 and not pose_client.quiet): 
         start_plot_time = time.time()
-        check = pose_client.projection_client.take_single_projection(torch.from_numpy(pose_client.current_pose).float(), inv_transformation_matrix, camera_index)
-        superimpose_on_image(pose_2d.cpu().numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.cpu().numpy())
+        # check = pose_client.projection_client.take_single_projection(torch.from_numpy(pose_client.current_pose).float(), inv_transformation_matrix, camera_index)
+        # superimpose_on_image(pose_2d.cpu().numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_", scale = -1, projection=check.cpu().numpy())
         #superimpose_on_image(pose_2d.numpy(), plot_loc, linecount, bone_connections, photo_loc, custom_name="projected_res_2_", scale = -1)
         #plot_2d_projection(check.numpy(), plot_loc, linecount, bone_connections, custom_name="proj_2d")
-        if pose_client.modes["mode_2d"] == "openpose":
-            display_image(cropped_image, plot_loc, linecount)
-        plot_human(current_pose_3d_gt, pose_client.adj_current_pose, plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
+        # if pose_client.modes["mode_2d"] == "openpose":
+        #     display_image(cropped_image, plot_loc, linecount)
+        # plot_human(current_pose_3d_gt, pose_client.adj_current_pose, plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, 1000, additional_text = 1000)
         #plot_human(current_pose_3d_gt, noisy_init_pose, plot_loc, linecount, bone_connections, 0, custom_name="init_pose", label_names = ["GT", "Init"])
         #save_heatmaps(heatmap_2d, linecount, plot_loc)
         #save_heatmaps(heatmaps_scales.cpu().numpy(), client.linecount, plot_loc, custom_name = "heatmaps_scales_", scales=scales, poses=poses_scales.cpu().numpy(), bone_connections=bone_connections)
-        if pose_client.modes["mode_3d"] == "scipy":
-            plot_optimization_losses(optimization_losses, plot_loc, linecount, pose_client.loss_dict)
+        # if pose_client.modes["mode_3d"] == "scipy":
+        #     plot_optimization_losses(optimization_losses, plot_loc, linecount, pose_client.loss_dict)
 
         if (not pose_client.is_calibrating_energy and not pose_client.simulate_error_mode):
             #plot_future_poses(adjusted_optimized_poses, pose_client.FUTURE_WINDOW_SIZE, plot_loc, linecount, bone_connections, pose_client.animation)
             plot_all_optimization_results(adjusted_optimized_poses, pose_client.poses_3d_gt, pose_client.FUTURE_WINDOW_SIZE, plot_loc, linecount, bone_connections, pose_client.animation,  pose_client.errors, pose_client.average_errors)
             #plot_human(current_pose_3d_gt, pose_client.adj_current_pose, plot_loc, linecount-pose_client.MIDDLE_POSE_INDEX+1, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, errors["middle_error"], custom_name="middle_pose_", label_names = ["GT", "Estimate"], additional_text = errors["ave_middle_error"])
-            if pose_client.modes["mode_lift"] == "lift":
-                hip_joint_gt = current_pose_3d_gt[:,hip_index]
-                plot_human(current_pose_3d_gt-hip_joint_gt[:, np.newaxis], pose3d_lift_directions.numpy(), plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, -1, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
+            # if pose_client.modes["mode_lift"] == "lift":
+            #     hip_joint_gt = current_pose_3d_gt[:,hip_index]
+            #     plot_human(current_pose_3d_gt-hip_joint_gt[:, np.newaxis], pose3d_lift_directions.numpy(), plot_loc, linecount, bone_connections, pose_client.USE_SINGLE_JOINT, pose_client.animation, -1, custom_name="lift_res_", label_names = ["LiftNet", "GT"])
         end_plot_time = time.time()
         #print("Time it took to plot", end_plot_time - start_plot_time)
     plot_end = {"est": pose_client.adj_current_pose, "GT": current_pose_3d_gt, "drone": current_state.C_drone_gt, "eval_time": func_eval_time}

@@ -90,9 +90,12 @@ class FileManager(object):
         self.f_projection_est = open(self.filenames_anim["f_projection_est"], 'w')
         self.f_trajectory_list = open(self.filenames_anim["f_trajectory_list"], 'w')
         self.f_yolo_res = open(self.filenames_anim["f_yolo_res"], 'w')
+        self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
+        #self.f_liftnet_error = open(self.filenames_anim["f_liftnet_error"], 'w')
+
+
 
         if self.loop_mode ==  "openpose":
-            self.f_openpose_error = open(self.filenames_anim["f_openpose_error"], 'w')
             self.f_openpose_arm_error = open(self.filenames_anim["f_openpose_arm_error"], 'w')
             self.f_openpose_leg_error = open(self.filenames_anim["f_openpose_leg_error"], 'w')
 
@@ -225,8 +228,8 @@ class FileManager(object):
         self.openpose_err_leg_str += str(leg_err) + "\t"
 
     def write_openpose_error(self, human_pose):
-        for i in range(human_pose.shape[1]):
-            self.openpose_err_str += str(human_pose[0,i]) + "\t" + str(human_pose[1,i]) + "\t" + str(human_pose[2,i]) + "\t"
+        #for i in range(human_pose.shape[1]):
+           # self.openpose_err_str += str(human_pose[0,i]) + "\t" + str(human_pose[1,i]) + "\t" + str(human_pose[2,i]) + "\t"
 
         self.f_openpose_error.write(self.openpose_err_str + "\n")
         self.f_openpose_arm_error.write(self.openpose_err_arm_str + "\n")
@@ -235,6 +238,9 @@ class FileManager(object):
         self.openpose_err_str = ""
         self.openpose_err_arm_str = ""
         self.openpose_err_leg_str = ""
+
+    def write_openpose_error2(self, error):
+        self.f_openpose_error.write(str(error) + "\n")
 
     def prepare_test_set(self, current_state, openpose_res, liftnet_res, linecount, state_ind):
         f_drone_pos_str = ""
