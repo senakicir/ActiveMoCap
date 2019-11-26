@@ -5,20 +5,20 @@ kalman_arguments:
 
 parameters:
     # SIMULATION_MODE = "use_airsim", "saved_simulation"
-    SIMULATION_MODE: "saved_simulation"
+    SIMULATION_MODE: "use_airsim"
 
     # run_loc = "server", "local"
-    run_loc: "server"
+    run_loc: "local"
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
-    LOOP_MODE: "toy_example"
+    LOOP_MODE: "flight_simulation"
     # CALIBRATION_MODE
     CALIBRATION_MODE: False
 
     #about toy example mode
     FIND_BEST_TRAJ: False
-    NUM_OF_NOISE_TRIALS: 1
+    NUM_OF_NOISE_TRIALS: 5
 
     LENGTH_OF_SIMULATION: 120
 
@@ -35,9 +35,9 @@ energy_parameters:
     #projection_method: "scaled, normal, normalized"
     PROJECTION_METHOD: "normalized"
 
-    ESTIMATION_WINDOW_SIZE: 2
-    FUTURE_WINDOW_SIZE: 1
-    PREDEFINED_MOTION_MODE_LENGTH: 0
+    ESTIMATION_WINDOW_SIZE: 6
+    FUTURE_WINDOW_SIZE: 3
+    PREDEFINED_MOTION_MODE_LENGTH: 6
 
     CALIBRATION_WINDOW_SIZE: 100
 
@@ -52,8 +52,8 @@ energy_parameters:
     #bone_len: 0-gt, 1- calib_res
     MODES: 
         mode_3d: "scipy"
-        mode_2d: "openpose"
-        mode_lift: "lift"
+        mode_2d: "gt_with_noise"
+        mode_lift: "gt_with_noise"
         bone_len: "calib_res"
         mode_future: "scipy"
 
@@ -135,7 +135,7 @@ active_parameters:
     # PRIMARY_ROTATION_DIR: "r", "l"
     PRIMARY_ROTATION_DIR: "r"
     TOP_SPEED: 4
-    DELTA_T: 0.1
+    DELTA_T: 0.2
     DIRECTION_DISTANCE: 3
 
     ACC_MAX: 

@@ -35,7 +35,8 @@ def determine_2d_positions(pose_client, current_state, my_rng, file_manager, lin
 
     if (pose_client.modes["mode_2d"] == "gt" or pose_client.modes["mode_2d"] == "gt_with_noise"):
         bbox = None
-    elif (pose_client.modes["mode_2d"] == "openpose"):  
+    elif (pose_client.modes["mode_2d"] == "openpose"): 
+        #bbox = None 
         predictions = darknet_module.detect(photo_loc)
         bbox, yolo_confidence = find_single_person_bbox(predictions)
         file_manager.record_yolo_results(linecount, yolo_confidence, bbox)
@@ -62,14 +63,14 @@ def determine_2d_positions(pose_client, current_state, my_rng, file_manager, lin
     elif (pose_client.modes["mode_2d"] == "openpose"):  
         pose_2d, heatmaps, _, _ =  openpose_module.run_only_model(cropped_image, pose_client.cropping_tool.scales)
 
-        ave_person_size = find_ave_person_size(pose_2d)
+        ave_person_size = find_ave_person_size(pose_2d_gt_cropped)
         pose_client.openpose_error = torch.mean(torch.norm(pose_2d_gt_cropped-pose_2d, dim=0))/ave_person_size
         if not pose_client.USE_SINGLE_JOINT:
             arm_joints, _, _ = return_arm_joints()
             leg_joints, _, _ = return_leg_joints()
             pose_client.openpose_arm_error = torch.mean(torch.norm(pose_2d_gt_cropped[:, arm_joints]-pose_2d[:, arm_joints], dim=0))
             pose_client.openpose_leg_error = torch.mean(torch.norm(pose_2d_gt_cropped[:, leg_joints]-pose_2d[:, leg_joints], dim=0))
-        file_manager.write_openpose_error2(pose_client.openpose_error)
+        file_manager.write_openpose_error2(pose_client.openpose_error.numpy())
     return pose_2d.clone(), pose_2d_gt_cropped.clone(), heatmaps, cropped_image
 
 def find_2d_pose_gt(projection_client, current_state):
