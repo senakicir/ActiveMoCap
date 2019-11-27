@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .utils import *
 from .types import *
-
+import airsim
 import msgpackrpc #install as admin: pip install msgpack-rpc-python
 import numpy as np #pip install numpy
 import msgpack
@@ -13,7 +13,7 @@ import torch
 
 
 class VehicleClient:
-    def __init__(self, ip = "", port = 41451, timeout_value = 3600):
+    def __init__(self, length_of_simulation, ip = "", port = 41451, timeout_value = 3600):
         if (ip == ""):
             ip = "127.0.0.1"
         self.client = msgpackrpc.Client(msgpackrpc.Address(ip, port), timeout = timeout_value, pack_encoding = 'utf-8', unpack_encoding = 'utf-8')
@@ -21,9 +21,22 @@ class VehicleClient:
         #sena was here
         self.program_started = False #sena was here
         self.DRONE_INITIAL_POS = np.array([0, 0, 0])
+        self.default_initial_anim_time = 1
         self.requiredEstimationData = []
         self.isCalibratingEnergy = False
         self.linecount = 0 #sena was here
+        self.online_linecount = 0
+        self.length_of_simulation = length_of_simulation
+
+        self.is_using_airsim = True
+        self.end = False
+
+        SIZE_X = 1024
+        SIZE_Y = 576
+        focal_length = SIZE_X/2
+        px = SIZE_X/2
+        py = SIZE_Y/2
+        self.intrinsics = {"f":focal_length, "px":px, "py":py, "size_x":SIZE_X, "size_y":SIZE_Y}
         
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
@@ -32,6 +45,17 @@ class VehicleClient:
         self.program_started = False
         self.linecount = 0
         self.client.call('reset')
+        time.sleep(1)
+        for _ in range(1):
+            self.simGetImages([airsim.ImageRequest(0, airsim.ImageType.Scene)])
+            time.sleep(1)
+
+    #sena was here
+    def increment_linecount(self, is_calibrating_energy):
+        self.linecount += 1
+        if not is_calibrating_energy:
+            self.online_linecount += 1
+        print('linecount:', self.linecount, ', online linecount:', self.online_linecount)
 
     def ping(self):
         return self.client.call('ping')
@@ -53,16 +77,23 @@ class VehicleClient:
     def armDisarm(self, arm, vehicle_name = ''):
         return self.client.call('armDisarm', arm, vehicle_name)
  
-    def simPause(self, is_paused):
-        self.client.call('simPause', is_paused)
-    #sena was here
-    def simPauseDrone(self, is_paused):
-        self.client.call('simPauseDrone', is_paused)
-        time.sleep(0.01)
-    def simPauseHuman(self, is_paused):
-        self.client.call('simPauseHuman', is_paused)
+    def simPause(self, is_paused, loop_mode):
+        if loop_mode == "flight_simulation" or "try_controller_control":
+            self.client.call('simPause', is_paused)
+
+    def setAnimationTime(self, time):
+        self.client.call('setAnimationTime', time)
+    def getAnimationTime(self):
+        return self.client.call('getAnimationTime')
+    def changeAnimation(self, newAnimNum, vehicle_name = ''):
+        self.client.call('changeAnimation', vehicle_name, newAnimNum)
+        self.client.call('setAnimationTime', self.default_initial_anim_time)
+        time.sleep(1)
+
+
     def simIsPause(self):
         return self.client.call("simIsPaused")
+
     def simContinueForTime(self, seconds):
         self.client.call('simContinueForTime', seconds)
 
@@ -115,11 +146,14 @@ class VehicleClient:
     def simGetCollisionInfo(self, vehicle_name = ''):
         return CollisionInfo.from_msgpack(self.client.call('simGetCollisionInfo', vehicle_name))
 
-    def simSetVehiclePose(self, pose, ignore_collison, vehicle_name = ''):
-        self.client.call('simSetVehiclePose', pose, ignore_collison, vehicle_name)
-    #sena was here
-    def simSetVehiclePose_senaver(self, pose, vehicle_name = ''):
-        self.client.call('simSetVehiclePose_senaver', pose, vehicle_name)
+    def simSetVehiclePose(self, pose, vehicle_name = ''):
+        #sena was here
+        position = Vector3r(x_val=pose.position[0], y_val=pose.position[1], z_val=pose.position[2])
+        orientation = to_quaternion(roll=0, pitch=0, yaw=pose.orientation)
+        go_pose = Pose(position_val=position, orientation_val = orientation)
+        ignore_collison = True
+        self.client.call('simSetVehiclePose', go_pose, ignore_collison, vehicle_name)
+
     def simGetVehiclePose(self, vehicle_name = ''):
         pose = self.client.call('simGetVehiclePose', vehicle_name)
         return Pose.from_msgpack(pose)
@@ -154,19 +188,7 @@ class VehicleClient:
     def waitOnLastTask(timeout_sec = float('nan')):
         return self.client.call('waitOnLastTask', timeout_sec)
 
-    #sena was here
-    def getBonePositions(self, vehicle_name = ''):
-        return Vector3r_arr.from_msgpack(self.client.call('getBonePositions', vehicle_name))
-    #sena was here
-    def changeAnimation(self, newAnimNum, vehicle_name = ''):
-        self.client.call('changeAnimation', vehicle_name, newAnimNum)
-        self.simPauseHuman(False)
-        time.sleep(1)
-        self.simPauseHuman(True)
 
-    #sena was here
-    def changeCalibrationMode(self, calibMode, vehicle_name = ''):
-        self.client.call('changeCalibrationMode', vehicle_name, calibMode)
     #sena was here
     def initInitialDronePos(self, vehicle_name = ''):
         if (self.program_started == False):
@@ -241,8 +263,9 @@ class VehicleClient:
 
 # -----------------------------------  Multirotor APIs ---------------------------------------------
 class MultirotorClient(VehicleClient, object):
-    def __init__(self):
-        super(MultirotorClient, self).__init__()
+    def __init__(self, length_of_simulation, port):
+        #sena was here
+        super(MultirotorClient, self).__init__(length_of_simulation, port=port)
 
     def takeoffAsync(self, timeout_sec = 20, vehicle_name = ''):
         return self.client.call_async('takeoff', timeout_sec, vehicle_name)  

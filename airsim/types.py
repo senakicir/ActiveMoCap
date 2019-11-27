@@ -18,6 +18,8 @@ class MsgpackMixin:
         #return cls(**msgpack.unpack(encoded))
         return obj
 
+#sena was here
+attributes = ['dronePos', 'droneOrient', 'humanPos', 'hip', 'right_up_leg', 'right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1', 'neck', 'head', 'head_top','left_arm', 'left_forearm', 'left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip' ,'right_foot_tip' ,'left_foot_tip']
 
 class ImageType:    
     Scene = 0

@@ -49,4 +49,19 @@ class SetupPath:
         else:
             logging.warning("airsim module not found in grand parent folder. Using default installed module (if any).")
 
+    
+    #@staticmethod
+    def addMyScriptsPath():
+        # if airsim module is installed then don't do anything else
+        import pkgutil
+        my_scripts_loader = pkgutil.find_loader('my_scripts')
+        if my_scripts_loader is not None:
+            return
+
+        grand_parent = SetupPath.getParentDir()
+        if grand_parent !=  '':
+            my_scripts_path = os.path.join(grand_parent, 'my_scripts')
+
 SetupPath.addAirSimModulePath()
+SetupPath.addMyScriptsPath()
+
