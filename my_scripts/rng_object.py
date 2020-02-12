@@ -2,7 +2,7 @@ import torch
 import numpy as np
 
 class rng_object(object):
-    def __init__(self, seed_num, saved_vals_loc, pos_jitter_std):
+    def __init__(self, seed_num, saved_vals_loc, pos_jitter_std, noise_3d_init_std):
         np.random.seed(seed_num)
         torch.manual_seed(seed_num)
 
@@ -26,12 +26,15 @@ class rng_object(object):
         self.pose_lift_mean = torch.from_numpy(np.load(saved_vals_loc + "/openpose_liftnet/liftnet_noise_mean.npy")).float()
         self.pose_lift_std = torch.from_numpy(np.load(saved_vals_loc + "/openpose_liftnet/liftnet_noise_std.npy")).float()
         
+        self.noise_3d_init_std = noise_3d_init_std
         self.pos_jitter_std = pos_jitter_std
 
-    def get_pose_noise(self, noise_shape, noise_std, noise_type):
+    def get_pose_noise(self, noise_shape, noise_type):
         assert noise_type=="initial" or noise_type=="lift" or noise_type=="proj" or noise_type=="future_proj"
         if noise_type=="initial":
             noise_state = self.rng_initialization_noise
+            noise_std = self.noise_3d_init_std
+            noise_mean = 0
         elif noise_type=="lift":
             noise_state = self.rng_lift_noise 
             noise_mean = self.pose_lift_mean

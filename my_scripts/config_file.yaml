@@ -5,20 +5,20 @@ kalman_arguments:
 
 parameters:
     # SIMULATION_MODE = "use_airsim", "saved_simulation"
-    SIMULATION_MODE: "use_airsim"
+    SIMULATION_MODE: "saved_simulation"
 
     # run_loc = "server", "local"
-    run_loc: "local"
+    run_loc: "server"
     USE_TRACKBAR: False
 
     # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
-    LOOP_MODE: "flight_simulation"
+    LOOP_MODE: "toy_example"
     # CALIBRATION_MODE
     CALIBRATION_MODE: False
 
     #about toy example mode
-    FIND_BEST_TRAJ: False
-    NUM_OF_NOISE_TRIALS: 5
+    FIND_BEST_TRAJ: True
+    NUM_OF_NOISE_TRIALS: 1
 
     LENGTH_OF_SIMULATION: 120
 
@@ -35,18 +35,18 @@ energy_parameters:
     #projection_method: "scaled, normal, normalized"
     PROJECTION_METHOD: "normalized"
 
-    ESTIMATION_WINDOW_SIZE: 6
-    FUTURE_WINDOW_SIZE: 3
-    PREDEFINED_MOTION_MODE_LENGTH: 6
+    ESTIMATION_WINDOW_SIZE: 2
+    FUTURE_WINDOW_SIZE: 1
+    PREDEFINED_MOTION_MODE_LENGTH: 0
 
     CALIBRATION_WINDOW_SIZE: 100
 
     PARAM_FIND_M: False
     PARAM_READ_M: False
 
-    QUIET: False
+    QUIET: True
 
-    #mode_3d: 0- gt, 1- naiveback, 3-energy scipy
+    #mode_3d: 0- gt, 1- naiveback, 3-scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
     #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
     #bone_len: 0-gt, 1- calib_res
@@ -80,10 +80,7 @@ energy_parameters:
 
     #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
     INIT_POSE_MODE: "initial_optimization"
-    
-    NOISE_2D_STD: 3
-    NOISE_LIFT_STD:  0.05
-    NOISE_3D_INIT_STD:  0.5
+    NOISE_3D_INIT_STD: 0.2
 
     USE_SYMMETRY_TERM: True
     USE_SINGLE_JOINT: False
@@ -133,9 +130,9 @@ active_parameters:
     #True False
     PREDICT_ACCURATE: True
     # PRIMARY_ROTATION_DIR: "r", "l"
-    PRIMARY_ROTATION_DIR: "r"
+    PRIMARY_ROTATION_DIR: "l"
     TOP_SPEED: 4
-    DELTA_T: 0.2
+    DELTA_T: 0.1
     DIRECTION_DISTANCE: 3
 
     ACC_MAX: 

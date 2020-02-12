@@ -5,12 +5,7 @@ import torch as torch
 from helpers import range_angle, shape_cov, euler_to_rotation_matrix
 import time as time 
 from pose_helper_functions import add_noise_to_pose
-<<<<<<< HEAD
-from Projection_Client import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor, C_cam_torch
-import pdb 
-=======
-from project_bones import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
->>>>>>> cvpr_code
+from Projection_Client import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
 
 #constants
 BETA = 0.35
@@ -144,7 +139,8 @@ class State(object):
         new_state.drone_orientation_gt = self.drone_orientation_gt.copy()
         new_state.human_pos_gt = self.human_pos_gt.copy()
         new_state.bone_pos_gt = self.bone_pos_gt.copy()
-        new_state.current_drone_vel = self.current_drone_vel.copy()
+        if self.current_drone_vel is not None:
+            new_state.current_drone_vel = self.current_drone_vel.copy()
 
         new_state.drone_transformation_matrix = self.drone_transformation_matrix.clone()
         new_state.inv_drone_transformation_matrix = self.inv_drone_transformation_matrix.clone()

@@ -9,14 +9,13 @@ neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!
 DEFAULT_TORSO_SIZE = 0.3
 
 class Projection_Client(object):
-    def __init__(self, test_set, future_window_size, estimation_window_size, num_of_joints, intrinsics, noise_2d_std, device):
+    def __init__(self, test_set, future_window_size, estimation_window_size, num_of_joints, intrinsics, device):
         self.device = device
         self.test_set = test_set
         self.FUTURE_WINDOW_SIZE = future_window_size
         self.ESTIMATION_WINDOW_SIZE = estimation_window_size
         self.intrinsics = intrinsics
         self.num_of_joints = num_of_joints
-        self.noise_2d_std = noise_2d_std
 
         if self.test_set != "mpi_inf_3dhp":
             focal_length = intrinsics["f"]
@@ -111,7 +110,7 @@ class Projection_Client(object):
 
 
     def deepcopy_projection_client(self):
-        return Projection_Client(self.test_set, self.FUTURE_WINDOW_SIZE, self.ESTIMATION_WINDOW_SIZE, self.num_of_joints, self.intrinsics, self.noise_2d_std, self.device) 
+        return Projection_Client(self.test_set, self.FUTURE_WINDOW_SIZE, self.ESTIMATION_WINDOW_SIZE, self.num_of_joints, self.intrinsics, self.device) 
 
     def take_projection(self, pose_3d):
         return self.take_batch_projection(pose_3d, self.inverse_transformation_matrix, self.ones_tensor, self.camera_intrinsics, self.flip_x_y_batch)

@@ -3,7 +3,7 @@ import numpy as np
 from State import find_current_polar_info, find_delta_yaw
 from determine_positions import objective_calib, objective_online
 from math import radians, cos, sin, pi, degrees, acos, sqrt, inf
-from project_bones import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
+from Projection_Client import Projection_Client, CAMERA_ROLL_OFFSET, CAMERA_YAW_OFFSET, neat_tensor
 from crop import is_pose_in_image
 from motion_predictor import Motion_Predictor
 import time as time
@@ -164,6 +164,7 @@ class Potential_Trajectory(object):
             self.uncertainty = np.sum(np.power(s, 1/6)) 
 
     def record_error_for_trial(self, future_ind, middle_error, overall_error):
+        print("middle_error is", middle_error)
         self.errors_middle_dict[future_ind].append(middle_error)
         #self.errors_overall_dict[future_ind].append(overall_error[0])
 
@@ -200,19 +201,6 @@ class Potential_Trajectory(object):
             state.print_state()
         print("Uncertainty is", self.uncertainty, "\n")
 
-class Potential_Trajectory(object):
-    def __init__(self, index, future_window_size):
-        self.index = index
-        self.states = {}
-        self.inv_transformation_matrix = torch.zeros(future_window_size, 4, 4)
-        self.drone_positions = torch.zeros(future_window_size, 3, 1)
-        self.pitches = torch.zeros(future_window_size,)
-
-    def append_to_traj(self, future_ind, potential_state):
-        self.states[future_ind] = potential_state.deep_copy()
-        self.inv_transformation_matrix[future_ind, :, :] = potential_state.inv_transformation_matrix
-        self.drone_positions[future_ind, :, :] = potential_state.potential_C_drone
-        self.pitches[future_ind] = potential_state.pitch
 
 class PotentialStatesFetcher(object):
     def __init__(self, airsim_client, pose_client, active_parameters, loop_mode):
@@ -236,10 +224,9 @@ class PotentialStatesFetcher(object):
         self.movement_mode = active_parameters["MOVEMENT_MODE"]
         self.use_hessian_mode = active_parameters["USE_HESSIAN_MODE"]
         self.primary_rotation_dir = active_parameters["PRIMARY_ROTATION_DIR"]
+        self.DRONE_POS_JITTER_NOISE_STD = active_parameters["DRONE_POS_JITTER_NOISE_STD"]
 
         self.PREDEFINED_MOTION_MODE_LENGTH = pose_client.PREDEFINED_MOTION_MODE_LENGTH
-
-        self.PRECALIBRATION_LENGTH = pose_client.PRECALIBRATION_LENGTH
 
         self.trajectory = active_parameters["TRAJECTORY"]
         self.is_quiet = pose_client.quiet

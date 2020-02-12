@@ -43,13 +43,12 @@ def calculate_bone_directions_simple(lift_bones, bone_lengths, bone_length_metho
 
 
 class Lift_Client(object):
-    def __init__(self, noise_lift_std, estimation_window_size, future_window_size):
-        self.noise_lift_std = noise_lift_std
+    def __init__(self, estimation_window_size, future_window_size):
         self.estimation_window_size = estimation_window_size
         self.future_window_size = future_window_size
 
     def deepcopy_lift_client(self):
-        return Lift_Client(self.noise_lift_std, self.estimation_window_size, self.future_window_size)
+        return Lift_Client(self.estimation_window_size, self.future_window_size)
 
     def reset(self, lift_pose_tensor, bone_3d_pose_gt):
         self.pose3d_lift_directions = lift_pose_tensor.clone()

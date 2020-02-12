@@ -249,8 +249,9 @@ def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc, 
                 "f_projection_est": experiment_folder_name +  '/future_pose_2d_estimate.txt',
                 "f_trajectory_list": experiment_folder_name +  '/trajectory_list.txt',
                 "f_yolo_res": experiment_folder_name +  '/yolo_res.txt',
-                "f_distance": experiment_folder_name + '/distances.txt'}
-
+                "f_distance": experiment_folder_name + '/distances.txt',
+                "f_oracle_errors": experiment_folder_name + '/oracle_errors.txt',
+                "f_chosen_traj": experiment_folder_name + '/f_chosen_traj.txt'}
 
     f_notes_name = main_folder_name + "/notes.txt"
     return file_names, folder_names, f_notes_name, date_time_name
@@ -1539,38 +1540,6 @@ def plot_potential_errors(potential_states_fetcher, plot_loc, linecount, custom_
     plt.savefig(file_name)
     plt.close(fig)
 
-<<<<<<< HEAD
-def plot_potential_trajectories(current_human_pose, gt_human_pose, goal_state_ind, potential_trajectory_list, hip_index, plot_loc, linecount):
-    current_human_pos = current_human_pose[:, hip_index]
-    gt_human_pos = gt_human_pose[:, hip_index]
-
-    fig = plt.figure(figsize=(4,4))
-    ax = fig.add_subplot(111, projection='3d')
-
-    #for ax limits
-    X = np.array([current_human_pos[0], gt_human_pos[0]])
-    Y = np.array([current_human_pos[1], gt_human_pos[1]])
-    Z = np.array([-current_human_pos[2], -gt_human_pos[2]])
-
-    #plot trajectories
-    for _, potential_trajectory in enumerate(potential_trajectory_list):
-        drone_positions = potential_trajectory.drone_positions.clone()
-        trajectory_ind = potential_trajectory.index
-        drone_positions[:,2,:] = -drone_positions[:, 2, :]
-        drone_positions_numpy = drone_positions.numpy()
-        #for plot lim
-        X = np.concatenate([X, drone_positions_numpy[:,0,0]])
-        Y = np.concatenate([Y, drone_positions_numpy[:,1,0]])
-        Z = np.concatenate([Z, drone_positions_numpy[:,2,0]])
-
-        markersize=3
-        markercolor="xkcd:pink"
-        if (trajectory_ind == goal_state_ind):
-            markersize=7
-            markercolor="xkcd:red"
-
-        plot3=ax.plot(drone_positions_numpy[:,0,0], drone_positions_numpy[:,1,0], drone_positions_numpy[:,2,0], marker='^', c=markercolor, markersize=markersize, alpha=1)
-=======
 def plot_dome(states_dict, current_human_pos, plot_loc):
     fig = plt.figure(figsize=(4,4))
 
@@ -1592,7 +1561,6 @@ def plot_dome(states_dict, current_human_pos, plot_loc):
  
         plot5=ax.scatter([center[0]], [center[1]], [center[2]], marker='^')
         ax.text(center[0], center[1], center[2], str(state.index), fontsize=10)
->>>>>>> cvpr_code
 
     max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max() *0.4
     mid_x = (X.max()+X.min()) * 0.5
@@ -1605,17 +1573,9 @@ def plot_dome(states_dict, current_human_pos, plot_loc):
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
     ax.set_zlabel('Z')
-<<<<<<< HEAD
-    ax.set_title("Average Error")
-    plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
-    plot2, = ax.plot([gt_human_pos[0]], [gt_human_pos[1]], [-gt_human_pos[2]], c='xkcd:orchid', marker='*', label="GT current human pos")
-
-    file_name = plot_loc + "/potential_trajectories_" + str(linecount) + ".png"
-=======
     plot1, = ax.plot([current_human_pos[0]], [current_human_pos[1]], [-current_human_pos[2]], c='xkcd:light red', marker='*', label="current human pos")
 
     file_name = plot_loc + "/teleport_locations" + ".png"
->>>>>>> cvpr_code
     plt.savefig(file_name)
     plt.close(fig)
 

@@ -40,15 +40,10 @@ class PoseEstimationClient(object):
         self.ONLINE_WINDOW_SIZE = self.ESTIMATION_WINDOW_SIZE+self.FUTURE_WINDOW_SIZE 
 
         self.CURRENT_POSE_INDEX = self.FUTURE_WINDOW_SIZE
-<<<<<<< HEAD
-        self.FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE-1
-        self.MIDDLE_POSE_INDEX = self.FUTURE_WINDOW_SIZE+(self.ESTIMATION_WINDOW_SIZE)//2
-=======
         self.MIDDLE_POSE_INDEX = self.FUTURE_WINDOW_SIZE+(self.ESTIMATION_WINDOW_SIZE)//2
         self.IMMEDIATE_FUTURE_POSE_INDEX = self.FUTURE_WINDOW_SIZE -1
         self.PASTMOST_POSE_INDEX = self.ONLINE_WINDOW_SIZE-1
         
->>>>>>> cvpr_code
 
         self.CALIBRATION_WINDOW_SIZE = param["CALIBRATION_WINDOW_SIZE"]
         self.PREDEFINED_MOTION_MODE_LENGTH = param["PREDEFINED_MOTION_MODE_LENGTH"]
@@ -56,9 +51,7 @@ class PoseEstimationClient(object):
 
         self.quiet = param["QUIET"]
         self.INIT_POSE_MODE = param["INIT_POSE_MODE"]
-        self.NOISE_2D_STD = param["NOISE_2D_STD"]
-        self.NOISE_LIFT_STD = param["NOISE_LIFT_STD"]
-        self.NOISE_3D_INIT_STD = param["NOISE_3D_INIT_STD"]
+
         self.USE_SYMMETRY_TERM = param["USE_SYMMETRY_TERM"]
         self.SMOOTHNESS_MODE = param["SMOOTHNESS_MODE"]
         self.USE_LIFT_TERM = param["USE_LIFT_TERM"]
@@ -68,6 +61,8 @@ class PoseEstimationClient(object):
         self.LIFT_METHOD = param["LIFT_METHOD"]
         self.USE_TRAJECTORY_BASIS = param["USE_TRAJECTORY_BASIS"]
         self.NUMBER_OF_TRAJ_PARAM = param["NUMBER_OF_TRAJ_PARAM"]
+        self.NOISE_3D_INIT_STD = param["NOISE_3D_INIT_STD"]
+
 
         self.weights_calib =  {key: torch.tensor(value).float() for key, value in param["WEIGHTS_CALIB"].items()}
         self.weights_online = {key: torch.tensor(value).float() for key, value in param["WEIGHTS"].items()}
@@ -144,70 +139,26 @@ class PoseEstimationClient(object):
 
         self.current_pose = np.zeros([3, self.num_of_joints])
         self.middle_pose = np.zeros([3, self.num_of_joints])
-<<<<<<< HEAD
-        self.future_poses = np.zeros([self.FUTURE_WINDOW_SIZE,3, self.num_of_joints])
-=======
         self.future_poses = np.zeros([self.FUTURE_WINDOW_SIZE, 3, self.num_of_joints])
         self.immediate_future_pose =  np.zeros([3, self.num_of_joints])
->>>>>>> cvpr_code
 
         self.adj_current_pose = np.zeros([3, self.num_of_joints])
         self.adj_middle_pose = np.zeros([3, self.num_of_joints])
         self.adj_future_poses = np.zeros([self.FUTURE_WINDOW_SIZE, 3, self.num_of_joints])
-<<<<<<< HEAD
-
-        self.result_shape = [3, self.num_of_joints]
-        self.result_size = np.prod(np.array(self.result_shape))
-=======
->>>>>>> cvpr_code
 
         if self.param_read_M:
             self.M = read_M(self.num_of_joints, "M_rel")
         else:
             self.M = np.eye(self.num_of_joints)
-<<<<<<< HEAD
-
-        self.calib_cov_list = []
-        self.online_cov_list = []
-        self.middle_pose_GT_list = []
-
-        self.weights_calib = {"proj":0.8, "sym":0.2}
-        self.weights_online = param["WEIGHTS"]
-        self.weights_future = param["WEIGHTS_FUTURE"]
-
-        self.loss_dict_calib = ["proj"]
-        if self.USE_SYMMETRY_TERM:  
-            self.loss_dict_calib.append("sym")
-        self.loss_dict_online = ["proj", "smooth"]
-        if not self.USE_SINGLE_JOINT:
-            if self.USE_BONE_TERM:
-                self.loss_dict_online.append("bone")
-            if self.USE_LIFT_TERM:
-                self.loss_dict_online.append("lift")
-        self.loss_dict = {}
-
-        self.animation = animation
-        self.intrinsics_focal = intrinsics_focal
-        self.intrinsics_px = intrinsics_px
-        self.intrinsics_py = intrinsics_py
-        self.SIZE_X, self.SIZE_Y = image_size
-
-        self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, num_of_joints=self.num_of_joints, focal_length=self.intrinsics_focal, px=self.intrinsics_px, py=self.intrinsics_py)
-        self.lift_client = Lift_Client()
-
-        if self.animation == "drone_flight":
-            self.cropping_tool = None
-=======
                 
         self.projection_client = Projection_Client(test_set=self.animation, future_window_size=self.FUTURE_WINDOW_SIZE, 
                                                     estimation_window_size=self.ESTIMATION_WINDOW_SIZE, 
                                                     num_of_joints=self.num_of_joints, intrinsics=intrinsics, 
-                                                    noise_2d_std=self.NOISE_2D_STD, device=self.device)
-        self.lift_client = Lift_Client(self.NOISE_LIFT_STD, self.ESTIMATION_WINDOW_SIZE, self.FUTURE_WINDOW_SIZE)
+                                                    device=self.device)
+        self.lift_client = Lift_Client(self.ESTIMATION_WINDOW_SIZE, self.FUTURE_WINDOW_SIZE)
 
         if self.animation == "mpi_inf_3dhp":
             self.SIZE_X, self.SIZE_Y = intrinsics[0]["size_x"],  intrinsics[0]["size_y"]
->>>>>>> cvpr_code
         else:
             self.SIZE_X, self.SIZE_Y = intrinsics["size_x"],  intrinsics["size_y"]
 
@@ -351,11 +302,8 @@ class PoseEstimationClient(object):
             self.current_pose = optimized_poses.copy()
             self.middle_pose = optimized_poses.copy()
             self.future_poses = np.repeat(optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
-<<<<<<< HEAD
-=======
             self.immediate_future_pose =  optimized_poses.copy()
 
->>>>>>> cvpr_code
             self.adj_current_pose = adjusted_optimized_poses.copy()
             self.adj_middle_pose = adjusted_optimized_poses.copy()
             self.adj_future_poses = np.repeat(adjusted_optimized_poses[np.newaxis, :, :].copy(), self.FUTURE_WINDOW_SIZE, axis=0)
@@ -367,10 +315,7 @@ class PoseEstimationClient(object):
             self.current_pose =  optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.middle_pose = optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
             self.future_poses = optimized_poses[:self.FUTURE_WINDOW_SIZE, :,:].copy() #future_poses
-<<<<<<< HEAD
-=======
             self.immediate_future_pose =  optimized_poses[self.FUTURE_WINDOW_SIZE-1, :,:].copy() #immediate future pose
->>>>>>> cvpr_code
 
             self.adj_current_pose =  adjusted_optimized_poses[self.CURRENT_POSE_INDEX, :,:].copy() #current pose
             self.adj_middle_pose = adjusted_optimized_poses[self.MIDDLE_POSE_INDEX, :,:].copy() #middle_pose
@@ -378,33 +323,6 @@ class PoseEstimationClient(object):
 
             self.optimized_poses = optimized_poses.copy()
             self.adjusted_optimized_poses = adjusted_optimized_poses.copy()
-<<<<<<< HEAD
-        
-    def update_middle_pose_GT(self, middle_pose):
-        self.middle_pose_GT_list.insert(0, middle_pose)
-        if (len(self.middle_pose_GT_list) > self.MIDDLE_POSE_INDEX):
-            self.middle_pose_GT_list.pop()
-        return self.middle_pose_GT_list[-1]
-
-    def set_initial_pose(self, linecount, pose_3d_gt, pose_2d, transformation_matrix):
-        if (linecount != 0):
-            current_frame_init = self.future_poses[0,:,:].copy() #futuremost pose
-        else:
-            if self.INIT_POSE_MODE == "gt":
-                current_frame_init = pose_3d_gt.copy()
-            elif self.INIT_POSE_MODE == "gt_with_noise":
-                current_frame_init = add_noise_to_pose(pose_3d_gt, self.NOISE_3D_INIT_STD)
-            elif self.INIT_POSE_MODE == "backproj":
-                current_frame_init = self.projection_client.take_single_backprojection(pose_2d, transformation_matrix, self.joint_names).numpy()
-            elif self.INIT_POSE_MODE == "zeros":
-                current_frame_init = np.zeros([3, self.num_of_joints])
-
-        if self.isCalibratingEnergy:
-            self.pose_3d_preoptimization = current_frame_init.copy()
-        else:
-            self.pose_3d_preoptimization = np.concatenate([current_frame_init[np.newaxis,:,:],self.optimized_poses[:-1,:,:]])
-=======
->>>>>>> cvpr_code
 
     def deepcopy_PEC(self, trial_ind):
         new_pose_client = PoseEstimationClient(self.param, self.general_param, self.intrinsics)

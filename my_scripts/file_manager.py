@@ -75,6 +75,8 @@ class FileManager(object):
         self.f_reconstruction = open(self.filenames_anim["f_reconstruction"], 'w')
         self.f_error = open(self.filenames_anim["f_error"], 'w')
         self.f_uncertainty = open(self.filenames_anim["f_uncertainty"], 'w')
+        self.f_oracle_errors = open(self.filenames_anim["f_oracle_errors"], 'w')
+        self.f_chosen_traj = open(self.filenames_anim["f_chosen_traj"], 'w')
         self.f_distance = open(self.filenames_anim["f_distance"], 'w')
 
 
@@ -352,6 +354,9 @@ class FileManager(object):
             f_projection_est_str += str(pose_2d[0, i].item()) + '\t' + str(pose_2d[1, i].item()) + '\t' 
         self.f_projection_est.write(str(linecount)+ '\t' + f_projection_est_str + '\n')
 
+    def record_chosen_trajectory(self, linecount, index):
+        self.f_chosen_traj.write(str(linecount) + '\t' + str(index) + '\n')
+
     def write_all_values(self, pose_3d, pose_3d_gt, drone_pos, drone_orient, linecount, num_of_joints):
         f_reconstruction_str = ""
         f_groundtruth_str = ""
@@ -416,6 +421,12 @@ class FileManager(object):
         traj_str += "lowest uncertainty: " + str(goal_trajectory.uncertainty) + '\n'
         traj_str += "*******\n"
         self.f_trajectory_list.write(traj_str)
+
+    def record_oracle_errors(self, linecount, potential_trajectory_list):
+        traj_str = str(linecount) + '\t'
+        for potential_trajectory in potential_trajectory_list:
+            traj_str += str(potential_trajectory.error_middle) + '\t'
+        self.f_oracle_errors.write(traj_str+'\n')
 
     def write_uncertainty_values(self, uncertainties, linecount):
         f_uncertainty_str = ""

@@ -1,7 +1,7 @@
 import torch
 
-def add_noise_to_pose(pose, noise_std, my_rng, noise_type):
-    noise = my_rng.get_pose_noise(pose.shape, noise_std, noise_type)
+def add_noise_to_pose(pose, my_rng, noise_type):
+    noise = my_rng.get_pose_noise(pose.shape, noise_type)
     if (pose.is_cuda):
         my_device = torch.device("cuda")
         noise = noise.to(my_device)

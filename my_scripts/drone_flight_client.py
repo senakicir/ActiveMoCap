@@ -13,11 +13,8 @@ class DroneFlightClient(External_Dataset_Client):
         #take filenames and save them
         self.linecount = 0
         self.online_linecount = 0
-<<<<<<< HEAD
-=======
         self.framecount = 0 
 
->>>>>>> cvpr_code
         self.chosen_sample = 0
         self.length_of_simulation = length_of_simulation
 

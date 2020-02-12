@@ -49,7 +49,7 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
     experiment_ind = parameters["EXPERIMENT_NUMBER"]
 
     #set random seeds once and for all
-    my_rng = rng_object(parameters["SEED"], file_manager.saved_vals_loc, active_parameters["DRONE_POS_JITTER_NOISE_STD"])
+    my_rng = rng_object(parameters["SEED"], file_manager.saved_vals_loc, active_parameters["DRONE_POS_JITTER_NOISE_STD"], energy_parameters["NOISE_3D_INIT_STD"])
 
     #connect to the AirSim simulator
     if simulation_mode == "use_airsim":
@@ -165,32 +165,37 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
             start_best_sim = time.time()   
             my_rng.freeze_all_rng_states()
             current_anim_time = airsim_client.getAnimationTime()
-
+            state_copy = current_state.deepcopy_state()
+            update_animation(airsim_client, pose_client.deepcopy_PEC(0),  state_copy)
+            future_anim_time = state_copy.anim_time
             #find goal location
             for trajectory_ind in range(0, len(potential_states_fetcher.potential_trajectory_list)):
                 #print("* trajectory_ind", trajectory_ind)
                 my_rng.reload_all_rng_states() 
                 goal_traj = potential_states_fetcher.choose_trajectory_using_trajind(trajectory_ind)
+                #update_animation(airsim_client, pose_client_copy, state_copy)
+                #my_rng_oracle = rng_object(101, file_manager.saved_vals_loc, potential_states_fetcher.DRONE_POS_JITTER_NOISE_STD, pose_client.NOISE_3D_INIT_STD)
+                my_rng_oracle = my_rng
                 for trial_ind in range(num_of_noise_trials):
                     #print("** trial ind", trial_ind)
                     potential_states_fetcher.restart_trajectory()
                     pose_client_copy = pose_client.deepcopy_PEC(trial_ind)
                     state_copy = current_state.deepcopy_state()
-                    set_animation_to_frame(airsim_client, pose_client, state_copy, current_anim_time)
-                    for future_ind in range(pose_client_copy.FUTURE_WINDOW_SIZE-1,-1,-1):
-                        #print("*** future_ind", future_ind)
-                        goal_trajectory = potential_states_fetcher.goal_trajectory
-                        #goal_state = potential_states_fetcher.move_along_trajectory()
-                        update_animation(airsim_client, pose_client_copy, state_copy)
-                        set_position(goal_trajectory, airsim_client, state_copy, pose_client_copy, potential_states_fetcher, loop_mode=potential_states_fetcher.loop_mode)
-                    
-                        take_photo(airsim_client, pose_client_copy, state_copy, file_manager)           
-                        determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager, my_rng) 
-                        #print("error", pose_client_copy.average_errors[pose_client_copy.MIDDLE_POSE_INDEX])
-                        goal_traj.record_error_for_trial(future_ind, pose_client_copy.average_errors[pose_client_copy.MIDDLE_POSE_INDEX], pose_client_copy.overall_error)
+                    state_copy.update_anim_time(future_anim_time)
+                    #set_animation_to_frame(airsim_client, pose_client, state_copy, current_anim_time)
+                    #print("*** future_ind", future_ind)
+                    goal_trajectory = potential_states_fetcher.goal_trajectory
+                    #goal_state = potential_states_fetcher.move_along_trajectory()
+                    #update_animation(airsim_client, pose_client_copy, state_copy)
+                    set_position(goal_trajectory, airsim_client, state_copy, pose_client_copy, potential_states_fetcher, loop_mode=potential_states_fetcher.loop_mode)
+                
+                    take_photo(airsim_client, pose_client_copy, state_copy, file_manager)           
+                    determine_positions(airsim_client.linecount, pose_client_copy, state_copy, file_manager, my_rng_oracle) 
+                    #print("error", pose_client_copy.average_errors[pose_client_copy.MIDDLE_POSE_INDEX])
+                    goal_traj.record_error_for_trial(pose_client_copy.FUTURE_WINDOW_SIZE-1, pose_client_copy.average_errors[pose_client_copy.MIDDLE_POSE_INDEX], pose_client_copy.overall_error)
                 goal_traj.find_overall_error()
 
-            #file_manager.record_toy_example_results_error(linecount, self.potential_trajectory_list, self.goal_trajectory)
+            file_manager.record_oracle_errors(airsim_client.linecount, potential_states_fetcher.potential_trajectory_list)
             potential_states_fetcher.restart_trajectory()
             my_rng.reload_all_rng_states()
             set_animation_to_frame(airsim_client, pose_client, current_state, current_anim_time)
@@ -212,11 +217,11 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         if airsim_client.linecount != 0:
             start2=time.time()
             goal_trajectory = potential_states_fetcher.choose_trajectory(pose_client, airsim_client.linecount, airsim_client.online_linecount, file_manager, my_rng)
-
             #move there
             update_animation(airsim_client, pose_client, current_state)
             set_position(goal_trajectory, airsim_client, current_state, pose_client, potential_states_fetcher, loop_mode=potential_states_fetcher.loop_mode)
             end2= time.time()
+            file_manager.record_chosen_trajectory(airsim_client.linecount, goal_trajectory.trajectory_index)
             #print("Choosing a trajectory took", end2-start2, "seconds")
 
         #update state values read from AirSim and take picture
@@ -476,7 +481,7 @@ def set_animation_to_frame(airsim_client, pose_client, current_state, anim_frame
         new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
         i = 0
         if airsim_client.is_using_airsim:
-            while (np.allclose(prev_gt_pose, new_gt_pose) and i < 40):
+            while (np.allclose(prev_gt_pose, new_gt_pose) and i < 200):
                 time.sleep(0.05)
                 new_gt_pose = airsim_retrieve_poses_gt(airsim_client, pose_client)
                 i += 1
@@ -486,7 +491,7 @@ def set_animation_to_frame(airsim_client, pose_client, current_state, anim_frame
                     airsim_client.setAnimationTime(anim_frame)
                     # airsim_client.simPause(True, pose_client.loop_mode)
                 fail_msg = "waited until too long, i =200"
-                assert i != 40, fail_msg
+                assert i != 200, fail_msg
 
         anim_time = airsim_client.getAnimationTime()
         assert anim_time != 0
