@@ -39,13 +39,16 @@ class Synth_Dataset_Client(External_Dataset_Client):
         self.groundtruth_matrix =  self.read_gt_pose_from_file(self.files["f_groundtruth_poses"])
         
     def read_intrinsics(self, f_intrinsics):
-        intrinsics = {}
         file_contents = pd.read_csv(f_intrinsics, sep='\t', skiprows=[0], header=None).to_numpy()[0,:].astype('float')
-        intrinsics["f"] = file_contents[0]
-        intrinsics["px"] = file_contents[1]
-        intrinsics["py"] = file_contents[2]
-        intrinsics["size_x"] = file_contents[3]
-        intrinsics["size_y"] = file_contents[4]
+        focal_length = file_contents[0]
+        px = file_contents[1]
+        py = file_contents[2]
+        size_x = file_contents[3]
+        size_y = file_contents[4]
+        flip_x_y = torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]])
+        K_torch =  torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])
+        intrinsics = {"f":focal_length,"size_x":size_x, "size_y":size_y, "K_torch": K_torch, "flip_x_y": flip_x_y}
+       
         return intrinsics
 
     def read_transformation_matrix(self, f_camera_pos):

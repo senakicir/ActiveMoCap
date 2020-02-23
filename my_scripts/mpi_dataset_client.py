@@ -20,7 +20,6 @@ class MPI_Dataset_Client(External_Dataset_Client):
         self.initial_cam_view =  self.chosen_cam_view 
         self.framecount = 800
         self.num_of_joints = 15
-        self.mpi_dataset_states = []
         self.files = self.get_mpi_dataset_filenames(test_sets_loc)
         self.transformation_matrix_tensor, self.inv_transformation_matrix_tensor = self.read_transformation_matrix(self.files["f_camera_pos"])
         self.image_main_dir = self.files["image_main_dir"]
@@ -33,8 +32,9 @@ class MPI_Dataset_Client(External_Dataset_Client):
         files["f_camera_pos"] = my_test_set_loc + "/camera_poses.txt"
         files["f_groundtruth_poses"] = my_test_set_loc + "/gt_3d_poses.txt"
         intrinsics_dict = {}
-        for cam_index in range(14):
+        for cam_index in range(self.num_of_camera_views):
             intrinsics_dict[cam_index] = my_test_set_loc + "/camera_" + str(cam_index) + "/intrinsics.txt"
+
         files["f_intrinsics_dict"] = intrinsics_dict
         files["image_main_dir"] =  my_test_set_loc
         return files
@@ -42,16 +42,25 @@ class MPI_Dataset_Client(External_Dataset_Client):
     def read_intrinsics(self, f_intrinsics_dict):
         assert f_intrinsics_dict is not None
         intrinsics = {}
+
+        K_torch = torch.zeros(self.num_of_camera_views, 3, 3)
+
         for cam_index in range(self.num_of_camera_views):
-            temp_dict = {}
             f_intrinsics = f_intrinsics_dict[cam_index]
             file_contents = pd.read_csv(f_intrinsics, sep='\t', skiprows=[0], header=None).to_numpy()[0,:].astype('float')
-            temp_dict["f"] = file_contents[0]
-            temp_dict["px"] = file_contents[1]
-            temp_dict["py"] = file_contents[2]
-            temp_dict["size_x"] = file_contents[3]
-            temp_dict["size_y"] = file_contents[4]
-            intrinsics[cam_index] = temp_dict
+            f = file_contents[0]
+            px = file_contents[1]
+            py = file_contents[2]
+            size_x = file_contents[3]
+            size_y = file_contents[4]
+
+            K_torch[cam_index, :, :] = (torch.FloatTensor([[f,0,px],[0,f,py],[0,0,1]]))
+            
+            intrinsics[cam_index]["f"] = f
+        intrinsics["size_x"] = size_x
+        intrinsics["size_y"] = size_y
+        intrinsics["K_torch"] = K_torch
+        intrinsics["flip_x_y"] = torch.eye(3).to(self.device)
         return intrinsics
 
     def read_transformation_matrix(self, f_camera_pos):
@@ -68,9 +77,9 @@ class MPI_Dataset_Client(External_Dataset_Client):
             inv_transformation_matrix_tensor[cam_index, :, :] = torch.inverse(transformation_matrix_tensor[cam_index, :,:] )
 
         #prepare potential trajectories also since they will never change!
-        self.mpi_dataset_states = []
+        self.external_dataset_states = []
         for camera_ind in range(self.num_of_camera_views):
-            self.mpi_dataset_states.append(PotentialState_External_Dataset(transformation_matrix_tensor[camera_ind, :, :], camera_ind, camera_ind))
+            self.external_dataset_states.append(PotentialState_External_Dataset(transformation_matrix_tensor[camera_ind, :, :], camera_ind, camera_ind))
         return transformation_matrix_tensor, inv_transformation_matrix_tensor
 
     def read_gt_pose_from_file(self, input_file):
@@ -94,7 +103,7 @@ class MPI_Dataset_Client(External_Dataset_Client):
 
     def get_external_dataset_states(self, pose_2d_mode):
         if pose_2d_mode != "openpose":
-            states = self.mpi_dataset_states
+            states = self.external_dataset_states
         else:
-            states = self.mpi_dataset_states[0:11]
+            states = self.external_dataset_states[0:11]
         return states

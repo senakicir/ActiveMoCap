@@ -6,8 +6,6 @@ from PotentialStatesFetcher import PotentialState_External_Dataset
 from Lift_Client import calculate_bone_directions
 from external_dataset_client import External_Dataset_Client
 
-
-
 class DroneFlightClient(External_Dataset_Client):
     def __init__(self, length_of_simulation, test_set_name, non_simulation_files):
         #take filenames and save them
@@ -31,7 +29,6 @@ class DroneFlightClient(External_Dataset_Client):
         self.liftnet_res = 0#read_pose_from_file(self.files["f_pose_lift"], dim=3, num_of_joints=15)
 
         self.DRONE_INITIAL_POS = np.zeros([3,1])     
-
 
     def read_transformation_matrix(self, f_drone_pos):
         whole_file =  pd.read_csv(f_drone_pos, sep='\t', header=None).to_numpy()
@@ -135,9 +132,3 @@ class DroneFlightClient(External_Dataset_Client):
         for sample_ind in range(self.num_of_samples):
             potential_states.append(PotentialState_Drone_Flight(self.transformation_matrix_tensor[linecount_ind, sample_ind, :, :], sample_ind))
         return potential_states
-
-class DummyPhotoResponse(object):
-    def __init__(self):
-        self.bone_pos = np.array([])
-        self.image_data_uint8 = np.uint8(0)
-

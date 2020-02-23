@@ -14,10 +14,10 @@ parameters:
     # LOOP_MODE = 0-flight_simulation, teleport_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
     LOOP_MODE: "toy_example"
     # CALIBRATION_MODE
-    CALIBRATION_MODE: False
+    CALIBRATION_MODE: True
 
     #about toy example mode
-    FIND_BEST_TRAJ: True
+    FIND_BEST_TRAJ: False
     NUM_OF_NOISE_TRIALS: 1
 
     LENGTH_OF_SIMULATION: 120
@@ -44,7 +44,7 @@ energy_parameters:
     PARAM_FIND_M: False
     PARAM_READ_M: False
 
-    QUIET: True
+    QUIET: False
 
     #mode_3d: 0- gt, 1- naiveback, 3-scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose

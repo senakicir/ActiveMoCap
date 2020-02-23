@@ -157,10 +157,7 @@ class PoseEstimationClient(object):
                                                     device=self.device)
         self.lift_client = Lift_Client(self.ESTIMATION_WINDOW_SIZE, self.FUTURE_WINDOW_SIZE)
 
-        if self.animation == "mpi_inf_3dhp":
-            self.SIZE_X, self.SIZE_Y = intrinsics[0]["size_x"],  intrinsics[0]["size_y"]
-        else:
-            self.SIZE_X, self.SIZE_Y = intrinsics["size_x"],  intrinsics["size_y"]
+        self.SIZE_X, self.SIZE_Y = intrinsics["size_x"],  intrinsics["size_y"]
 
         self.margin = 0.2
         self.cropping_tool = Basic_Crop(margin=self.margin)

@@ -109,7 +109,7 @@ class State(object):
         self.anim_time = anim_time
 
         future_anim_time = self.anim_time + self.DELTA_T*self.future_window_size
-        if animation == "mpi_inf_3dhp":
+        if animation == "mpi_inf_3dhp" or animation == "cmu_panoptic_pose_1" or animation == "cmu_panoptic_dance_3":
             self.function_find_pose = find_pose_and_frame_at_time
         else:
             self.function_find_pose = find_pose_at_time

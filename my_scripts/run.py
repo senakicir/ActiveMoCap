@@ -8,6 +8,7 @@ from State import State, find_pose_and_frame_at_time
 from file_manager import FileManager, get_bone_len_file_name
 from drone_flight_client import DroneFlightClient
 from mpi_dataset_client import MPI_Dataset_Client
+from cmu_panoptic_dataset_client import CMU_Panoptic_Dataset_Client
 from synth_dataset_client import Synth_Dataset_Client, get_synth_dataset_filenames
 from math import radians, degrees
 from rng_object import rng_object
@@ -73,6 +74,8 @@ def run_simulation(kalman_arguments, parameters, energy_parameters, active_param
             airsim_client = DroneFlightClient(length_of_simulation, file_manager.anim_num, file_manager.non_simulation_files)
         elif file_manager.anim_num == "mpi_inf_3dhp":
             airsim_client = MPI_Dataset_Client(length_of_simulation, file_manager.test_sets_loc, experiment_ind)
+        elif file_manager.anim_num == "cmu_panoptic_pose_1" or file_manager.anim_num == "cmu_panoptic_dance_3":
+            airsim_client = CMU_Panoptic_Dataset_Client(file_manager.anim_num, length_of_simulation, file_manager.test_sets_loc, experiment_ind)
         else:
             airsim_client = Synth_Dataset_Client(length_of_simulation, file_manager.test_sets_loc, file_manager.anim_num, experiment_ind)
         file_manager.init_photo_loc_dir(airsim_client.image_main_dir)
@@ -217,6 +220,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         if airsim_client.linecount != 0:
             start2=time.time()
             goal_trajectory = potential_states_fetcher.choose_trajectory(pose_client, airsim_client.linecount, airsim_client.online_linecount, file_manager, my_rng)
+            print("chose trajectory", goal_trajectory.trajectory_index)
             #move there
             update_animation(airsim_client, pose_client, current_state)
             set_position(goal_trajectory, airsim_client, current_state, pose_client, potential_states_fetcher, loop_mode=potential_states_fetcher.loop_mode)
@@ -249,7 +253,7 @@ def general_simulation_loop(current_state, pose_client, airsim_client, potential
         potential_states_fetcher.get_potential_positions(airsim_client.linecount)
 
         ### Debugging
-        if not pose_client.quiet and pose_client.animation == "mpi_inf_3dhp":
+        if not pose_client.quiet and (pose_client.animation == "mpi_inf_3dhp" or pose_client.animation == "cmu_panoptic_pose_1"):
             _, frame = find_pose_and_frame_at_time (current_state.anim_time+current_state.DELTA_T, current_state.anim_gt_array, current_state.num_of_joints)
             photo_locs = file_manager.get_photo_locs_for_all_viewpoints(frame, potential_states_fetcher.thrown_view_list)
             plot_thrown_views(potential_states_fetcher.thrown_view_list, file_manager.plot_loc, photo_locs, airsim_client.linecount, pose_client.bone_connections)

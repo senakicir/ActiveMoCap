@@ -244,6 +244,12 @@ class PotentialStatesFetcher(object):
 
         self.is_using_airsim = airsim_client.is_using_airsim
         self.animation = pose_client.animation
+
+        if self.animation == "mpi_inf_3dhp" or self.animation == "cmu_panoptic_pose_1" or self.animation == "cmu_panoptic_dance_3":
+            self.prerecorded = True
+        else:
+            self.prerecorded = False
+
         self.already_plotted_teleport_loc = False
         self.motion_predictor = Motion_Predictor(active_parameters, self.FUTURE_WINDOW_SIZE)
 
@@ -296,7 +302,7 @@ class PotentialStatesFetcher(object):
         else:
             self.objective = objective_online
 
-        if not self.is_using_airsim and not self.animation == "mpi_inf_3dhp" and self.loop_mode == "toy_example":
+        if not self.is_using_airsim and not self.prerecorded and self.loop_mode == "toy_example":
             self.external_dataset_states = airsim_client.get_external_dataset_states(None)
 
         self.immediate_future_ind = self.FUTURE_WINDOW_SIZE-1
@@ -790,7 +796,7 @@ class PotentialStatesFetcher(object):
                 self.toy_example_states.append(new_potential_state)
                 viewpoint_ind += 1
         else:
-            if self.animation == "mpi_inf_3dhp" or self.animation == "drone_flight":
+            if self.prerecorded:
                 self.thrown_view_list = []
                 for list_ind, external_dataset_state in enumerate(self.external_dataset_states):
                     pose_in_image = external_dataset_state.get_potential_projection(torch.from_numpy(self.immediate_future_pose).float(),  self.projection_client)

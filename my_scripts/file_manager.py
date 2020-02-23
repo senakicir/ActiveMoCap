@@ -155,7 +155,7 @@ class FileManager(object):
             if self.test_set_name == "drone_flight":
                 #linecount = 0 not necessary anymore?
                 self.photo_loc = self.take_photo_loc + '/img_' + str(linecount) + "_viewpoint_" + str(viewpoint) + '.png'
-            elif self.test_set_name == "mpi_inf_3dhp":
+            elif self.test_set_name == "mpi_inf_3dhp" or self.test_set_name == "cmu_panoptic_dance_3" or self.test_set_name == "cmu_panoptic_pose_1":
                 self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.jpg'
             else:
                 self.photo_loc =  self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.png'
@@ -171,7 +171,7 @@ class FileManager(object):
         return self.photo_loc
 
     def get_photo_locs_for_all_viewpoints(self, linecount, viewpoint_list):
-        assert self.test_set_name == "mpi_inf_3dhp"
+        assert self.test_set_name == "mpi_inf_3dhp" or self.test_set_name == "cmu_panoptic_pose_1"
         photo_loc_list = []
         for viewpoint, _ in viewpoint_list:
             photo_loc_list.append(self.take_photo_loc + '/camera_' + str(viewpoint) + "/img_" + str(linecount) + '.jpg')

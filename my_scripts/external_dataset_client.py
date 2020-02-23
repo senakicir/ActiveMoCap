@@ -4,6 +4,7 @@ import numpy as np
 from PotentialStatesFetcher import PotentialState
 from Lift_Client import calculate_bone_directions
 
+
 class External_Dataset_Client(object):
     def __init__(self, length_of_simulation, test_set_name):
         #take filenames and save them
@@ -19,8 +20,8 @@ class External_Dataset_Client(object):
         self.end = False
         self.test_set_name = test_set_name
 
+        self.external_dataset_states = []
         self.DRONE_INITIAL_POS = np.zeros([3])     
-
 
     def simPause(self, arg1, arg2):
         pass

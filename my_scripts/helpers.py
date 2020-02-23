@@ -559,7 +559,8 @@ def plot_human(bones_GT, predicted_bones, location, ind,  bone_connections, use_
 
     X = bones_GT[0,:]
     Y = bones_GT[1,:]
-    if test_set != "drone_flight" and test_set != "mpi_inf_3dhp":
+
+    if test_set != "drone_flight" and test_set != "mpi_inf_3dhp" and test_set != "cmu_panoptic_pose_1"  and test_set != "cmu_panoptic_dance_3":
         Z = -bones_GT[2,:]
         multip = -1
     else:
@@ -622,7 +623,7 @@ def plot_all_optimization_results(optimized_poses, poses_3d_gt, future_window_si
 
 
     multip = -1
-    if test_set == "drone_flight" or test_set == "mpi_inf_3dhp":
+    if test_set == "drone_flight" or test_set == "mpi_inf_3dhp" or test_set == "cmu_panoptic_pose_1"  or test_set == "cmu_panoptic_dance_3":
         multip = 1
 
     num_of_plots = optimized_poses.shape[0]
@@ -698,7 +699,8 @@ def plot_future_poses(poses, future_window_size, location, linecount, bone_conne
 
     X = poses[:future_window_size+1,0,:]
     Y = poses[:future_window_size+1,1,:]
-    if test_set != "drone_flight" and test_set != "mpi_inf_3dhp":
+
+    if test_set != "drone_flight" and test_set != "mpi_inf_3dhp" and test_set != "cmu_panoptic_pose_1"  and test_set != "cmu_panoptic_dance_3":
         Z = -poses[:future_window_size, 2,:]
         multip = -1
     else:
@@ -842,7 +844,7 @@ def plot_drone_traj(pose_client, plot_loc, ind, test_set):
     predicted_bones = last_frame_plot_info["est"]
     bones_GT = last_frame_plot_info["GT"]
 
-    if test_set == "drone_flight" or test_set == "mpi_inf_3dhp":
+    if test_set == "drone_flight" or test_set == "mpi_inf_3dhp" or test_set == "cmu_panoptic_pose_1"  or test_set == "cmu_panoptic_dance_3":
         multip = 1
     else:
         multip = -1

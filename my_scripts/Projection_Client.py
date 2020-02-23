@@ -17,34 +17,16 @@ class Projection_Client(object):
         self.intrinsics = intrinsics
         self.num_of_joints = num_of_joints
 
-        if self.test_set != "mpi_inf_3dhp":
-            focal_length = intrinsics["f"]
-            px = intrinsics["px"]
-            py = intrinsics["py"]
-            self.size_x, self.size_y = intrinsics["size_x"], intrinsics["size_y"]
-
-            self.K_torch = (torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])).to(self.device)
+        self.size_x, self.size_y = intrinsics["size_x"], intrinsics["size_y"]
+        self.K_torch = intrinsics["K_torch"].to(self.device)
+        if self.K_torch.dim() == 2:
             self.K_inv_torch = torch.inverse(self.K_torch)
-        else:
-            self.K_torch = torch.zeros([len(intrinsics), 3, 3]).to(self.device)
-            self.K_inv_torch = torch.zeros([len(intrinsics), 3, 3]).to(self.device)
+        elif self.K_torch.dim() == 3:
+            self.K_inv_torch = torch.zeros(self.K_torch.shape)
+            for i in range(self.K_torch.shape[0]):
+                self.K_inv_torch[i,:,:] = torch.inverse(self.K_torch[i,:,:])
 
-            for cam_index in range(len(intrinsics)):
-                cam_intrinsics = intrinsics[cam_index]
-                focal_length = cam_intrinsics["f"]
-                px = cam_intrinsics["px"]
-                py = cam_intrinsics["py"]
-                self.size_x, self.size_y = cam_intrinsics["size_x"], cam_intrinsics["size_y"]
-                self.K_torch[cam_index, :, :] = torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])
-                self.K_inv_torch[cam_index, :, :] = torch.inverse(self.K_torch[cam_index, :, :])
-        
-
-        if self.test_set == "drone_flight" :
-            self.flip_x_y_single = torch.eye(3).to(self.device)
-        elif self.test_set == "mpi_inf_3dhp":
-            self.flip_x_y_single = torch.eye(3).to(self.device)
-        else:
-            self.flip_x_y_single = torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]]).to(self.device)
+        self.flip_x_y_single = intrinsics["flip_x_y"].to(self.device)
         self.flip_x_y_single_inv = torch.inverse(self.flip_x_y_single)
         self.flip_x_y_pre = torch.cat((self.flip_x_y_single, torch.zeros(3,1).to(self.device)), dim=1)
         self.flip_x_y_pre_inv = torch.cat((self.flip_x_y_single_inv, torch.zeros(3,1).to(self.device)), dim=1)
@@ -72,7 +54,7 @@ class Projection_Client(object):
         self.ones_tensor = torch.ones(self.window_size, 1, self.num_of_joints).to(self.device)
         self.flip_x_y_batch = self.flip_x_y_pre.repeat(self.window_size , 1, 1)
         
-        if self.test_set != "mpi_inf_3dhp":
+        if self.K_torch.dim() == 2:
             self.camera_intrinsics = self.K_torch.repeat(self.window_size , 1,1)
         else:
             self.camera_intrinsics =  self.K_torch[cam_list, :, :]
@@ -103,7 +85,7 @@ class Projection_Client(object):
         self.ones_tensor = torch.ones(self.hessian_size, 1, self.num_of_joints).to(self.device)*1.0
         self.flip_x_y_batch = self.flip_x_y_pre.repeat(self.hessian_size , 1, 1)
 
-        if self.test_set != "mpi_inf_3dhp":
+        if self.K_torch.dim() == 2:
             self.camera_intrinsics = self.K_torch.repeat(self.hessian_size , 1,1)
         else:
             self.camera_intrinsics = self.K_torch[cam_list, :, :]
@@ -116,7 +98,7 @@ class Projection_Client(object):
         return self.take_batch_projection(pose_3d, self.inverse_transformation_matrix, self.ones_tensor, self.camera_intrinsics, self.flip_x_y_batch)
 
     def take_single_projection(self, P_world, inv_transformation_matrix, cam_index):
-        if self.test_set != "mpi_inf_3dhp":
+        if self.K_torch.dim() == 2:
             camera_intrinsics = self.K_torch
         else:
             camera_intrinsics = self.K_torch[cam_index, :, :]
@@ -145,7 +127,7 @@ class Projection_Client(object):
         return result
 
     def take_single_backprojection(self, pose_2d, transformation_matrix, joint_names, cam_index=0):
-        if self.test_set != "mpi_inf_3dhp":
+        if self.K_torch.dim() == 2:
             camera_intrinsics_inv = self.K_inv_torch
             focal_length = self.intrinsics["f"]
         else:
