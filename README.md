@@ -10,4 +10,4 @@ You can cite the paper as:
   year = {2020}
 }
 
-Details on the set-up and the publicly available code is coming soon!~
+Details on the set-up and the publicly available code is coming soon!
