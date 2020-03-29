@@ -3,7 +3,8 @@ The code for the CVPR 2020 paper "ActiveMoCap: Optimized Viewpoint Selection for
 
 You can cite the paper as: 
 
-`@inproceedings{kiciroglu2020active,
+`
+@inproceedings{kiciroglu2020active,
 
   author = {Kiciroglu, Sena and Rhodin, Helge and Sinha, Sudipta and Salzmann, Mathieu and Fua, Pascal},
   
