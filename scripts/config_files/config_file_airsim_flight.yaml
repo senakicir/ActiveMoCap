@@ -1,0 +1,132 @@
+parameters:
+
+    simulation_output_path: "/Users/kicirogl/Documents/simulation/simulation_results/experiments_"
+    test_sets_path: "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
+
+    # SIMULATION_MODE = "use_airsim", "saved_simulation"
+    SIMULATION_MODE: "use_airsim"
+
+    # LOOP_MODE = 0-flight_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
+    LOOP_MODE: "flight_simulation"
+    # CALIBRATION_MODE
+    CALIBRATION_MODE: False
+
+    #about toy example mode
+    FIND_BEST_TRAJ: False
+    NUM_OF_NOISE_TRIALS: 3
+
+    LENGTH_OF_SIMULATION: 120
+
+    #test: ["02_01", "38_03", "05_08", "mpi_inf_3dhp"] 
+    #validation set: ["06_13", "13_06", "28_19"]
+    ANIMATION_LIST: ["02_01", "38_03", "05_08"] 
+    TRAJECTORY_LIST: ["active","constant_rotation", "random", "constant_angle"]
+    SEED_LIST: [5,41,3,10,12]
+    EXPERIMENT_NAME: ""
+
+
+energy_parameters:
+    #lift_method: "simple", "complex"
+    LIFT_METHOD: "simple"
+    #bone_len_method: "no_sqrt", "sqrt"
+    BONE_LEN_METHOD: "sqrt"
+    #smoothness_mode: 0-velocity, 1-position, 2-all_connected, 3-only_velo_connected, 4-none
+    SMOOTHNESS_MODE: "position"
+    #projection_method: normal, normalized"
+    PROJECTION_METHOD: "normalized"
+
+    ESTIMATION_WINDOW_SIZE: 6
+    FUTURE_WINDOW_SIZE: 3
+    PREDEFINED_MOTION_MODE_LENGTH: 0
+
+    CALIBRATION_WINDOW_SIZE: 100
+
+    QUIET: False
+
+    #mode_3d: 0- gt, 1- naiveback, 3-scipy
+    #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose
+    #mode_lift: 0- gt, 1- gt_with_noise, 2-lift
+    #bone_len: 0-gt, 1- calib_res
+    MODES: 
+        mode_3d: "scipy"
+        mode_2d: "gt_with_noise"
+        mode_lift: "gt_with_noise"
+        bone_len: "calib_res"
+        mode_future: "scipy"
+
+    MODEL: "mpi"
+    METHOD: "trf"
+    FTOL: 0.0001
+    XTOL: 0.00000001
+     
+    WEIGHTS_CALIB: 
+        proj: 0.8
+        sym: 0.2
+
+    WEIGHTS: 
+        proj: 0.0001
+        smooth: 1
+        bone: 1
+        lift: 0.1
+
+    WEIGHTS_FUTURE:
+        proj: 0.001
+        smooth: 1
+        bone: 1
+        lift: 1
+
+    #init_pose_mode: "gt", "zeros", "backproj", "gt_with_noise", "initial_optimization"
+    INIT_POSE_MODE: "initial_optimization"
+    NOISE_3D_INIT_STD: 0.2
+
+    USE_SYMMETRY_TERM: True
+    NUMBER_OF_TRAJ_PARAM: 5
+
+    #modes: 0- "constant", "adaptive"
+    RECONSTRUCTION_ENERGY: "constant"
+    UNCERTAIN_ENERGY: "constant"
+
+    USE_LIFT_TERM: True
+    USE_BONE_TERM: True
+
+
+active_parameters:
+    #hessian_part: 0-future, 1-middle, 2-whole
+    HESSIAN_PART: "whole"
+    #uncertainty_calc_method: 0-sum_eig 1-add_diag 2-multip_eig 3-determinant 4-max_eig 5-root_six
+    UNCERTAINTY_CALC_METHOD: "sum_eig"
+    #Minnmax: "use_min", "use_max"
+    MINMAX: use_min
+    #USE_HESSIAN_MODE: "whole" "partial"
+    USE_HESSIAN_MODE: "whole"
+
+    #velocity, position
+    MOVEMENT_MODE: "velocity"
+    
+    LOOKAHEAD: 0.8
+    DONT_FLY_INFRONT: False
+    DRONE_POS_JITTER_NOISE_STD: 0.2
+
+    SAFE_RADIUS: 7
+
+    UPPER_LIM: -4
+    LOWER_LIM: -0.25
+    UPDOWN_LIM: [-4, -0.25]
+    WOBBLE_FREQ: 0.5
+    Z_POS: -2.5
+
+    #active_sampling = "ellipse", "uniform"
+    ACTIVE_SAMPLING_MODE: "uniform"
+
+    #True False
+    PREDICT_ACCURATE: True
+    # PRIMARY_ROTATION_DIR: "r", "l"
+    PRIMARY_ROTATION_DIR: "r"
+    TOP_SPEED: 4
+    DELTA_T: 0.2
+    DIRECTION_DISTANCE: 3
+
+    ACC_MAX: 
+        'x_y': 3.1 
+        'z': 1.3
+    ACC_ALPHA: 0.9
