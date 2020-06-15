@@ -36,7 +36,9 @@ class VehicleClient:
         focal_length = SIZE_X/2
         px = SIZE_X/2
         py = SIZE_Y/2
-        self.intrinsics = {"f":focal_length, "px":px, "py":py, "size_x":SIZE_X, "size_y":SIZE_Y}
+        flip_x_y = torch.FloatTensor([[0,1,0],[-1,0,0],[0,0,1]])
+        K_torch =  torch.FloatTensor([[focal_length,0,px],[0,focal_length,py],[0,0,1]])
+        self.intrinsics = {"f":focal_length,"size_x":SIZE_X, "size_y":SIZE_Y, "K_torch": K_torch, "flip_x_y": flip_x_y}
         
     # -----------------------------------  Common vehicle APIs ---------------------------------------------
     def reset(self):
