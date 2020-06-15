@@ -753,12 +753,7 @@ class PotentialStatesFetcher(object):
         for potential_trajectory in self.potential_trajectory_list:
             self.objective.reset_hessian(pose_client, potential_trajectory, self.use_hessian_mode)
             file_manager.record_projection_est_values(pose_client.potential_projected_est, online_linecount)
-
-            if pose_client.USE_TRAJECTORY_BASIS:
-                hess2 = self.objective.hessian(pose_client.optimized_traj, self.use_hessian_mode)
-            else:
-                hess2 = self.objective.hessian(pose_client.optimized_poses, self.use_hessian_mode)
-
+            hess2 = self.objective.hessian(pose_client.optimized_poses, self.use_hessian_mode)
             potential_trajectory.set_cov(hess2, pose_client.IMMEDIATE_FUTURE_POSE_INDEX, pose_client.MIDDLE_POSE_INDEX, self.number_of_joints)
             
     def find_best_potential_state(self):

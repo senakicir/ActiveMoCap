@@ -23,7 +23,7 @@ if __name__ == "__main__":
         port_num = sys.argv[1]
 
     #specify which yaml file to use here
-    with open("config_files/config_file_mpi.yaml", 'r') as ymlfile:
+    with open("config_files/config_file_teleport.yaml", 'r') as ymlfile:
         cfg = yaml.load(ymlfile)
 
     parameters = cfg["parameters"]
@@ -80,7 +80,7 @@ if __name__ == "__main__":
                 parameters["SEED"] = seed
                 parameters["EXPERIMENT_NUMBER"] = ind
                 parameters["EXPERIMENT_NAME"] = str(animation) + "_" + str(ind)
-                ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error = run_simulation(kalman_arguments, parameters, energy_parameters, active_parameters)
+                ave_current_error, ave_middle_error, ave_pastmost_error, ave_overall_error = run_simulation(parameters, energy_parameters, active_parameters)
                 many_runs_current.append(ave_current_error)
                 many_runs_middle.append(ave_middle_error)
                 many_runs_pastmost.append(ave_pastmost_error)

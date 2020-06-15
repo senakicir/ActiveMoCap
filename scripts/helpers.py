@@ -1,9 +1,7 @@
 import setup_path 
 import airsim
-import my_scripts
 
 import shutil
-import skimage.io
 import numpy as np
 import torch as torch
 from pandas import read_csv

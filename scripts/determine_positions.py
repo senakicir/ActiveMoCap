@@ -14,9 +14,9 @@ from Lift_Client import calculate_bone_directions, calculate_bone_directions_sim
 from yolo_helper import find_single_person_bbox
 from crop import find_ave_person_size
 
-import openpose as openpose_module
-import liftnet as liftnet_module
-import darknet as darknet_module
+# import openpose as openpose_module
+# import liftnet as liftnet_module
+# import darknet as darknet_module
 
 objective_online = pose3d_online_parallel_wrapper()
 objective_calib = pose3d_calibration_parallel_wrapper()
