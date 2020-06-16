@@ -57,7 +57,6 @@ class VehicleClient:
         self.linecount += 1
         if not is_calibrating_energy:
             self.online_linecount += 1
-        print('linecount:', self.linecount, ', online linecount:', self.online_linecount)
 
     def ping(self):
         return self.client.call('ping')
