@@ -63,9 +63,9 @@ Instructions on how to set-up the flight mode experiment coming soon!
 
 We make use of the following in our pipeline:
 
-* Openpose: https://github.com/CMU-Perceptual-Computing-Lab/openpose 
-* Yolo: 
-* Liftnet:
-* AirSim:
+* [Openpose] (https://github.com/CMU-Perceptual-Computing-Lab/openpose)
+* [Yolo] (https://pjreddie.com/darknet/yolo/) 
+* [Liftnet] ()
+* [AirSim] (https://github.com/microsoft/AirSim)
 
 We use the dataset [MPI_INF_3DHP] (http://gvv.mpi-inf.mpg.de/3dhp-dataset/), and the motions from the [CMU Graphics Lab Motion Capture Database](http://mocap.cs.cmu.edu)
