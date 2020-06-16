@@ -1,9 +1,12 @@
-from helpers import * 
+from scipy.optimize._numdiff import approx_derivative, group_columns
+from torch.autograd import grad
+import numpy as np
+import torch
+import time
+
 from Projection_Client import Projection_Client
 import pose3d_optimizer as pytorch_optimizer 
-from scipy.optimize._numdiff import approx_derivative, group_columns
 from Lift_Client import Lift_Client, calculate_bone_directions, calculate_bone_directions_simple
-from torch.autograd import grad
 
 def find_residuals(input_1, input_2):
     return (np.square((input_1 - input_2))).ravel()
@@ -182,8 +185,5 @@ class pose3d_online_parallel_wrapper():
             result_shape = self.result_shape
         elif use_hessian_mode == "partial":
             result_shape = [self.ESTIMATION_WINDOW_SIZE, 3, self.num_of_joints]
-        start1=time.time()
         hessian = fun_hessian(self.pytorch_objective, x, result_shape, self.device, self.ESTIMATION_WINDOW_SIZE, use_hessian_mode)
-        end1=time.time()
-        print("Time it takes to compute hessian", end1-start1, "seconds")
         return hessian

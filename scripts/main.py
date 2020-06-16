@@ -4,13 +4,14 @@ os.environ["NUMEXPR_NUM_THREADS"] = "8"
 os.environ["OMP_NUM_THREADS"] = "8" 
 
 from run import run_simulation
-from helpers import reset_all_folders, fill_notes, append_error_notes
+from file_manager import reset_all_folders, fill_notes, append_error_notes
 from math import radians
 import numpy as np
 import torch as torch
 torch.set_num_threads(8)
 
-import time, os
+import time as time
+import os
 import yaml
 import sys 
 
@@ -19,12 +20,13 @@ if __name__ == "__main__":
     # if you want to run multiple simulators on different ports, then you need to specify the port_num
     # this needs to match with the port_num you specify in the AirSim settings
     port_num = 45415
-    if (len(sys.argv)>1):
-        port_num = sys.argv[1]
+    config_file_name = sys.argv[1]
+    if (len(sys.argv)>2):
+        port_num = sys.argv[2]
 
     #specify which yaml file to use here
-    with open("config_files/config_file_teleport.yaml", 'r') as ymlfile:
-        cfg = yaml.load(ymlfile)
+    with open("config_files/"+config_file_name+".yaml", 'r') as ymlfile:
+        cfg = yaml.load(ymlfile, Loader=yaml.FullLoader)
 
     parameters = cfg["parameters"]
     active_parameters =  cfg["active_parameters"]

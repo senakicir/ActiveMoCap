@@ -1,3 +1,10 @@
+"""
+    A casual reader probably won't have to concern themselves with this file, as it was used to 
+    measure the drone movement in the simulator. The drone either moved in a random new direction, or 
+    kept moving in the same direction with some probability. We measured the location where it ended up
+    after these commands, and using there results, found the flight model of the drone. 
+"""
+
 import numpy as np
 
 def generate_new_goal_pos_random(curr_pos, current_direction, distance, choose_sth_random=False):

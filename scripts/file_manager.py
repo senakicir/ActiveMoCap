@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
-
+import time as time
 
 def get_bone_len_file_name(modes):
     return "/bone_len_mode2d_" + modes["mode_2d"]  + "__modelift_" + modes["mode_lift"] + ".txt"
@@ -357,7 +357,7 @@ class FileManager(object):
             f_error_str += str(error_value) + '\t'
         self.f_error.write(str(linecount)+ '\t' + f_error_str + '\n')
 
-    def record_toy_example_results(self, linecount, potential_trajectory_list, uncertainty_dict, goal_trajectory):
+    def record_teleportation_mode_results(self, linecount, potential_trajectory_list, uncertainty_dict, goal_trajectory):
         ## Traj i: a-b-c-d , uncertainty:x
         ## ...
         ## Chosen traj: x
@@ -404,3 +404,89 @@ class FileManager(object):
 
     def write_hessians(self, hessians, linecount):
         pass
+
+#######
+
+def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc, test_sets_loc):
+    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
+    main_folder_name =  base_save_loc + '/' + date_time_name
+
+    while os.path.exists(main_folder_name):
+        main_folder_name += "_b_"
+        if not os.path.exists(main_folder_name):
+            os.makedirs(main_folder_name)  
+            break
+
+    if not os.path.exists(base_save_loc):
+        os.makedirs(base_save_loc)          
+    
+    folder_names = {}
+    file_names = {}
+    file_names["main_folder"] = base_save_loc
+    file_names["saved_vals_loc"] = saved_vals_loc
+    file_names["test_sets_loc"] = test_sets_loc
+
+    for animation in animation_list:
+        sub_folder_name = main_folder_name + "/" + str(animation)
+        for ind, seed in enumerate(seed_list):
+            experiment_folder_name = sub_folder_name + "/" + str(ind)
+            if not os.path.exists(experiment_folder_name):
+                os.makedirs(experiment_folder_name)
+            key = str(animation) + "_" + str(ind)
+            folder_names[key] = {"images": experiment_folder_name + '/images', "estimates": experiment_folder_name + '/estimates', "superimposed_images":  experiment_folder_name + '/superimposed_images'}
+            for a_folder_name in folder_names[key].values():
+                if not os.path.exists(a_folder_name):
+                    os.makedirs(a_folder_name)
+            file_names[key] = {"f_error": experiment_folder_name +  '/error.txt', 
+                "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', 
+                "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', 
+                "f_uncertainty": experiment_folder_name +  '/uncertainty.txt',
+                "f_average_error" : experiment_folder_name + '/average_error.txt',
+                "f_correlations" : experiment_folder_name + '/correlations.txt',
+                "f_drone_pos": experiment_folder_name +  '/drone_pos.txt', 
+                "f_initial_drone_pos": experiment_folder_name +  '/initial_drone_pos.txt', 
+                "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', 
+                "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  
+                "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt',
+                "f_liftnet_results": experiment_folder_name +  '/liftnet_results.txt',
+                "f_openpose_results": experiment_folder_name +  '/openpose_results.txt',
+                "f_projection_est": experiment_folder_name +  '/future_pose_2d_estimate.txt',
+                "f_trajectory_list": experiment_folder_name +  '/trajectory_list.txt',
+                "f_yolo_res": experiment_folder_name +  '/yolo_res.txt',
+                "f_distance": experiment_folder_name + '/distances.txt',
+                "f_oracle_errors": experiment_folder_name + '/oracle_errors.txt',
+                "f_chosen_traj": experiment_folder_name + '/f_chosen_traj.txt'}
+
+    f_notes_name = main_folder_name + "/notes.txt"
+    return file_names, folder_names, f_notes_name, date_time_name
+
+def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
+    f_notes = open(f_notes_name, 'w')
+    notes_str = "General Parameters:\n"
+    for key, value in parameters.items():
+        if (key !=  "FILE_NAMES" and key != "FOLDER_NAMES"):
+            notes_str += str(key) + " : " + str(value)
+            notes_str += '\n'
+
+    notes_str += '\nEnergy Parameters:\n'
+    for key, value in energy_parameters.items():
+        notes_str += str(key) + " : " + str(value)
+        notes_str += '\n'
+
+    notes_str += '\nActive motion Parameters:\n'
+    for key, value in active_parameters.items():
+        notes_str += str(key) + " : " + str(value)
+        notes_str += '\n'
+
+    f_notes.write(notes_str)
+    f_notes.close()
+
+def append_error_notes(f_notes_name, animation, curr_err, mid_err, pastmost_err, overall_err):
+    f_notes = open(f_notes_name, 'a')
+    notes_str = "\n---\nResults for animation "+str(animation)+":\n"
+    notes_str += "current frame error: ave:" + str(np.mean(np.array(curr_err), axis=0)) + '\tstd:' + str(np.std(np.array(curr_err), axis=0)) +"\n"
+    notes_str += "mid frame error: ave:" + str(np.mean(np.array(mid_err), axis=0)) + '\tstd:' + str(np.std(np.array(mid_err), axis=0)) +"\n"
+    notes_str += "pastmost frame error: ave:" + str(np.mean(np.array(pastmost_err), axis=0)) + '\tstd:' + str(np.std(np.array(pastmost_err), axis=0)) +"\n"
+    notes_str += "overall frame error: ave:" + str(np.mean(np.array(overall_err), axis=0)) + '\tstd:' + str(np.std(np.array(overall_err), axis=0)) +"\n"
+    f_notes.write(notes_str)
+    f_notes.close()

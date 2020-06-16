@@ -6,8 +6,8 @@ parameters:
     # SIMULATION_MODE = "use_airsim", "saved_simulation"
     SIMULATION_MODE: "use_airsim"
 
-    # LOOP_MODE = 0-flight_simulation, 2-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
-    LOOP_MODE: "flight_simulation"
+    # LOOP_MODE = 0-flight_mode, 2-teleportation_mode, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
+    LOOP_MODE: "flight_mode"
     # CALIBRATION_MODE
     CALIBRATION_MODE: False
 
@@ -41,7 +41,7 @@ energy_parameters:
 
     CALIBRATION_WINDOW_SIZE: 100
 
-    QUIET: False
+    QUIET: True
 
     #mode_3d: 0- gt, 1- naiveback, 3-scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose

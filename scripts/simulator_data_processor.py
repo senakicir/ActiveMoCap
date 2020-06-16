@@ -2,7 +2,22 @@ import numpy as np
 import torch 
 import time, os
 import airsim
-from helpers import vector3r_arr_to_dict, rearrange_bones_to_mpi
+from pose_helper_functions import rearrange_bones_to_mpi
+from helpers import vector3r_arr_to_dict
+
+
+TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
+ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "05_11":6, "05_15":7, "06_09":8,"07_10": 9, 
+                 "07_05": 10, "64_11": 11, "64_22":12, "64_26":13, "13_06":14, "14_32":15,"06_13":16,"14_01":17, "28_19":18, 
+                 "noise":-1}
+
+CAMERA_OFFSET_X = 45/100
+CAMERA_OFFSET_Y = 0
+CAMERA_OFFSET_Z = 0
+CAMERA_ROLL_OFFSET = 0
+CAMERA_PITCH_OFFSET = 0
+CAMERA_YAW_OFFSET = 0
+
 
 def get_client_gt_values(airsim_client, pose_client, simulated_value_dict):
     """
@@ -143,3 +158,26 @@ def take_photo(airsim_client, pose_client, current_state, file_manager, viewpoin
     else:
         file_manager.update_photo_loc(linecount=airsim_client.get_photo_index(), viewpoint=viewpoint)
     return photo
+
+
+def rotation_matrix_to_euler(R) :
+    sy = sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
+    singular = sy < 1e-6
+    if  not singular :
+        x = atan2(R[2,1] , R[2,2])
+        y = atan2(-R[2,0], sy)
+        z = atan2(R[1,0], R[0,0])
+    else :
+        x = atan2(-R[1,2], R[1,1])
+        y = atan2(-R[2,0], sy)
+        z = 0
+    return np.array([x, y, z])
+
+def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=True):
+    if (returnTensor == True):
+        return torch.FloatTensor([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
+                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
+                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
+    return np.array([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
+                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
+                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])

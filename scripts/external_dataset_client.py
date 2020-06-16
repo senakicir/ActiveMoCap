@@ -63,8 +63,6 @@ class External_Dataset_Client(object):
         self.chosen_cam_index = 0
         self.end = False
 
-    
-
 
 class DummyPhotoResponse(object):
     def __init__(self):

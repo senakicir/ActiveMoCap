@@ -1,11 +1,12 @@
-import setup_path 
-import airsim
+"""
+These functions are mostly used for visualization purposes
+"""
 
 import shutil
 import numpy as np
 import torch as torch
 from pandas import read_csv
-
+from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos, ceil
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
@@ -14,117 +15,14 @@ import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 import time, os
 import cv2
-from math import degrees, radians, pi, ceil, exp, atan2, sqrt, cos, sin, acos, ceil
+from pose_helper_functions import split_bone_connections
 
-
-TEST_SETS = {"t": "test_set_t", "05_08": "test_set_05_08", "38_03": "test_set_38_03", "64_06": "test_set_64_06", "02_01": "test_set_02_01"}
-ANIM_TO_UNREAL = {"t": 0, "05_08": 1, "38_03": 2, "64_06": 3, "02_01": 4, "06_03":5, "05_11":6, "05_15":7, "06_09":8,"07_10": 9, 
-                 "07_05": 10, "64_11": 11, "64_22":12, "64_26":13, "13_06":14, "14_32":15,"06_13":16,"14_01":17, "28_19":18, 
-                 "noise":-1}
-
-bones_h36m = [[0, 1], [1, 2], [2, 3], [3, 19], #right leg
-              [0, 4], [4, 5], [5, 6], [6, 20], #left leg
-              [0, 7], [7, 8], [8, 9], [9, 10], #middle
-              [8, 14], [14, 15], [15, 16], [16, 17], #left arm
-              [8, 11], [11, 12], [12, 13], [13, 18]] #right arm
-
-joint_indices_h36m=list(range(20))
-joint_names_h36m = ['hip','right_up_leg','right_leg','right_foot','left_up_leg','left_leg', 'left_foot','spine1','neck', 'head', 'head_top', 'left_arm','left_forearm','left_hand','right_arm','right_forearm','right_hand', 'right_hand_tip', 'left_hand_tip', 'right_foot_tip', 'left_foot_tip']
-
-bones_mpi = [[0, 1], [14, 1], #middle
-            [1, 2], [2, 3], [3, 4], #right arm
-            [1, 5], [5, 6], [6, 7],  #left arm
-            [14, 8], [8, 9], [9, 10], #right leg
-            [14, 11], [11, 12], [12, 13]] #left leg
-joint_names_mpi = ['head','neck','right_arm','right_forearm','right_hand','left_arm', 'left_forearm','left_hand','right_up_leg','right_leg', 'right_foot', 'left_up_leg', 'left_leg', 'left_foot', 'spine1']
 
 EPSILON = 0.00000001
-
-CAMERA_OFFSET_X = 45/100
-CAMERA_OFFSET_Y = 0
-CAMERA_OFFSET_Z = 0
-CAMERA_ROLL_OFFSET = 0
-CAMERA_PITCH_OFFSET = 0
-CAMERA_YAW_OFFSET = 0
 
 
 plt.figure()
 plt.close()
-
-max_radii = 1
-
-def find_bone_map():
-    bones_map_to_mpi = []
-    for ind, value in enumerate(joint_names_mpi):
-        bones_map_to_mpi.append(joint_names_h36m.index(value))
-    return bones_map_to_mpi
-
-bones_map_to_mpi = find_bone_map()
-
-def rearrange_bones_to_mpi(bones_unarranged, is_torch = True):
-    if (is_torch):
-        bones_rearranged = torch.zeros(3, 15)
-        bones_rearranged = bones_unarranged[:, bones_map_to_mpi]
-    else:
-        bones_rearranged = np.zeros([3,15])
-        bones_rearranged = bones_unarranged[:, bones_map_to_mpi]
-    return bones_rearranged
-
-def split_bone_connections(bone_connections):
-    if (bone_connections == bones_h36m):
-        left_bone_connections = [[8, 14], [14, 15], [15, 16], [16, 17], [0, 4], [4, 5], [5, 6], [6, 20]]
-        right_bone_connections = [[8, 11], [11, 12], [12, 13], [13, 18], [0, 1], [1, 2], [2, 3], [3, 19]]
-        middle_bone_connections = [[0, 7], [7, 8], [8, 9], [9, 10]]
-    elif (bone_connections == bones_mpi):
-        left_bone_connections = [[1, 5], [5, 6], [6, 7],[14, 11], [11, 12], [12, 13]]
-        right_bone_connections = [[1, 2], [2, 3], [3, 4], [14, 8], [8, 9], [9, 10]]
-        middle_bone_connections = [[0, 1], [14, 1]]
-    return left_bone_connections, right_bone_connections, middle_bone_connections
-
-additional_directions = [[4, 10], [7,13], [3,9], [6, 12], [14,3], [14, 6]]
-lift_bone_directions = bones_mpi + additional_directions
-
-def return_lift_bone_connections(bone_connections):
-    if (bone_connections == bones_mpi):
-        return lift_bone_directions
-    elif (bone_connections == bones_h36m):
-        #todo
-        return lift_bone_directions
-
-def return_arm_connection(bone_connections):
-    if (bone_connections == bones_h36m):
-        left_arm_connections = [[8, 14], [14, 15], [15, 16], [16, 17]]
-        right_arm_connections = [[8, 11], [11, 12], [12, 13], [13, 18]]
-    elif (bone_connections == bones_mpi):
-        left_arm_connections = [[1, 5], [5, 6], [6, 7]]
-        right_arm_connections = [[1, 2], [2, 3], [3, 4]]
-    return right_arm_connections, left_arm_connections
-
-def return_arm_joints(model="mpi"):
-    if (model == "mpi"):
-        arm_joints = [5,6,7,2,3,4]
-        left_arm_joints = [5, 6, 7]
-        right_arm_joints = [2, 3, 4]
-    return arm_joints, right_arm_joints, left_arm_joints
-
-def return_leg_joints(model="mpi"):
-    if (model == "mpi"):
-        leg_joints = [11,12,13,8,9,10]
-        left_leg_joints = [11, 12, 13]
-        right_leg_joints = [8, 9, 10]
-    return leg_joints, right_leg_joints, left_leg_joints
-
-def model_settings(model):
-    if (model == "mpi"):
-        bone_connections = bones_mpi
-        joint_names = joint_names_mpi
-        num_of_joints = 15
-    else:
-        bone_connections = bones_h36m
-        joint_names = joint_names_h36m
-        num_of_joints = 21
-    return bone_connections, joint_names, num_of_joints
-
 
 def normalize_weights(weights_):    
     weights = {}
@@ -151,93 +49,6 @@ def save_bone_positions_2(index, bones, f_output):
         line = line+'\t'+str(bones[i][b'x_val'])+'\t'+str(bones[i][b'y_val'])+'\t'+str(bones[i][b'z_val'])
     line = line+'\n'
     f_output.write(line)
-
-def do_nothing(x):
-    pass
-
-def reset_all_folders(animation_list, seed_list, base_save_loc, saved_vals_loc, test_sets_loc):
-    date_time_name = time.strftime("%Y-%m-%d-%H-%M")
-    main_folder_name =  base_save_loc + '/' + date_time_name
-
-    while os.path.exists(main_folder_name):
-        main_folder_name += "_b_"
-        if not os.path.exists(main_folder_name):
-            os.makedirs(main_folder_name)  
-            break
-
-    if not os.path.exists(base_save_loc):
-        os.makedirs(base_save_loc)          
-    
-    folder_names = {}
-    file_names = {}
-    file_names["main_folder"] = base_save_loc
-    file_names["saved_vals_loc"] = saved_vals_loc
-    file_names["test_sets_loc"] = test_sets_loc
-
-    for animation in animation_list:
-        sub_folder_name = main_folder_name + "/" + str(animation)
-        for ind, seed in enumerate(seed_list):
-            experiment_folder_name = sub_folder_name + "/" + str(ind)
-            if not os.path.exists(experiment_folder_name):
-                os.makedirs(experiment_folder_name)
-            key = str(animation) + "_" + str(ind)
-            folder_names[key] = {"images": experiment_folder_name + '/images', "estimates": experiment_folder_name + '/estimates', "superimposed_images":  experiment_folder_name + '/superimposed_images'}
-            for a_folder_name in folder_names[key].values():
-                if not os.path.exists(a_folder_name):
-                    os.makedirs(a_folder_name)
-            file_names[key] = {"f_error": experiment_folder_name +  '/error.txt', 
-                "f_groundtruth": experiment_folder_name +  '/groundtruth.txt', 
-                "f_reconstruction": experiment_folder_name +  '/reconstruction.txt', 
-                "f_uncertainty": experiment_folder_name +  '/uncertainty.txt',
-                "f_average_error" : experiment_folder_name + '/average_error.txt',
-                "f_correlations" : experiment_folder_name + '/correlations.txt',
-                "f_drone_pos": experiment_folder_name +  '/drone_pos.txt', 
-                "f_initial_drone_pos": experiment_folder_name +  '/initial_drone_pos.txt', 
-                "f_openpose_error": experiment_folder_name +  '/openpose_error.txt', 
-                "f_openpose_arm_error": experiment_folder_name +  '/openpose_arm_error.txt',  
-                "f_openpose_leg_error": experiment_folder_name +  '/openpose_leg_error.txt',
-                "f_liftnet_results": experiment_folder_name +  '/liftnet_results.txt',
-                "f_openpose_results": experiment_folder_name +  '/openpose_results.txt',
-                "f_projection_est": experiment_folder_name +  '/future_pose_2d_estimate.txt',
-                "f_trajectory_list": experiment_folder_name +  '/trajectory_list.txt',
-                "f_yolo_res": experiment_folder_name +  '/yolo_res.txt',
-                "f_distance": experiment_folder_name + '/distances.txt',
-                "f_oracle_errors": experiment_folder_name + '/oracle_errors.txt',
-                "f_chosen_traj": experiment_folder_name + '/f_chosen_traj.txt'}
-
-    f_notes_name = main_folder_name + "/notes.txt"
-    return file_names, folder_names, f_notes_name, date_time_name
-
-def fill_notes(f_notes_name, parameters, energy_parameters, active_parameters):
-    f_notes = open(f_notes_name, 'w')
-    notes_str = "General Parameters:\n"
-    for key, value in parameters.items():
-        if (key !=  "FILE_NAMES" and key != "FOLDER_NAMES"):
-            notes_str += str(key) + " : " + str(value)
-            notes_str += '\n'
-
-    notes_str += '\nEnergy Parameters:\n'
-    for key, value in energy_parameters.items():
-        notes_str += str(key) + " : " + str(value)
-        notes_str += '\n'
-
-    notes_str += '\nActive motion Parameters:\n'
-    for key, value in active_parameters.items():
-        notes_str += str(key) + " : " + str(value)
-        notes_str += '\n'
-
-    f_notes.write(notes_str)
-    f_notes.close()
-
-def append_error_notes(f_notes_name, animation, curr_err, mid_err, pastmost_err, overall_err):
-    f_notes = open(f_notes_name, 'a')
-    notes_str = "\n---\nResults for animation "+str(animation)+":\n"
-    notes_str += "current frame error: ave:" + str(np.mean(np.array(curr_err), axis=0)) + '\tstd:' + str(np.std(np.array(curr_err), axis=0)) +"\n"
-    notes_str += "mid frame error: ave:" + str(np.mean(np.array(mid_err), axis=0)) + '\tstd:' + str(np.std(np.array(mid_err), axis=0)) +"\n"
-    notes_str += "pastmost frame error: ave:" + str(np.mean(np.array(pastmost_err), axis=0)) + '\tstd:' + str(np.std(np.array(pastmost_err), axis=0)) +"\n"
-    notes_str += "overall frame error: ave:" + str(np.mean(np.array(overall_err), axis=0)) + '\tstd:' + str(np.std(np.array(overall_err), axis=0)) +"\n"
-    f_notes.write(notes_str)
-    f_notes.close()
 
 def plot_error(gt_hp_arr, est_hp_arr, gt_hv_arr, est_hv_arr, errors, folder_name):
     #PLOT STUFF HERE AT THE END OF SIMULATION
@@ -913,9 +724,8 @@ def create_heatmap(kpt, grid_x, grid_y, stride=1, sigma=15):
 
 def matrix_to_ellipse(matrix, center):
     _, s, rotation = np.linalg.svd(matrix)
-    radii = 0.01*s/max_radii
+    radii = 0.01*s
 
-    # now carry on with EOL's answer
     u = np.linspace(0.0, 2.0 * np.pi, 100)
     v = np.linspace(0.0, np.pi, 100)
     x = radii[0] * np.outer(np.cos(u), np.sin(v))
@@ -1041,27 +851,6 @@ def plot_covariance_as_ellipse(pose_client, plot_loc, ind):
     plt.savefig(file_name, bbox_inches='tight', pad_inches=0)
     plt.close(fig)
 
-def rotation_matrix_to_euler(R) :
-    sy = sqrt(R[0,0] * R[0,0] +  R[1,0] * R[1,0])
-    singular = sy < 1e-6
-    if  not singular :
-        x = atan2(R[2,1] , R[2,2])
-        y = atan2(-R[2,0], sy)
-        z = atan2(R[1,0], R[0,0])
-    else :
-        x = atan2(-R[1,2], R[1,1])
-        y = atan2(-R[2,0], sy)
-        z = 0
-    return np.array([x, y, z])
-
-def euler_to_rotation_matrix(roll, pitch, yaw, returnTensor=True):
-    if (returnTensor == True):
-        return torch.FloatTensor([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
-                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
-                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
-    return np.array([[cos(yaw)*cos(pitch), cos(yaw)*sin(pitch)*sin(roll)-sin(yaw)*cos(roll), cos(yaw)*sin(pitch)*cos(roll)+sin(yaw)*sin(roll)],
-                    [sin(yaw)*cos(pitch), sin(yaw)*sin(pitch)*sin(roll)+cos(yaw)*cos(roll), sin(yaw)*sin(pitch)*cos(roll)-cos(yaw)*sin(roll)],
-                    [-sin(pitch), cos(pitch)*sin(roll), cos(pitch)*cos(roll)]])
 
 
 def plot_potential_states(current_human_pose, future_human_pose, gt_human_pose, potential_states, C_drone, R_drone, hip_index, plot_loc, ind):

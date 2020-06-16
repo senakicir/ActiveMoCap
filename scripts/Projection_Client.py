@@ -1,8 +1,10 @@
 import torch as torch
 from math import pi, cos, sin, degrees
 import numpy as np
-from helpers import euler_to_rotation_matrix, do_nothing, CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET, EPSILON
-from pose_helper_functions import add_noise_to_pose
+
+from helpers import EPSILON
+from simulator_data_processor import CAMERA_OFFSET_Y, CAMERA_OFFSET_Z, CAMERA_ROLL_OFFSET, CAMERA_PITCH_OFFSET, CAMERA_YAW_OFFSET
+from pose_helper_functions import add_noise_to_pose, euler_to_rotation_matrix
 
 
 neat_tensor = torch.FloatTensor([[0, 0, 0, 1]]) #this tensor is neat!

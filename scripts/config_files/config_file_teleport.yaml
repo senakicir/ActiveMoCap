@@ -1,13 +1,13 @@
 parameters:
 
-    simulation_output_path: "/Users/kicirogl/Documents/simulation/simulation_results/experiments_"
+    simulation_output_path: "/cvlabdata2/home/kicirogl/Documents/simulation/simulation_results/experiments_"
     test_sets_path: "/cvlabsrc1/home/kicirogl/ActiveDrone/test_sets"
 
     # SIMULATION_MODE = "use_airsim", "saved_simulation"
     SIMULATION_MODE: "saved_simulation"
 
-    # LOOP_MODE = 0-flight_simulation, 1-toy_example, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
-    LOOP_MODE: "toy_example"
+    # LOOP_MODE = 0-flight_mode, 1-teleportation_mode, 3-create_dataset, 4- save_gt_poses , 5-openpose_liftnet, 6-try_controller_control
+    LOOP_MODE: "teleportation_mode"
     # CALIBRATION_MODE
     CALIBRATION_MODE: False
 
@@ -20,6 +20,7 @@ parameters:
     #test: ["02_01", "38_03", "05_08", "mpi_inf_3dhp"] 
     #validation set: ["06_13", "13_06", "28_19"]
     ANIMATION_LIST: ["02_01", "38_03", "05_08", "mpi_inf_3dhp"] 
+    #oracle is also an option, but for this mode you should also set FIND_BEST_TRAJ to True
     TRAJECTORY_LIST: ["active","constant_rotation", "random", "constant_angle"]
     SEED_LIST: [5,41,3,10,12]
     EXPERIMENT_NAME: ""
@@ -40,7 +41,7 @@ energy_parameters:
 
     CALIBRATION_WINDOW_SIZE: 100
 
-    QUIET: False
+    QUIET: True
 
     #mode_3d: 0- gt, 1- naiveback, 3-scipy
     #mode_2d: 0- gt, 1- gt_with_noise, 2- openpose

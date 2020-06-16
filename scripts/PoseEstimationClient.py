@@ -1,12 +1,12 @@
-from helpers import *
 import pandas as pd
 import torch
 import numpy as np
+
 from crop import Basic_Crop
-from square_bounding_box import *
+from square_bounding_box import BoundingBox
 from Projection_Client import Projection_Client
 from Lift_Client import Lift_Client
-from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose
+from pose_helper_functions import calculate_bone_lengths, calculate_bone_lengths_sqrt, add_noise_to_pose, model_settings
 
 class PoseEstimationClient(object):
     def __init__(self, param, general_param, intrinsics):

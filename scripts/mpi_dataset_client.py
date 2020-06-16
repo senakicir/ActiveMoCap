@@ -105,5 +105,6 @@ class MPI_Dataset_Client(External_Dataset_Client):
         if pose_2d_mode != "openpose":
             states = self.external_dataset_states
         else:
+            ## the views from above are not estimated well in openpose
             states = self.external_dataset_states[0:11]
         return states
