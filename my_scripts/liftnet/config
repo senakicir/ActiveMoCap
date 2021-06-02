@@ -1,0 +1,47 @@
+[param]
+# Select model
+modelID = 1
+
+[models]
+
+[[1]]
+type = MPI
+description = 'MPI Model Boxing'
+module = model_1
+model = MPI_model.pth
+nbHM = 15
+nbJoints = 17
+indexHM = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+boxsize = 112
+marginBox = 0.1
+square = True
+pad = True
+padValue = 0
+
+[[2]]
+type = MPI
+description = 'MPI Model H36M'
+model = MPI_model_2.pth
+module = model_2
+nbHM = 15
+nbJoints = 17
+indexHM = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+boxsize = 112
+marginBox = 0.1
+square = True
+pad = True
+padValue = 0
+
+[[3]]
+type = MPI
+description = 'MPI Model H36M'
+model = MPI_model_3.pth
+module = model_2
+nbHM = 15
+nbJoints = 17
+indexHM = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14
+boxsize = 112
+marginBox = 0.1
+square = True
+pad = True
+padValue = 0

@@ -1,0 +1,36 @@
+[param]
+# Select model
+modelID = 2
+
+#starting_range = 0.8
+#ending_range = 2
+scale_search = 1#, 1.5, 2 # By what factor to scale the input image. The number of factors determine the number of times the image is passed to the model and the size of it
+thre1 = 0.1
+thre2 = 0.05
+thre3 = 0.5
+min_num = 4  # Minimum number of joints the person must have to be returned
+mid_num = 10  # Number of samples takes between to points to verify a limb was found
+crop_ratio = 2.5
+bbox_ratio = 0.25
+
+[models]
+
+[[1]]
+type = COCO
+description = 'COCO Model'
+model = COCO_pose_model.pth
+boxsize = 368
+padValue = 128
+np = 12
+stride = 8
+part_str = [nose, neck, Rsho, Relb, Rwri, Lsho, Lelb, Lwri, Rhip, Rkne, Rank, Lhip, Lkne, Lank, Leye, Reye, Lear, Rear, pt19]  # Order of the joints (for information purposes only)
+
+[[2]]
+type = MPI
+description = 'MPI Model Slow'
+model = MPI_pose_model.pth
+boxsize = 368
+padValue = 128
+np = 12
+stride = 8
+part_str = [head, neck, Rsho, Relb, Rwri, Lsho, Lelb, Lwri, Rhip, Rkne, Rank, Lhip, Lkne, Lank, spine, pt16]  # Order of the joints (for information purposes only)
